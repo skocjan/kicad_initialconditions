@@ -207,7 +207,25 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
                 aFormatter->Print( 0, "%s\n", (const char*) dir.c_str() );
         }
 
+        //TODO sk: add here simulation options
+        for( const auto& opt : m_simOptions )
+        {
+        	aFormatter->Print( 0, "%s\n", (const char*) opt.c_str() );
+        }
+
         // Finish with our custom simulation command
         aFormatter->Print( 0, "%s\n", (const char*) m_simCommand.c_str() );
     }
+}
+
+//TODO sk: Update directives
+// 1. Call method from base class
+// 2. Add those from dialog_sim_settings
+
+void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions(const struct PSPICE_SIM_OPTIONS& opt)
+{
+	const char optionCard[] = ".options ";
+
+	if (opt.m_flags & OPT_SIM_AC_NO_OPERATING_POINT)
+		m_simOptions.push_back(wxString(optionCard).Append("noopac"));
 }

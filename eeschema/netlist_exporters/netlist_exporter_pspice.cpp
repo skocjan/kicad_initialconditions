@@ -475,6 +475,9 @@ void NETLIST_EXPORTER_PSPICE::UpdateDirectives( unsigned aCtl )
             }
         }
     }
+
+    //TODO sk: update directives with additional simulation options
+    // nothing to do here
 }
 
 

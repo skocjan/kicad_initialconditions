@@ -426,6 +426,9 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
                 m_transInitial->SetValue( SPICE_VALUE( tkn ).ToSpiceString() );
         }
 
+        //TODO sk
+        //else if( tkn == ".option" )
+
         // Custom directives
         else if( !empty( m_customTxt ) )
         {
@@ -451,11 +454,14 @@ void DIALOG_SIM_SETTINGS::loadDirectives()
 
 void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 {
-    m_netlistOpts = NET_ALL_FLAGS;
+	m_option.m_flags = NET_ALL_FLAGS;
 
     if( !m_fixPassiveVals->IsChecked() )
-        m_netlistOpts &= ~NET_ADJUST_PASSIVE_VALS;
+    	m_option.m_flags &= ~NET_ADJUST_PASSIVE_VALS;
 
     if( !m_fixIncludePaths->IsChecked() )
-        m_netlistOpts &= ~NET_ADJUST_INCLUDE_PATHS;
+    	m_option.m_flags &= ~NET_ADJUST_INCLUDE_PATHS;
+
+    if( !m_skipOpAc->IsChecked() )
+    	m_option.m_flags &= ~OPT_SIM_AC_NO_OPERATING_POINT;
 }

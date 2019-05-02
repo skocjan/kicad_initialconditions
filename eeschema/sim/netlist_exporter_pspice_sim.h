@@ -28,6 +28,9 @@
 #define NETLIST_EXPORTER_PSPICE_SIM_H
 
 #include <netlist_exporters/netlist_exporter_pspice.h>
+//for struct with options
+#include <dialogs/dialog_sim_settings.h>
+
 #include <vector>
 
 #include "sim_types.h"
@@ -99,6 +102,19 @@ public:
     wxString GetUsedSimCommand();
 
     /**
+     * @brief Allows to inject additional simulation .options
+     */
+    void SetSimOptions(const struct PSPICE_SIM_OPTIONS&); //TODO sk implement
+
+    /**
+     * @brief Removes additional simulation .options
+     */
+    void ClearSimOptions()
+    {
+        m_simOptions.clear();
+    }
+
+    /**
      * @brief Returns simulation type basing on the simulation command directives.
      * Simulation directives set using SetSimCommand() have priority over the ones placed in
      * schematic sheets.
@@ -139,6 +155,9 @@ private:
 
     ///> Custom simulation command (has priority over the schematic sheet simulation commands)
     wxString m_simCommand;
+
+    ///> Directives with simulation options updated from simulation settings dialog
+    std::vector<wxString> m_simOptions;
 };
 
 #endif /* NETLIST_EXPORTER_PSPICE_SIM_H */

@@ -360,6 +360,10 @@ void SIM_PLOT_FRAME::StartSimulation()
     if( plotPanel )
         m_exporter->SetSimCommand( m_plots[plotPanel].m_simCommand );
 
+    //TODO sk
+    m_exporter->SetSimOptions( m_settingsDlg->GetSimOptions() );
+
+    //TODO sk simulation starts here
     if( !m_exporter->Format( &formatter, m_settingsDlg->GetNetlistOptions() ) )
     {
         DisplayError( this, _( "There were errors during netlist export, aborted." ) );

@@ -1,12 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2018)
+// C++ code generated with wxFormBuilder (version Apr  6 2019)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __DIALOG_SIM_SETTINGS_BASE_H__
-#define __DIALOG_SIM_SETTINGS_BASE_H__
+#pragma once
 
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
@@ -22,13 +21,14 @@
 #include <wx/textctrl.h>
 #include <wx/valtext.h>
 #include <wx/sizer.h>
+#include <wx/checkbox.h>
 #include <wx/panel.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
-#include <wx/checkbox.h>
 #include <wx/combobox.h>
 #include <wx/statbox.h>
+#include <wx/choice.h>
 #include <wx/button.h>
 #include <wx/notebook.h>
 #include <wx/dialog.h>
@@ -42,7 +42,7 @@
 class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 {
 	private:
-	
+
 	protected:
 		wxNotebook* m_simPages;
 		wxPanel* m_pgAC;
@@ -55,6 +55,7 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText3;
 		wxTextCtrl* m_acFreqStop;
 		wxStaticText* m_staticText110;
+		wxCheckBox* m_skipOpAc;
 		wxPanel* m_pgDC;
 		wxCheckBox* m_dcEnable1;
 		wxStaticText* m_staticText41;
@@ -111,27 +112,34 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText17;
 		wxTextCtrl* m_transInitial;
 		wxStaticText* m_staticText1513;
-		wxStaticText* m_staticText24;
+		wxStaticText* m_staticText241;
+		wxChoice* m_choice1;
 		wxPanel* m_pgCustom;
 		wxStaticText* m_staticText18;
 		wxTextCtrl* m_customTxt;
 		wxButton* m_loadDirectives;
+		wxStaticText* m_staticText32;
+		wxTextCtrl* m_absTol;
+		wxStaticText* m_staticText1101;
+		wxStaticText* m_staticText321;
+		wxTextCtrl* m_absTol1;
+		wxStaticText* m_staticText11011;
 		wxCheckBox* m_fixPassiveVals;
 		wxCheckBox* m_fixIncludePaths;
+		wxCheckBox* m_fixSaveCurrents;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
 		wxButton* m_sdbSizerCancel;
-		
+
 		// Virtual event handlers, overide them in your derived class
 		virtual void onInitDlg( wxInitDialogEvent& event ) { event.Skip(); }
 		virtual void onLoadDirectives( wxCommandEvent& event ) { event.Skip(); }
-		
-	
+
+
 	public:
-		
-		DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Simulation settings"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+
+		DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Simulation settings"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~DIALOG_SIM_SETTINGS_BASE();
-	
+
 };
 
-#endif //__DIALOG_SIM_SETTINGS_BASE_H__

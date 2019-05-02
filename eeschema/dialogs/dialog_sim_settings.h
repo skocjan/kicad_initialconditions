@@ -32,6 +32,12 @@
 
 class NETLIST_EXPORTER_PSPICE_SIM;
 
+struct PSPICE_SIM_OPTIONS
+{
+	int m_flags;
+	wxString m_absTol;
+};
+
 class DIALOG_SIM_SETTINGS : public DIALOG_SIM_SETTINGS_BASE
 {
 public:
@@ -54,8 +60,20 @@ public:
 
     int GetNetlistOptions() const
     {
-        return m_netlistOpts;
+        return m_option.m_flags;
     }
+
+    //TODO SK
+    /**
+     * @brief Returns list of spice ".options" directives
+     * @param none
+     * @return -
+     */
+    const struct PSPICE_SIM_OPTIONS& GetSimOptions() const
+    {
+    	return m_option;
+    }
+    //todo impl
 
     void SetNetlistExporter( NETLIST_EXPORTER_PSPICE_SIM* aExporter )
     {
@@ -128,7 +146,8 @@ private:
     void updateNetlistOpts();
 
     wxString m_simCommand;
-    int m_netlistOpts;
+    struct PSPICE_SIM_OPTIONS m_option;
+    //int m_netlistOpts; //TODO change to struct
     NETLIST_EXPORTER_PSPICE_SIM* m_exporter;
 
     SPICE_VALIDATOR m_spiceValidator;
