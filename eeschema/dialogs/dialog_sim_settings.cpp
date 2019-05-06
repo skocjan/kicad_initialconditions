@@ -62,6 +62,8 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_transStep->SetValidator( m_spiceValidator );
     m_transFinal->SetValidator( m_spiceValidator );
     m_transInitial->SetValidator( m_spiceEmptyValidator );
+    
+    m_absTol->SetValidator( m_spiceValidator );
 
     // Hide pages that aren't fully implemented yet
     // wxPanel::Hide() isn't enough on some platforms
@@ -73,7 +75,8 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_simPages->RemovePage( m_simPages->FindPage( m_pgTransferFunction ) );
 
     m_sdbSizerOK->SetDefault();
-    updateNetlistOpts();
+    //TODO sk should it be here?
+    //updateNetlistOpts();
 
 }
 
@@ -464,4 +467,7 @@ void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 
     if( !m_skipOpAc->IsChecked() )
     	m_option.m_flags &= ~OPT_SIM_AC_NO_OPERATING_POINT;
+
+    // here crash - value cannot be empty
+    m_option.m_absTol = SPICE_VALUE( m_absTol->GetValue() ).ToSpiceString();
 }

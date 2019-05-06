@@ -77,17 +77,17 @@ DIALOG_SIM_SETTINGS_BASE::DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID
 
 	bSizer3->Add( fgSizer1, 0, wxALIGN_CENTER_HORIZONTAL, 5 );
 
+	m_skipOpAc = new wxCheckBox( m_pgAC, wxID_ANY, _("Skip OP analysis"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer3->Add( m_skipOpAc, 0, wxALIGN_CENTER_HORIZONTAL, 5 );
+
 
 	bSizer3->Add( 0, 0, 1, wxEXPAND, 5 );
-
-	m_skipOpAc = new wxCheckBox( m_pgAC, wxID_ANY, _("Skip OP analysis"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer3->Add( m_skipOpAc, 0, wxALL|wxEXPAND, 5 );
 
 
 	m_pgAC->SetSizer( bSizer3 );
 	m_pgAC->Layout();
 	bSizer3->Fit( m_pgAC );
-	m_simPages->AddPage( m_pgAC, _("AC"), true );
+	m_simPages->AddPage( m_pgAC, _("AC"), false );
 	m_pgDC = new wxPanel( m_simPages, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizer4;
 	bSizer4 = new wxBoxSizer( wxVERTICAL );
@@ -426,7 +426,7 @@ DIALOG_SIM_SETTINGS_BASE::DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	m_pgTransient->SetSizer( bSizer81 );
 	m_pgTransient->Layout();
 	bSizer81->Fit( m_pgTransient );
-	m_simPages->AddPage( m_pgTransient, _("Transient"), false );
+	m_simPages->AddPage( m_pgTransient, _("Transient"), true );
 	m_pgCustom = new wxPanel( m_simPages, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizer2;
 	bSizer2 = new wxBoxSizer( wxVERTICAL );
@@ -460,10 +460,10 @@ DIALOG_SIM_SETTINGS_BASE::DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID
 	m_staticText32->Wrap( -1 );
 	fgSizer125->Add( m_staticText32, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 
-	m_absTol = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_absTol = new wxTextCtrl( this, wxID_ANY, _("1p"), wxDefaultPosition, wxDefaultSize, 0 );
 	fgSizer125->Add( m_absTol, 0, wxALL|wxEXPAND, 5 );
 
-	m_staticText1101 = new wxStaticText( this, wxID_ANY, _("Hertz"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText1101 = new wxStaticText( this, wxID_ANY, _("Amper"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText1101->Wrap( -1 );
 	fgSizer125->Add( m_staticText1101, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_LEFT, 5 );
 
@@ -486,7 +486,7 @@ DIALOG_SIM_SETTINGS_BASE::DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID
 
 	m_fixIncludePaths = new wxCheckBox( this, wxID_ANY, _("Add full path for .include library directives"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_fixIncludePaths->SetValue(true);
-	bSizer1->Add( m_fixIncludePaths, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	bSizer1->Add( m_fixIncludePaths, 0, wxALL, 5 );
 
 	m_fixSaveCurrents = new wxCheckBox( this, wxID_ANY, _("Save currents"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_fixSaveCurrents->SetValue(true);

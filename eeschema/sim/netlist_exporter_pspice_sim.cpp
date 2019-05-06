@@ -218,14 +218,12 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
     }
 }
 
-//TODO sk: Update directives
-// 1. Call method from base class
-// 2. Add those from dialog_sim_settings
-
 void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions(const struct PSPICE_SIM_OPTIONS& opt)
 {
 	const char optionCard[] = ".options ";
 
 	if (opt.m_flags & OPT_SIM_AC_NO_OPERATING_POINT)
 		m_simOptions.push_back(wxString(optionCard).Append("noopac"));
+
+	m_simOptions.push_back(wxString(optionCard)+wxString("abstol=")+wxString(opt.m_absTol));
 }
