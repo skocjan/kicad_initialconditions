@@ -113,7 +113,8 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 		wxTextCtrl* m_transInitial;
 		wxStaticText* m_staticText1513;
 		wxStaticText* m_staticText241;
-		wxChoice* m_choice1;
+		wxChoice* m_intgMethod;
+		wxCheckBox* m_UIC;
 		wxPanel* m_pgCustom;
 		wxStaticText* m_staticText18;
 		wxTextCtrl* m_customTxt;

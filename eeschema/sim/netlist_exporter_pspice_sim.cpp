@@ -220,10 +220,13 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
 
 void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions(const struct PSPICE_SIM_OPTIONS& opt)
 {
-	const char optionCard[] = ".options ";
+    const char optionCard[] = ".option ";
 
-	if (opt.m_flags & OPT_SIM_AC_NO_OPERATING_POINT)
-		m_simOptions.push_back(wxString(optionCard).Append("noopac"));
+    if (opt.m_flags & OPT_SIM_AC_NO_OPERATING_POINT)
+        m_simOptions.push_back(wxString(optionCard).Append("noopac"));
 
-	m_simOptions.push_back(wxString(optionCard)+wxString("abstol=")+wxString(opt.m_absTol));
+    m_simOptions.push_back(wxString(optionCard)+wxString("abstol=")+wxString(opt.m_absTol));
+
+    m_simOptions.push_back(wxString(optionCard)+("method=")
+        + wxString(opt.m_flags & OPT_SIM_TRAN_METHOD_GEAR ? "Gear" : "trapezoidal" ));
 }

@@ -37,7 +37,9 @@ enum SPICE_NETLIST_OPTIONS {
     NET_ADJUST_INCLUDE_PATHS      = 1 << 3,       // use full paths for included files (if they are in search path)
     NET_ADJUST_PASSIVE_VALS       = 1 << 4,       // reformat passive component values (e.g. 1M -> 1Meg)
 
-	OPT_SIM_AC_NO_OPERATING_POINT = 1 << 5,       // skip OP analysis before running AC analysis
+    OPT_SIM_AC_NO_OPERATING_POINT = 1 << 5,       // skip OP analysis before running AC analysis
+    OPT_SIM_TRAN_UIC              = 1 << 6,       // use initial conditions instead of OP analysis as starting point
+    OPT_SIM_TRAN_METHOD_GEAR      = 1 << 7,       // use Gear method for integration instead of trapezoidal
 
     NET_ALL_FLAGS = 0xffff
 };

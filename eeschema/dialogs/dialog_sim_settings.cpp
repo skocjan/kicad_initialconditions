@@ -86,6 +86,7 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
     if( !wxDialog::TransferDataFromWindow() )
         return false;
 
+    updateNetlistOpts();
     wxWindow* page = m_simPages->GetCurrentPage();
 
     // AC analysis
@@ -253,6 +254,11 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
             SPICE_VALUE( m_transStep->GetValue() ).ToSpiceString(),
             SPICE_VALUE( m_transFinal->GetValue() ).ToSpiceString(),
             initial );
+
+        if (m_option.m_flags & OPT_SIM_TRAN_UIC)
+        {
+            m_simCommand.Append(" UIC");
+        }
     }
 
 
@@ -268,7 +274,6 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
     }
 
     m_simCommand.Trim();
-    updateNetlistOpts();
 
     return true;
 }
@@ -457,17 +462,26 @@ void DIALOG_SIM_SETTINGS::loadDirectives()
 
 void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 {
-	m_option.m_flags = NET_ALL_FLAGS;
+    m_option.m_flags = NET_ALL_FLAGS;
+
+    // Global options
 
     if( !m_fixPassiveVals->IsChecked() )
-    	m_option.m_flags &= ~NET_ADJUST_PASSIVE_VALS;
+        m_option.m_flags &= ~NET_ADJUST_PASSIVE_VALS;
 
     if( !m_fixIncludePaths->IsChecked() )
-    	m_option.m_flags &= ~NET_ADJUST_INCLUDE_PATHS;
+        m_option.m_flags &= ~NET_ADJUST_INCLUDE_PATHS;
 
+    // AC
     if( !m_skipOpAc->IsChecked() )
-    	m_option.m_flags &= ~OPT_SIM_AC_NO_OPERATING_POINT;
+        m_option.m_flags &= ~OPT_SIM_AC_NO_OPERATING_POINT;
 
-    // here crash - value cannot be empty
     m_option.m_absTol = SPICE_VALUE( m_absTol->GetValue() ).ToSpiceString();
+
+    // Transient simulation options
+    if( !m_UIC->IsChecked() )
+        m_option.m_flags &= ~OPT_SIM_TRAN_UIC;
+
+    if( m_intgMethod->GetSelection() == 0 )
+        m_option.m_flags &= ~OPT_SIM_TRAN_METHOD_GEAR;
 }

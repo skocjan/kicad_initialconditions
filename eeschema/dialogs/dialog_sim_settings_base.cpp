@@ -408,13 +408,22 @@ DIALOG_SIM_SETTINGS_BASE::DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID
 
 	m_staticText241 = new wxStaticText( m_pgTransient, wxID_ANY, _("Method:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText241->Wrap( -1 );
-	fgSizer6->Add( m_staticText241, 0, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	fgSizer6->Add( m_staticText241, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 
-	wxString m_choice1Choices[] = { _("trapezoidal"), _("Gear") };
-	int m_choice1NChoices = sizeof( m_choice1Choices ) / sizeof( wxString );
-	m_choice1 = new wxChoice( m_pgTransient, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_choice1NChoices, m_choice1Choices, 0 );
-	m_choice1->SetSelection( 1 );
-	fgSizer6->Add( m_choice1, 0, wxALL, 5 );
+	wxString m_intgMethodChoices[] = { _("trapezoidal"), _("Gear") };
+	int m_intgMethodNChoices = sizeof( m_intgMethodChoices ) / sizeof( wxString );
+	m_intgMethod = new wxChoice( m_pgTransient, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_intgMethodNChoices, m_intgMethodChoices, 0 );
+	m_intgMethod->SetSelection( 0 );
+	fgSizer6->Add( m_intgMethod, 0, wxALL, 5 );
+
+
+	fgSizer6->Add( 0, 0, 1, wxEXPAND, 5 );
+
+
+	fgSizer6->Add( 0, 0, 1, wxEXPAND, 5 );
+
+	m_UIC = new wxCheckBox( m_pgTransient, wxID_ANY, _("Use initial conditions"), wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer6->Add( m_UIC, 0, wxALL, 5 );
 
 
 	bSizer81->Add( fgSizer6, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
