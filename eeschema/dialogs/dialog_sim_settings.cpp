@@ -435,7 +435,7 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
         }
 
         //TODO sk
-        //else if( tkn == ".option" )
+        //else if( tkn.StartsWith(".option") )
 
         // Custom directives
         else if( !empty( m_customTxt ) )
