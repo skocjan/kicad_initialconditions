@@ -92,7 +92,7 @@ wxString NETLIST_EXPORTER_PSPICE_SIM::GetSheetSimCommand()
 {
     wxString simCmd;
 
-    UpdateDirectives( NET_ALL_FLAGS );
+    UpdateDirectives( SPICE_OPTIONS_ALL_FLAGS );
 
     for( const auto& dir : GetDirectives() )
     {
@@ -207,7 +207,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
                 aFormatter->Print( 0, "%s\n", (const char*) dir.c_str() );
         }
 
-        //TODO sk: add here simulation options
+        // Add here simulation options
         for( const auto& opt : m_simOptions )
         {
         	aFormatter->Print( 0, "%s\n", (const char*) opt.c_str() );
@@ -218,15 +218,79 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
     }
 }
 
-void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions(const struct PSPICE_SIM_OPTIONS& opt)
+void NETLIST_EXPORTER_PSPICE_SIM::addNewOptionToList(const char* aOptionText, const wxString& aOptionValue)
 {
     const char optionCard[] = ".option ";
+    m_simOptions.push_back( wxString(optionCard) + wxString(aOptionText) + aOptionValue );
+}
 
-    if (opt.m_flags & OPT_SIM_AC_NO_OPERATING_POINT)
-        m_simOptions.push_back(wxString(optionCard).Append("noopac"));
+void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions( const struct PSPICE_SIM_OPTIONS& aOptions, bool aCustomCommand )
+{
+    ClearSimOptions();
 
-    m_simOptions.push_back(wxString(optionCard)+wxString("abstol=")+wxString(opt.m_absTol));
+    if( !aCustomCommand )
+    {
+        // Global options
+        addNewOptionToList( "temp=", aOptions.m_temp );
+        addNewOptionToList( "tnom=", aOptions.m_tnom );
 
-    m_simOptions.push_back(wxString(optionCard)+("method=")
-        + wxString(opt.m_flags & OPT_SIM_TRAN_METHOD_GEAR ? "Gear" : "trapezoidal" ));
+        //TODO does it work?
+        if( aOptions.m_flags & OPT_SIM_SAVE_CURRENTS )
+            addNewOptionToList( "", wxString( "savecurrents" ) );
+
+        switch( GetSimType() )
+        {
+        case ST_OP:
+        case ST_DC:
+        case ST_AC:
+        case ST_TRANSIENT:
+            // add some options affecting OP analysis (three other ones will be affected too)
+            addNewOptionToList( "abstol=", aOptions.m_absTol );
+            addNewOptionToList( "reltol=", aOptions.m_relTol );
+            addNewOptionToList( "vntol=",  aOptions.m_vnTol );
+
+            if( aOptions.m_flags & OPT_SIM_USE_RSHUNT )
+                addNewOptionToList( "rshunt=", aOptions.m_rShunt );
+
+            break;
+
+        case ST_UNKNOWN:
+        case ST_DISTORTION:
+        case ST_NOISE:
+        case ST_POLE_ZERO:
+        case ST_SENSITIVITY:
+        case ST_TRANS_FUNC:
+            //do nothing
+            break;
+        }
+
+        switch( GetSimType() )
+        {
+        case ST_AC:
+            if( aOptions.m_flags & OPT_SIM_AC_NO_OPERATING_POINT )
+                addNewOptionToList( "", wxString( "noopac" ) );
+            break;
+
+        case ST_TRANSIENT:
+            addNewOptionToList( "method=",
+                wxString( aOptions.m_flags & OPT_SIM_TRAN_METHOD_GEAR ? "Gear" : "trapezoidal" ));
+            addNewOptionToList( "chgtol=", aOptions.m_chgTol );
+
+            if( aOptions.m_flags & OPT_SIM_USE_TRTOL )
+                addNewOptionToList( "trtol=", aOptions.m_trTol );
+
+            break;
+        case ST_OP:
+        case ST_DC:
+            //they are already handled in previous switch
+        case ST_DISTORTION:
+        case ST_NOISE:
+        case ST_POLE_ZERO:
+        case ST_SENSITIVITY:
+        case ST_TRANS_FUNC:
+        case ST_UNKNOWN:
+            //do nothing
+            break;
+        }
+    }
 }

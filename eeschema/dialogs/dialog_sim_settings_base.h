@@ -81,6 +81,19 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText7;
 		wxTextCtrl* m_dcIncr2;
 		wxStaticText* m_staticText54;
+		wxStaticText* m_staticText32;
+		wxTextCtrl* m_absTol;
+		wxStaticText* m_staticText1101;
+		wxStaticText* m_staticText321;
+		wxTextCtrl* m_relTol;
+		wxStaticText* m_staticText11011;
+		wxStaticText* m_staticText3211;
+		wxTextCtrl* m_vnTol;
+		wxStaticText* m_staticText110111;
+		wxCheckBox* m_rShuntOn;
+		wxTextCtrl* m_rShunt;
+		wxStaticText* m_staticText1101111;
+		wxStaticText* m_staticText11011111;
 		wxPanel* m_pgDistortion;
 		wxPanel* m_pgNoise;
 		wxStaticText* m_staticText14;
@@ -115,16 +128,21 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText241;
 		wxChoice* m_intgMethod;
 		wxCheckBox* m_UIC;
+		wxStaticText* m_staticText15142;
+		wxTextCtrl* m_chgTol;
+		wxStaticText* m_staticText151111;
+		wxCheckBox* m_trTolOn;
+		wxTextCtrl* m_trTol;
 		wxPanel* m_pgCustom;
 		wxStaticText* m_staticText18;
 		wxTextCtrl* m_customTxt;
 		wxButton* m_loadDirectives;
-		wxStaticText* m_staticText32;
-		wxTextCtrl* m_absTol;
-		wxStaticText* m_staticText1101;
-		wxStaticText* m_staticText321;
-		wxTextCtrl* m_absTol1;
-		wxStaticText* m_staticText11011;
+		wxStaticText* m_tempText;
+		wxTextCtrl* m_temp;
+		wxStaticText* m_staticText11012;
+		wxStaticText* m_staticText3213;
+		wxTextCtrl* m_tnom;
+		wxStaticText* m_staticText110113;
 		wxCheckBox* m_fixPassiveVals;
 		wxCheckBox* m_fixIncludePaths;
 		wxCheckBox* m_fixSaveCurrents;
@@ -134,6 +152,8 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 
 		// Virtual event handlers, overide them in your derived class
 		virtual void onInitDlg( wxInitDialogEvent& event ) { event.Skip(); }
+		virtual void onRshuntCheck( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onTransientToleranceCheck( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onLoadDirectives( wxCommandEvent& event ) { event.Skip(); }
 
 

@@ -361,7 +361,7 @@ void SIM_PLOT_FRAME::StartSimulation()
         m_exporter->SetSimCommand( m_plots[plotPanel].m_simCommand );
 
     //TODO sk
-    m_exporter->SetSimOptions( m_settingsDlg->GetSimOptions() );
+    m_exporter->SetSimOptions( m_settingsDlg->GetSimOptions(), m_settingsDlg->IsSimCommandCustom() );
 
     //TODO sk simulation starts here
     if( !m_exporter->Format( &formatter, m_settingsDlg->GetNetlistOptions() ) )
@@ -1144,7 +1144,7 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
     // Initial processing is required to e.g. display a list of power sources
     updateNetlistExporter();
 
-    if( !m_exporter->ProcessNetlist( NET_ALL_FLAGS ) )
+    if( !m_exporter->ProcessNetlist( SPICE_OPTIONS_ALL_FLAGS ) )
     {
         DisplayError( this, _( "There were errors during netlist export, aborted." ) );
         return;

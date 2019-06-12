@@ -37,11 +37,18 @@ static bool empty( const wxTextEntryBase* aCtrl )
     return aCtrl->GetValue().IsEmpty();
 }
 
-
 DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     : DIALOG_SIM_SETTINGS_BASE( aParent ), m_exporter( nullptr ), m_spiceEmptyValidator( true )
 {
     m_posIntValidator.SetMin( 1 );
+
+    // we will accept temperatures from nearly absolute
+    // zero up to melting temperature of silicon
+    m_temperatureValidator.SetRange(-273.0, 1410.0);
+    m_temperatureValidator.SetPrecision(2);
+
+    m_temp->SetValidator( m_temperatureValidator );
+    m_tnom->SetValidator( m_temperatureValidator );
 
     m_acPointsNumber->SetValidator( m_posIntValidator );
     m_acFreqStart->SetValidator( m_spiceValidator );
@@ -64,6 +71,12 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_transInitial->SetValidator( m_spiceEmptyValidator );
     
     m_absTol->SetValidator( m_spiceValidator );
+    m_relTol->SetValidator( m_spiceValidator );
+    m_rShunt->SetValidator( m_spiceValidator );
+    m_vnTol->SetValidator( m_spiceValidator );
+
+    m_chgTol->SetValidator( m_spiceValidator );
+    m_trTol->SetValidator( m_posIntValidator );
 
     // Hide pages that aren't fully implemented yet
     // wxPanel::Hide() isn't enough on some platforms
@@ -75,9 +88,6 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_simPages->RemovePage( m_simPages->FindPage( m_pgTransferFunction ) );
 
     m_sdbSizerOK->SetDefault();
-    //TODO sk should it be here?
-    //updateNetlistOpts();
-
 }
 
 
@@ -88,6 +98,7 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
 
     updateNetlistOpts();
     wxWindow* page = m_simPages->GetCurrentPage();
+    m_customSimCommand = false;
 
     // AC analysis
     if( page == m_pgAC )
@@ -101,7 +112,6 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
             SPICE_VALUE( m_acFreqStart->GetValue() ).ToSpiceString(),
             SPICE_VALUE( m_acFreqStop->GetValue() ).ToSpiceString() );
     }
-
 
     // DC transfer analysis
     else if( page == m_pgDC )
@@ -266,6 +276,7 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
     else if( page == m_pgCustom )
     {
         m_simCommand = m_customTxt->GetValue();
+        m_customSimCommand = true;
     }
 
     else
@@ -281,14 +292,23 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
 
 bool DIALOG_SIM_SETTINGS::TransferDataToWindow()
 {
+    bool retVal;
     /// @todo one day it could interpret the sim command and fill out appropriate fields..
     if( empty( m_customTxt ) )
         loadDirectives();
 
     if( m_simCommand.IsEmpty() && !empty( m_customTxt ) )
-        return parseCommand( m_customTxt->GetValue() );
+        retVal = parseCommand( m_customTxt->GetValue() );
 
-    return true;
+    if ( retVal )
+    {
+        // make some controls grayed if necessary
+        disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
+        disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
+        return true;
+    }
+    else
+        return false;
 }
 
 
@@ -431,7 +451,23 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
             tkn = tokenizer.GetNextToken();
 
             if( !tkn.IsEmpty() )
-                m_transInitial->SetValue( SPICE_VALUE( tkn ).ToSpiceString() );
+            {
+                if( tkn == "uic" )
+                {
+                    m_UIC->SetValue( true );
+                }
+                else
+                {
+                    m_transInitial->SetValue( SPICE_VALUE( tkn ).ToSpiceString() );
+
+                    // UIC is also optional
+                    tkn = tokenizer.GetNextToken();
+                    if( tkn == "uic" )
+                    {
+                        m_UIC->SetValue( true );
+                    }
+                }
+            }
         }
 
         //TODO sk
@@ -459,18 +495,42 @@ void DIALOG_SIM_SETTINGS::loadDirectives()
         m_customTxt->SetValue( m_exporter->GetSheetSimCommand() );
 }
 
+void DIALOG_SIM_SETTINGS::disableCtrlOnCheckboxEvent( wxCheckBox* aCheckbox, wxWindow* aControl )
+{
+    if( aCheckbox->IsChecked() )
+        aControl->Enable();
+    else
+        aControl->Disable();
+}
 
 void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 {
-    m_option.m_flags = NET_ALL_FLAGS;
+    wxString tempString;
+    m_option.m_flags = SPICE_OPTIONS_ALL_FLAGS;
 
     // Global options
-
     if( !m_fixPassiveVals->IsChecked() )
         m_option.m_flags &= ~NET_ADJUST_PASSIVE_VALS;
 
     if( !m_fixIncludePaths->IsChecked() )
         m_option.m_flags &= ~NET_ADJUST_INCLUDE_PATHS;
+
+    tempString = m_temp->GetValue();
+    tempString.Replace( ",", "." );
+    m_option.m_temp = SPICE_VALUE( tempString ).ToSpiceString();
+    tempString = m_tnom->GetValue();
+    tempString.Replace( ",", "." );
+    m_option.m_tnom = SPICE_VALUE( tempString ).ToSpiceString();
+
+    //OP, DC
+    m_option.m_absTol = SPICE_VALUE( m_absTol->GetValue() ).ToSpiceString();
+    m_option.m_relTol = SPICE_VALUE( m_relTol->GetValue() ).ToSpiceString();
+    m_option.m_vnTol  = SPICE_VALUE( m_vnTol->GetValue()  ).ToSpiceString();
+
+    if( !m_rShuntOn->IsChecked() )
+        m_option.m_flags &= ~OPT_SIM_USE_RSHUNT;
+    else
+        m_option.m_rShunt = SPICE_VALUE( m_rShunt->GetValue() ).ToSpiceString();
 
     // AC
     if( !m_skipOpAc->IsChecked() )
@@ -484,4 +544,12 @@ void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 
     if( m_intgMethod->GetSelection() == 0 )
         m_option.m_flags &= ~OPT_SIM_TRAN_METHOD_GEAR;
+
+    m_option.m_chgTol = SPICE_VALUE( m_chgTol->GetValue() ).ToSpiceString();
+
+    if( !m_trTolOn->IsChecked() )
+        m_option.m_flags &= ~OPT_SIM_USE_TRTOL;
+    else
+        m_option.m_trTol = SPICE_VALUE( m_trTol->GetValue() ).ToSpiceString();
+
 }

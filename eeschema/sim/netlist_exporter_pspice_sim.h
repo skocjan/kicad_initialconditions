@@ -103,8 +103,11 @@ public:
 
     /**
      * @brief Allows to inject additional simulation .options
+     * @param aOptions data structure with simulation options
+     * @param aCustomCommand if true, it means that custom command defined by user is called
+     *        i.e. it is not derived from values entered in sim.settings dialog controls
      */
-    void SetSimOptions(const struct PSPICE_SIM_OPTIONS&); //TODO sk implement
+    void SetSimOptions( const struct PSPICE_SIM_OPTIONS& aOptions, bool aCustomCommand );
 
     /**
      * @brief Removes additional simulation .options
@@ -158,6 +161,11 @@ private:
 
     ///> Directives with simulation options updated from simulation settings dialog
     std::vector<wxString> m_simOptions;
+
+    /**
+     * @brief Adds new correctly formatted option directive to m_simOptions
+     */
+    void addNewOptionToList(const char* aOptionText, const wxString& aOptionValue);
 };
 
 #endif /* NETLIST_EXPORTER_PSPICE_SIM_H */

@@ -35,7 +35,14 @@ class NETLIST_EXPORTER_PSPICE_SIM;
 struct PSPICE_SIM_OPTIONS
 {
 	int m_flags;
-	wxString m_absTol;
+    wxString m_temp;
+    wxString m_tnom;
+    wxString m_absTol;
+    wxString m_relTol;
+    wxString m_rShunt;
+    wxString m_vnTol;
+    wxString m_chgTol;
+    wxString m_trTol;
 };
 
 class DIALOG_SIM_SETTINGS : public DIALOG_SIM_SETTINGS_BASE
@@ -56,6 +63,11 @@ public:
             m_simCommand = aCommand;
 
         return res;
+    }
+
+    bool IsSimCommandCustom() const
+    {
+        return m_customSimCommand;
     }
 
     int GetNetlistOptions() const
@@ -102,6 +114,16 @@ private:
         LINEAR
     };
 
+    virtual void onRshuntCheck( wxCommandEvent& event ) override
+    {
+        disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
+    }
+
+    virtual void onTransientToleranceCheck( wxCommandEvent& event ) override
+    {
+        disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
+    }
+
     virtual void onInitDlg( wxInitDialogEvent& event ) override
     {
         // Call the default wxDialog handler of a wxInitDialogEvent
@@ -143,16 +165,19 @@ private:
     }
 
     void loadDirectives();
+    void disableCtrlOnCheckboxEvent( wxCheckBox* aCheckbox, wxWindow* aControl );
     void updateNetlistOpts();
+    void checkboxEvtHandler(wxCommandEvent& event);
 
     wxString m_simCommand;
+    bool m_customSimCommand;
     struct PSPICE_SIM_OPTIONS m_option;
-    //int m_netlistOpts; //TODO change to struct
     NETLIST_EXPORTER_PSPICE_SIM* m_exporter;
 
     SPICE_VALIDATOR m_spiceValidator;
     SPICE_VALIDATOR m_spiceEmptyValidator;
     wxIntegerValidator<int> m_posIntValidator;
+    wxFloatingPointValidator<double> m_temperatureValidator;
 };
 
 #endif /* DIALOG_SIM_SETTINGS_BASE_H */

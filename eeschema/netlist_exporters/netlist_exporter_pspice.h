@@ -34,14 +34,21 @@ class PROJECT;
 
 /// Flags for Spice netlist generation (can be combined)
 enum SPICE_NETLIST_OPTIONS {
-    NET_ADJUST_INCLUDE_PATHS      = 1 << 3,       // use full paths for included files (if they are in search path)
-    NET_ADJUST_PASSIVE_VALS       = 1 << 4,       // reformat passive component values (e.g. 1M -> 1Meg)
+    NET_ADJUST_INCLUDE_PATHS      = 1 << 3, // use full paths for included files
+                                            //  (if they are in search path)
+    NET_ADJUST_PASSIVE_VALS       = 1 << 4, // reformat passive component values (e.g. 1M->1Meg)
 
-    OPT_SIM_AC_NO_OPERATING_POINT = 1 << 5,       // skip OP analysis before running AC analysis
-    OPT_SIM_TRAN_UIC              = 1 << 6,       // use initial conditions instead of OP analysis as starting point
-    OPT_SIM_TRAN_METHOD_GEAR      = 1 << 7,       // use Gear method for integration instead of trapezoidal
+    OPT_SIM_AC_NO_OPERATING_POINT = 1 << 5, // skip OP analysis before running AC analysis
+    OPT_SIM_TRAN_UIC              = 1 << 6, // use initial conditions instead of OP analysis
+                                            //  as starting point
+    OPT_SIM_TRAN_METHOD_GEAR      = 1 << 7, // use Gear method for integration
+                                            //  instead of trapezoidal
+    OPT_SIM_SAVE_CURRENTS         = 1 << 8, // save all currents
+    OPT_SIM_USE_RSHUNT            = 1 << 9, // lower stiffness of matrix by adding shunt resistor
+                                            //  from each node to ground
+    OPT_SIM_USE_TRTOL             = 1 << 10,// modify SPICE transient error tolerance
 
-    NET_ALL_FLAGS = 0xffff
+    SPICE_OPTIONS_ALL_FLAGS       = 0xffff
 };
 
 enum SPICE_FIELD {
