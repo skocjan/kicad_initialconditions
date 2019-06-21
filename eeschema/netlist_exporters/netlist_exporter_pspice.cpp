@@ -174,7 +174,7 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
     }
 
     // Print out all directives found in the text fields on the schematics
-    writeDirectives( aFormatter, aCtl );
+    writeDirectives( aFormatter );
 
     aFormatter->Print( 0, ".end\n" );
 
@@ -291,7 +291,7 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
     m_libraries.clear();
     m_ReferencesAlreadyFound.Clear();
 
-    UpdateDirectives( aCtl );
+    UpdateDirectives();
 
     for( unsigned sheet_idx = 0; sheet_idx < sheetList.size(); sheet_idx++ )
     {
@@ -385,8 +385,7 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
     return true;
 }
 
-
-void NETLIST_EXPORTER_PSPICE::UpdateDirectives( unsigned aCtl )
+void NETLIST_EXPORTER_PSPICE::UpdateDirectives()
 {
     const SCH_SHEET_LIST& sheetList = g_RootSheet;
     wxRegEx couplingK( "^[kK][[:digit:]]*[[:space:]]+[[:alnum:]]+[[:space:]]+[[:alnum:]]+",
@@ -475,13 +474,9 @@ void NETLIST_EXPORTER_PSPICE::UpdateDirectives( unsigned aCtl )
             }
         }
     }
-
-    //TODO sk: update directives with additional simulation options
-    // nothing to do here
 }
 
-
-void NETLIST_EXPORTER_PSPICE::writeDirectives( OUTPUTFORMATTER* aFormatter, unsigned aCtl ) const
+void NETLIST_EXPORTER_PSPICE::writeDirectives( OUTPUTFORMATTER* aFormatter ) const
 {
     for( auto& dir : m_directives )
     {

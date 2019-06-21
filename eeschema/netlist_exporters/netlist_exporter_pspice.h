@@ -210,7 +210,7 @@ public:
     /**
      * Updates the vector of Spice directives placed in the schematics.
      */
-    void UpdateDirectives( unsigned aCtl );
+    void UpdateDirectives();
 
     /**
      * @brief Returnss a vector of Spice directives found in the schematics.
@@ -238,7 +238,7 @@ protected:
     /**
      * @brief Saves the Spice directives.
      */
-    virtual void writeDirectives( OUTPUTFORMATTER* aFormatter, unsigned aCtl ) const;
+    virtual void writeDirectives( OUTPUTFORMATTER* aFormatter ) const;
 
 private:
     ///> Spice simulation title found in the processed schematic sheet

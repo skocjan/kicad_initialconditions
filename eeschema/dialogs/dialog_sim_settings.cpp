@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2016 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
+ * @author Sylwester Kocjan <s.kocjan@o2.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -86,6 +87,9 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_simPages->RemovePage( m_simPages->FindPage( m_pgPoleZero ) );
     m_simPages->RemovePage( m_simPages->FindPage( m_pgSensitivity ) );
     m_simPages->RemovePage( m_simPages->FindPage( m_pgTransferFunction ) );
+
+    disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
+    disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
 
     m_sdbSizerOK->SetDefault();
 }
@@ -406,7 +410,7 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
         {
             m_simPages->SetSelection( m_simPages->FindPage( m_pgDC ) );
 
-            tkn = tokenizer.GetNextToken();
+            tkn = tokenizer.GetNextToken().Lower();
 
             if( !tkn.IsEmpty() )
             {
@@ -420,7 +424,7 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
                         && !empty( m_dcStop1 ) && !empty( m_dcIncr1 ) );
             }
 
-            tkn = tokenizer.GetNextToken();
+            tkn = tokenizer.GetNextToken().Lower();
 
             if( !tkn.IsEmpty() )
             {
@@ -448,11 +452,11 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
             m_transFinal->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
 
             // Initial time is an optional field
-            tkn = tokenizer.GetNextToken();
+            tkn = tokenizer.GetNextToken().Lower();
 
             if( !tkn.IsEmpty() )
             {
-                if( tkn == "uic" )
+                if( tkn.Trim( true ) == "uic" )
                 {
                     m_UIC->SetValue( true );
                 }
@@ -461,8 +465,8 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
                     m_transInitial->SetValue( SPICE_VALUE( tkn ).ToSpiceString() );
 
                     // UIC is also optional
-                    tkn = tokenizer.GetNextToken();
-                    if( tkn == "uic" )
+                    tkn = tokenizer.GetNextToken().Lower();
+                    if( tkn.Trim( true ) == "uic" )
                     {
                         m_UIC->SetValue( true );
                     }
@@ -470,7 +474,7 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
             }
         }
 
-        //TODO sk
+        //TODO
         //else if( tkn.StartsWith(".option") )
 
         // Custom directives

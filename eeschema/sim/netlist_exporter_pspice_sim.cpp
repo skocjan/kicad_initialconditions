@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2016 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
+ * @author Sylwester Kocjan <s.kocjan@o2.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -92,7 +93,7 @@ wxString NETLIST_EXPORTER_PSPICE_SIM::GetSheetSimCommand()
 {
     wxString simCmd;
 
-    UpdateDirectives( SPICE_OPTIONS_ALL_FLAGS );
+    UpdateDirectives();
 
     for( const auto& dir : GetDirectives() )
     {
@@ -167,7 +168,7 @@ bool NETLIST_EXPORTER_PSPICE_SIM::ParseDCCommand( const wxString& aCmd, SPICE_DC
 }
 
 
-void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, unsigned aCtl ) const
+void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter ) const
 {
     // Add a directive to obtain currents
     //aFormatter->Print( 0, ".options savecurrents\n" );        // does not work :(
@@ -196,7 +197,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
     if( m_simCommand.IsEmpty() )
     {
         // Fallback to the default behavior and just write all directives
-        NETLIST_EXPORTER_PSPICE::writeDirectives( aFormatter, aCtl );
+        NETLIST_EXPORTER_PSPICE::writeDirectives( aFormatter );
     }
     else
     {
@@ -260,6 +261,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions( const struct PSPICE_SIM_OPTIONS
         case ST_POLE_ZERO:
         case ST_SENSITIVITY:
         case ST_TRANS_FUNC:
+        default:
             //do nothing
             break;
         }
@@ -289,6 +291,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions( const struct PSPICE_SIM_OPTIONS
         case ST_SENSITIVITY:
         case ST_TRANS_FUNC:
         case ST_UNKNOWN:
+        default:
             //do nothing
             break;
         }

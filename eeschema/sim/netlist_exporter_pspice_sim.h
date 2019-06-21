@@ -5,6 +5,7 @@
  * Copyright (C) 2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * @author Maciej Suminski <maciej.suminski@cern.ch>
+ * @author Sylwester Kocjan <s.kocjan@o2.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -152,7 +153,7 @@ public:
     static SIM_TYPE CommandToSimType( const wxString& aCmd );
 
 protected:
-    void writeDirectives( OUTPUTFORMATTER* aFormatter, unsigned aCtl ) const override;
+    void writeDirectives( OUTPUTFORMATTER* aFormatter ) const override;
 
 private:
 

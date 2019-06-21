@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2016 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
+ * @author Sylwester Kocjan <s.kocjan@o2.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,6 +33,10 @@
 
 class NETLIST_EXPORTER_PSPICE_SIM;
 
+/**
+ * This is a structure, which will keep spice-formatted strings necessary
+ * to pass SPICE options to netlist from settings dialog, e.g. temperature, tolerance.
+ */
 struct PSPICE_SIM_OPTIONS
 {
 	int m_flags;
@@ -50,11 +55,22 @@ class DIALOG_SIM_SETTINGS : public DIALOG_SIM_SETTINGS_BASE
 public:
     DIALOG_SIM_SETTINGS( wxWindow* aParent );
 
+    /**
+     * Returns SPICE simulation command (for example ".tran 0 10m uic").
+     *
+     * @return wxString with command to be executed
+     */
     const wxString& GetSimCommand() const
     {
         return m_simCommand;
     }
 
+    /**
+     * Sets SPICE simulation command to be executed.
+     *
+     * @param aCommand for example ".tran 0 10m uic".
+     * @return false if command is ill-formed
+     */
     bool SetSimCommand( const wxString& aCommand )
     {
         bool res = parseCommand( aCommand );
@@ -65,27 +81,36 @@ public:
         return res;
     }
 
+    /**
+     * Indicates if simulation command is user defined.
+     *
+     * @return true if simulation command is provided by user
+     *         (not generated from sim. settings dialog window).
+     */
     bool IsSimCommandCustom() const
     {
         return m_customSimCommand;
     }
 
+    /**
+     * Returns flags for generating netlist before SPICE simulation.
+     *
+     * @return flags
+     */
     int GetNetlistOptions() const
     {
         return m_option.m_flags;
     }
 
-    //TODO SK
     /**
-     * @brief Returns list of spice ".options" directives
-     * @param none
-     * @return -
+     * Returns list of spice ".options" directives
+     *
+     * @return reference to spice option values
      */
     const struct PSPICE_SIM_OPTIONS& GetSimOptions() const
     {
     	return m_option;
     }
-    //todo impl
 
     void SetNetlistExporter( NETLIST_EXPORTER_PSPICE_SIM* aExporter )
     {
@@ -135,7 +160,7 @@ private:
 
     /**
      * @brief Parses a Spice directive.
-     * @param aCommand is the directive to be parsed (e.g. ".tran 10n 1000n").
+     * @param aCommand is d directive to be parsed (e.g. ".tran 10n 1000n").
      * @return bool if the directive was parsed correctly.
      */
     bool parseCommand( const wxString& aCommand );
