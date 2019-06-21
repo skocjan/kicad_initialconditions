@@ -46,6 +46,7 @@ Russell Oliver <roliver8143[at]gmail-dot-com>
 Seth Hillbrand <hillbrand[at]ucdavis-dot-edu>
 Jeff Young <jeff[at]rokeby-dot-ie>
 Kevin Cozens <kevin[at]ve3syb-dot-ca>
+Sylwester Kocjan <s.kocjan@o2.pl>
 
 See git repo on launchpad for contributors at
 https://code.launchpad.net/~kicad-product-committers/kicad/+git/product-git/+ref/master.
