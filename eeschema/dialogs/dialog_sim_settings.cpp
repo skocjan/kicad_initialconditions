@@ -37,6 +37,7 @@ static bool empty( const wxTextEntryBase* aCtrl )
     return aCtrl->GetValue().IsEmpty();
 }
 
+
 DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     : DIALOG_SIM_SETTINGS_BASE( aParent ), m_exporter( nullptr ), m_spiceEmptyValidator( true )
 {
@@ -295,23 +296,23 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
 
 bool DIALOG_SIM_SETTINGS::TransferDataToWindow()
 {
-    bool retVal;
+    bool retVal = false;
     /// @todo one day it could interpret the sim command and fill out appropriate fields..
     if( empty( m_customTxt ) )
         loadDirectives();
 
     if( m_simCommand.IsEmpty() && !empty( m_customTxt ) )
+    {
         retVal = parseCommand( m_customTxt->GetValue() );
 
-    if ( retVal )
-    {
-        // make some controls grayed if necessary
-        disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
-        disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
-        return true;
+        if( retVal )
+        {
+            // make some controls grayed if necessary
+            disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
+            disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
+        }
     }
-    else
-        return false;
+    return retVal;
 }
 
 
@@ -498,6 +499,7 @@ void DIALOG_SIM_SETTINGS::loadDirectives()
         m_customTxt->SetValue( m_exporter->GetSheetSimCommand() );
 }
 
+
 void DIALOG_SIM_SETTINGS::disableCtrlOnCheckboxEvent( wxCheckBox* aCheckbox, wxWindow* aControl )
 {
     if( aCheckbox->IsChecked() )
@@ -505,6 +507,7 @@ void DIALOG_SIM_SETTINGS::disableCtrlOnCheckboxEvent( wxCheckBox* aCheckbox, wxW
     else
         aControl->Disable();
 }
+
 
 void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 {
@@ -539,8 +542,6 @@ void DIALOG_SIM_SETTINGS::updateNetlistOpts()
     if( !m_skipOpAc->IsChecked() )
         m_option.m_flags &= ~OPT_SIM_AC_NO_OPERATING_POINT;
 
-    m_option.m_absTol = SPICE_VALUE( m_absTol->GetValue() ).ToSpiceString();
-
     // Transient simulation options
     if( !m_UIC->IsChecked() )
         m_option.m_flags &= ~OPT_SIM_TRAN_UIC;
@@ -554,5 +555,4 @@ void DIALOG_SIM_SETTINGS::updateNetlistOpts()
         m_option.m_flags &= ~OPT_SIM_USE_TRTOL;
     else
         m_option.m_trTol = SPICE_VALUE( m_trTol->GetValue() ).ToSpiceString();
-
 }

@@ -38,7 +38,7 @@ class NETLIST_EXPORTER_PSPICE_SIM;
  */
 struct PSPICE_SIM_OPTIONS
 {
-	int m_flags;
+    int      m_flags;
     wxString m_temp;
     wxString m_tnom;
     wxString m_absTol;
@@ -108,7 +108,7 @@ public:
      */
     const struct PSPICE_SIM_OPTIONS& GetSimOptions() const
     {
-    	return m_option;
+        return m_option;
     }
 
     void SetNetlistExporter( NETLIST_EXPORTER_PSPICE_SIM* aExporter )

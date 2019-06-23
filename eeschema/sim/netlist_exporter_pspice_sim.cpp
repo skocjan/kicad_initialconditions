@@ -210,7 +210,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter )
         // Add here simulation options
         for( const auto& opt : m_simOptions )
         {
-        	aFormatter->Print( 0, "%s\n", (const char*) opt.c_str() );
+            aFormatter->Print( 0, "%s\n", (const char*) opt.c_str() );
         }
 
         // Finish with our custom simulation command
@@ -218,11 +218,13 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter )
     }
 }
 
+
 void NETLIST_EXPORTER_PSPICE_SIM::addNewOptionToList(const char* aOptionText, const wxString& aOptionValue)
 {
     const char optionCard[] = ".option ";
     m_simOptions.push_back( wxString(optionCard) + wxString(aOptionText) + aOptionValue );
 }
+
 
 void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions( const struct PSPICE_SIM_OPTIONS& aOptions, bool aCustomCommand )
 {
