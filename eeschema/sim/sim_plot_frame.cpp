@@ -1219,6 +1219,12 @@ void SIM_PLOT_FRAME::onShowNetlist( wxCommandEvent& event )
             EndModal( GetReturnCode() );
         }
 
+        void onEscape( wxKeyEvent& evt )
+        {
+            if( evt.GetKeyCode() == WXK_ESCAPE )
+                Close();
+        }
+
         NETLIST_VIEW_DIALOG(wxWindow* parent, wxString source) :
             wxDialog(parent, wxID_ANY, "SPICE Netlist",
                      wxDefaultPosition, wxSize(1500,900),
@@ -1236,14 +1242,17 @@ void SIM_PLOT_FRAME::onShowNetlist( wxCommandEvent& event )
             text->SetText( source );
 
             text->StyleClearAll();
+            text->SetReadOnly( true );
             text->SetLexer( wxSTC_LEX_SPICE );
 
             wxBoxSizer* sizer = new wxBoxSizer( wxVERTICAL );
             sizer->Add( text, 1, wxEXPAND );
             SetSizer( sizer );
 
-            Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( NETLIST_VIEW_DIALOG::onClose ), NULL,
-                    this );
+            Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( NETLIST_VIEW_DIALOG::onClose ),
+                    NULL, this );
+            text->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( NETLIST_VIEW_DIALOG::onEscape ),
+                    NULL, this );
         }
     };
 
