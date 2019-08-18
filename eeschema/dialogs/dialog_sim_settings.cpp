@@ -88,9 +88,6 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_simPages->RemovePage( m_simPages->FindPage( m_pgSensitivity ) );
     m_simPages->RemovePage( m_simPages->FindPage( m_pgTransferFunction ) );
 
-    disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
-    disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
-
     m_sdbSizerOK->SetDefault();
 }
 
@@ -296,23 +293,14 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
 
 bool DIALOG_SIM_SETTINGS::TransferDataToWindow()
 {
-    bool retVal = false;
     /// @todo one day it could interpret the sim command and fill out appropriate fields..
     if( empty( m_customTxt ) )
         loadDirectives();
 
     if( m_simCommand.IsEmpty() && !empty( m_customTxt ) )
-    {
-        retVal = parseCommand( m_customTxt->GetValue() );
+        return parseCommand( m_customTxt->GetValue() );
 
-        if( retVal )
-        {
-            // make some controls grayed if necessary
-            disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
-            disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
-        }
-    }
-    return retVal;
+    return true;
 }
 
 
@@ -500,12 +488,17 @@ void DIALOG_SIM_SETTINGS::loadDirectives()
 }
 
 
-void DIALOG_SIM_SETTINGS::disableCtrlOnCheckboxEvent( wxCheckBox* aCheckbox, wxWindow* aControl )
+void DIALOG_SIM_SETTINGS::onUpdateUI( wxUpdateUIEvent& aEvent)
 {
-    if( aCheckbox->IsChecked() )
-        aControl->Enable();
+    if( m_rShuntOn->IsChecked() )
+        m_rShunt->Enable();
     else
-        aControl->Disable();
+        m_rShunt->Disable();
+
+    if( m_trTolOn->IsChecked() )
+        m_trTol->Enable();
+    else
+        m_trTol->Disable();
 }
 
 

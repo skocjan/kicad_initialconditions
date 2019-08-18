@@ -93,6 +93,12 @@ public:
     }
 
     /**
+     * @brief  Parses common format describing value of passive element.
+     * @return String formatted in SPICE flavor with the same value.
+     */
+    static wxString AdjustPassiveValue( wxString aValue );
+
+    /**
      * Returns true if the object was initiated with a Spice formatted string value.
      */
     bool IsSpiceString() const

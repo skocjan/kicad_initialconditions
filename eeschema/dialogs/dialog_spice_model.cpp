@@ -182,6 +182,10 @@ bool DIALOG_SPICE_MODEL::TransferDataFromWindow()
         }
 
         m_fieldsTmp[SF_MODEL] = m_pasValue->GetValue();
+        if( m_useIC->IsChecked() )
+            m_fieldsTmp[SF_INITIAL_CONDITION] = m_IC->GetValue();
+        else
+            m_fieldsTmp[SF_INITIAL_CONDITION].Clear();
     }
 
 
@@ -201,6 +205,7 @@ bool DIALOG_SPICE_MODEL::TransferDataFromWindow()
         if( !empty( m_modelLibrary ) )
             m_fieldsTmp[SF_LIB_FILE] = m_modelLibrary->GetValue();
     }
+
 
     // Power source
     else if( page == m_power )
@@ -304,6 +309,11 @@ bool DIALOG_SPICE_MODEL::TransferDataToWindow()
                     : primitive == SP_INDUCTOR ? 2
                     : -1 );
             m_pasValue->SetValue( m_fieldsTmp[SF_MODEL] );
+            if( !m_fieldsTmp[SF_INITIAL_CONDITION].IsEmpty() )
+            {
+                m_useIC->SetValue(true);
+                m_IC->SetValue( m_fieldsTmp[SF_INITIAL_CONDITION] );
+            }
             break;
 
         case SP_DIODE:
@@ -814,6 +824,25 @@ bool DIALOG_SPICE_MODEL::addPwlValue( const wxString& aTime, const wxString& aVa
     m_pwlValList->SortItems( comparePwlValues, -1 );
 
     return true;
+}
+
+
+void DIALOG_SPICE_MODEL::onUpdateUI( wxUpdateUIEvent& aEvent)
+{
+    // When passive type: resistor
+    if( m_pasType->GetSelection() == 0 )
+    {
+        // Turn off IC field
+        m_useIC->SetValue( false );
+        m_useIC->Enable( false );
+        m_IC->Enable( false );
+    }
+    else
+    {
+        //enable checkbox and textfield if needed
+        m_useIC->Enable( true );
+        m_IC->Enable( m_useIC->GetValue() );
+    }
 }
 
 

@@ -29,12 +29,15 @@
 #include <confirm.h>
 
 #include <map>
+#include <utility>
 #include <search_stack.h>
 
 #include <sch_edit_frame.h>
 #include <netlist.h>
 #include <sch_reference_list.h>
 #include <env_paths.h>
+
+#include "../sim/spice_value.h"
 
 #include <wx/tokenzr.h>
 #include <wx/regex.h>
@@ -182,13 +185,16 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
 }
 
 
-wxString NETLIST_EXPORTER_PSPICE::GetSpiceField( SPICE_FIELD aField,
+std::pair<bool, wxString> NETLIST_EXPORTER_PSPICE::GetSpiceField( SPICE_FIELD aField,
         SCH_COMPONENT* aComponent, unsigned aCtl )
 {
-    SCH_FIELD* field = aComponent->FindField( GetSpiceFieldName( aField ) );
-    return field ? field->GetText() : GetSpiceFieldDefVal( aField, aComponent, aCtl );
-}
+    std::pair<bool, wxString> retVal;
 
+    SCH_FIELD* field = aComponent->FindField( GetSpiceFieldName( aField ) );
+    retVal.first = (  field != nullptr );
+    retVal.second = ( field ? field->GetText() : GetSpiceFieldDefVal( aField, aComponent, aCtl ) );
+    return retVal;
+}
 
 wxString NETLIST_EXPORTER_PSPICE::GetSpiceFieldDefVal( SPICE_FIELD aField,
         SCH_COMPONENT* aComponent, unsigned aCtl )
@@ -210,26 +216,7 @@ wxString NETLIST_EXPORTER_PSPICE::GetSpiceFieldDefVal( SPICE_FIELD aField,
         // Is it a passive component?
         if( aCtl & NET_ADJUST_PASSIVE_VALS && ( prim == 'C' || prim == 'L' || prim == 'R' ) )
         {
-            // Regular expression to match common formats used for passive parts description
-            // (e.g. 100k, 2k3, 1 uF)
-            wxRegEx passiveVal( "^([0-9\\. ]+)([fFpPnNuUmMkKgGtT]|M(e|E)(g|G))?([fFhH]|ohm)?([-1-9 ]*)$" );
-
-            if( passiveVal.Matches( value ) )
-            {
-                wxString prefix( passiveVal.GetMatch( value, 1 ) );
-                wxString unit( passiveVal.GetMatch( value, 2 ) );
-                wxString suffix( passiveVal.GetMatch( value, 6 ) );
-
-                prefix.Trim(); prefix.Trim( false );
-                unit.Trim(); unit.Trim( false );
-                suffix.Trim(); suffix.Trim( false );
-
-                // Make 'mega' units comply with the Spice expectations
-                if( unit == "M" )
-                    unit = "Meg";
-
-                value = prefix + unit + suffix;
-            }
+            value = SPICE_VALUE::AdjustPassiveValue( value );
         }
 
         return value;
@@ -259,7 +246,8 @@ wxString NETLIST_EXPORTER_PSPICE::GetSpiceFieldDefVal( SPICE_FIELD aField,
     }
 
     case SF_LIB_FILE:
-        // There is no default Spice library
+    case SF_INITIAL_CONDITION:
+        // There is neither default Spice library nor default initial condition
         return wxEmptyString;
         break;
 
@@ -267,7 +255,6 @@ wxString NETLIST_EXPORTER_PSPICE::GetSpiceFieldDefVal( SPICE_FIELD aField,
         wxASSERT_MSG( false, "Missing default value definition for a Spice field" );
         break;
     }
-
 
     return wxString( "<unknown>" );
 }
@@ -312,8 +299,18 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
             SCH_FIELD* fieldLibFile = comp->FindField( GetSpiceFieldName( SF_LIB_FILE ) );
             SCH_FIELD* fieldSeq = comp->FindField( GetSpiceFieldName( SF_NODE_SEQUENCE ) );
 
-            spiceItem.m_primitive = GetSpiceField( SF_PRIMITIVE, comp, aCtl )[0];
-            spiceItem.m_model = GetSpiceField( SF_MODEL, comp, aCtl );
+            spiceItem.m_primitive = GetSpiceField( SF_PRIMITIVE, comp, aCtl ).second[0];
+            spiceItem.m_model = GetSpiceField( SF_MODEL, comp, aCtl ).second;
+
+            // If this component has an initial condition
+            // (stored in file spice field, not default derived from schematic component
+            std::pair<bool, wxString> icField = GetSpiceField( SF_INITIAL_CONDITION, comp, aCtl );
+            if( icField.first )
+            {
+                // add this initial condition after value string
+                spiceItem.m_model += icField.second.Prepend( " IC=" );
+            }
+
             spiceItem.m_refName = comp->GetRef( &sheetList[sheet_idx] );
 
             // Duplicate references will result in simulation errors
@@ -327,7 +324,7 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
             refNames.insert( spiceItem.m_refName );
 
             // Check to see if component should be removed from Spice netlist
-            spiceItem.m_enabled = StringToBool( GetSpiceField( SF_ENABLED, comp, aCtl ) );
+            spiceItem.m_enabled = StringToBool( GetSpiceField( SF_ENABLED, comp, aCtl ).second );
 
             if( fieldLibFile && !fieldLibFile->GetText().IsEmpty() )
                 m_libraries.insert( fieldLibFile->GetText() );
@@ -491,5 +488,6 @@ const std::vector<wxString> NETLIST_EXPORTER_PSPICE::m_spiceFields = {
     "Spice_Model",
     "Spice_Netlist_Enabled",
     "Spice_Node_Sequence",
-    "Spice_Lib_File"
+    "Spice_Lib_File",
+    "Spice_IC"
 };

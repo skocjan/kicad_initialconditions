@@ -152,8 +152,7 @@ class DIALOG_SIM_SETTINGS_BASE : public DIALOG_SHIM
 
 		// Virtual event handlers, overide them in your derived class
 		virtual void onInitDlg( wxInitDialogEvent& event ) { event.Skip(); }
-		virtual void onRshuntCheck( wxCommandEvent& event ) { event.Skip(); }
-		virtual void onTransientToleranceCheck( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onUpdateUI( wxUpdateUIEvent& event ) { event.Skip(); }
 		virtual void onLoadDirectives( wxCommandEvent& event ) { event.Skip(); }
 
 

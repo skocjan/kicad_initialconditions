@@ -138,16 +138,6 @@ private:
         LINEAR
     };
 
-    virtual void onRshuntCheck( wxCommandEvent& event ) override
-    {
-        disableCtrlOnCheckboxEvent( m_rShuntOn, m_rShunt );
-    }
-
-    virtual void onTransientToleranceCheck( wxCommandEvent& event ) override
-    {
-        disableCtrlOnCheckboxEvent( m_trTolOn, m_trTol );
-    }
-
     virtual void onInitDlg( wxInitDialogEvent& event ) override
     {
         // Call the default wxDialog handler of a wxInitDialogEvent
@@ -189,9 +179,8 @@ private:
     }
 
     void loadDirectives();
-    void disableCtrlOnCheckboxEvent( wxCheckBox* aCheckbox, wxWindow* aControl );
+    void onUpdateUI( wxUpdateUIEvent& event ) override;
     void updateNetlistOpts();
-    void checkboxEvtHandler(wxCommandEvent& event);
 
     wxString m_simCommand;
     bool m_customSimCommand;

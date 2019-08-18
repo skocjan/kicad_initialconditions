@@ -29,6 +29,7 @@
 
 #include <wx/textentry.h>
 #include <wx/numformatter.h>
+#include <wx/regex.h>
 #include <confirm.h>
 #include <common.h>
 #include <ki_exception.h>
@@ -139,6 +140,31 @@ wxString SPICE_VALUE::ToSpiceString() const
     }
 
     return res;
+}
+
+wxString SPICE_VALUE::AdjustPassiveValue( wxString aValue )
+{
+    // Regular expression to match common formats used for passive parts description
+    // (e.g. 100k, 2k3, 1 uF)
+    wxRegEx passiveVal( "^([0-9\\. ]+)([fFpPnNuUmMkKgGtT]|M(e|E)(g|G))?([fFhH]|ohm)?([-1-9 ]*)$" );
+
+    if( passiveVal.Matches( aValue ) )
+    {
+        wxString prefix( passiveVal.GetMatch( aValue, 1 ) );
+        wxString unit( passiveVal.GetMatch( aValue, 2 ) );
+        wxString suffix( passiveVal.GetMatch( aValue, 6 ) );
+
+        prefix.Trim(); prefix.Trim( false );
+        unit.Trim(); unit.Trim( false );
+        suffix.Trim(); suffix.Trim( false );
+
+        // Make 'mega' units comply with the Spice expectations
+        if( unit == "M" )
+            unit = "Meg";
+
+        aValue = prefix + unit + suffix;
+    }
+    return aValue;
 }
 
 

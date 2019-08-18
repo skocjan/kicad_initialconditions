@@ -635,8 +635,7 @@ DIALOG_SIM_SETTINGS_BASE::DIALOG_SIM_SETTINGS_BASE( wxWindow* parent, wxWindowID
 
 	// Connect Events
 	this->Connect( wxEVT_INIT_DIALOG, wxInitDialogEventHandler( DIALOG_SIM_SETTINGS_BASE::onInitDlg ) );
-	m_rShuntOn->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_SIM_SETTINGS_BASE::onRshuntCheck ), NULL, this );
-	m_trTolOn->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_SIM_SETTINGS_BASE::onTransientToleranceCheck ), NULL, this );
+	this->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_SIM_SETTINGS_BASE::onUpdateUI ) );
 	m_loadDirectives->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SIM_SETTINGS_BASE::onLoadDirectives ), NULL, this );
 }
 
@@ -644,8 +643,7 @@ DIALOG_SIM_SETTINGS_BASE::~DIALOG_SIM_SETTINGS_BASE()
 {
 	// Disconnect Events
 	this->Disconnect( wxEVT_INIT_DIALOG, wxInitDialogEventHandler( DIALOG_SIM_SETTINGS_BASE::onInitDlg ) );
-	m_rShuntOn->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_SIM_SETTINGS_BASE::onRshuntCheck ), NULL, this );
-	m_trTolOn->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_SIM_SETTINGS_BASE::onTransientToleranceCheck ), NULL, this );
+	this->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_SIM_SETTINGS_BASE::onUpdateUI ) );
 	m_loadDirectives->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_SIM_SETTINGS_BASE::onLoadDirectives ), NULL, this );
 
 }

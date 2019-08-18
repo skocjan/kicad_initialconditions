@@ -103,6 +103,11 @@ private:
     }
 
     /**
+     * This event handler is called when change of control states is triggered
+     */
+    virtual void onUpdateUI( wxUpdateUIEvent& event ) override;
+
+    /**
      * Initializes the internal settings
      */
     void Init();
