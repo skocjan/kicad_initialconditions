@@ -185,15 +185,11 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
 }
 
 
-std::pair<bool, wxString> NETLIST_EXPORTER_PSPICE::GetSpiceField( SPICE_FIELD aField,
+wxString NETLIST_EXPORTER_PSPICE::GetSpiceField( SPICE_FIELD aField,
         SCH_COMPONENT* aComponent, unsigned aCtl )
 {
-    std::pair<bool, wxString> retVal;
-
     SCH_FIELD* field = aComponent->FindField( GetSpiceFieldName( aField ) );
-    retVal.first = (  field != nullptr );
-    retVal.second = ( field ? field->GetText() : GetSpiceFieldDefVal( aField, aComponent, aCtl ) );
-    return retVal;
+    return field ? field->GetText() : GetSpiceFieldDefVal( aField, aComponent, aCtl );
 }
 
 wxString NETLIST_EXPORTER_PSPICE::GetSpiceFieldDefVal( SPICE_FIELD aField,
@@ -299,16 +295,16 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
             SCH_FIELD* fieldLibFile = comp->FindField( GetSpiceFieldName( SF_LIB_FILE ) );
             SCH_FIELD* fieldSeq = comp->FindField( GetSpiceFieldName( SF_NODE_SEQUENCE ) );
 
-            spiceItem.m_primitive = GetSpiceField( SF_PRIMITIVE, comp, aCtl ).second[0];
-            spiceItem.m_model = GetSpiceField( SF_MODEL, comp, aCtl ).second;
+            spiceItem.m_primitive = GetSpiceField( SF_PRIMITIVE, comp, aCtl )[0];
+            spiceItem.m_model = GetSpiceField( SF_MODEL, comp, aCtl );
 
             // If this component has an initial condition
             // (stored in file spice field, not default derived from schematic component
-            std::pair<bool, wxString> icField = GetSpiceField( SF_INITIAL_CONDITION, comp, aCtl );
-            if( icField.first )
+            wxString icField = GetSpiceField( SF_INITIAL_CONDITION, comp, aCtl );
+            if( !icField.IsEmpty() )
             {
                 // add this initial condition after value string
-                spiceItem.m_model += icField.second.Prepend( " IC=" );
+                spiceItem.m_model += icField.Prepend( " IC=" );
             }
 
             spiceItem.m_refName = comp->GetRef( &sheetList[sheet_idx] );
@@ -324,7 +320,7 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
             refNames.insert( spiceItem.m_refName );
 
             // Check to see if component should be removed from Spice netlist
-            spiceItem.m_enabled = StringToBool( GetSpiceField( SF_ENABLED, comp, aCtl ).second );
+            spiceItem.m_enabled = StringToBool( GetSpiceField( SF_ENABLED, comp, aCtl ) );
 
             if( fieldLibFile && !fieldLibFile->GetText().IsEmpty() )
                 m_libraries.insert( fieldLibFile->GetText() );

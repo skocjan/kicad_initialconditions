@@ -434,7 +434,7 @@ void SIM_PLOT_FRAME::AddTuner( SCH_COMPONENT* aComponent )
         return;
 
     // For now limit the tuner tool to RLC components
-    char primitiveType = NETLIST_EXPORTER_PSPICE::GetSpiceField( SF_PRIMITIVE, aComponent, 0 ).second[0];
+    char primitiveType = NETLIST_EXPORTER_PSPICE::GetSpiceField( SF_PRIMITIVE, aComponent, 0 )[0];
 
     if( primitiveType != SP_RESISTOR && primitiveType != SP_CAPACITOR && primitiveType != SP_INDUCTOR )
         return;

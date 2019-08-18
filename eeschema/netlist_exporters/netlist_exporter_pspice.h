@@ -203,7 +203,7 @@ public:
      * @return When first item of pair is true, second one is a spice field,
      *         otherwise, second item contains default value.
      */
-    static std::pair<bool, wxString> GetSpiceField( SPICE_FIELD aField, SCH_COMPONENT* aComponent, unsigned aCtl );
+    static wxString GetSpiceField( SPICE_FIELD aField, SCH_COMPONENT* aComponent, unsigned aCtl );
 
     /**
      * @brief Retrieves the default value for a given field.
