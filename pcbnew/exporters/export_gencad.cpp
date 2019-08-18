@@ -271,17 +271,29 @@ static double MapYTo( int aY )
 /* Driver function: processing starts here */
 void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& aEvent )
 {
-    DIALOG_GENCAD_EXPORT_OPTIONS optionsDialog( this );
+    // Build default output file name
+    wxString path = GetLastPath( LAST_PATH_GENCAD );
+
+    if( path.IsEmpty() )
+    {
+        wxFileName brdFile = GetBoard()->GetFileName();
+        brdFile.SetExt( "cad" );
+        path = brdFile.GetFullPath();
+    }
+
+    DIALOG_GENCAD_EXPORT_OPTIONS optionsDialog( this, path );
 
     if( optionsDialog.ShowModal() == wxID_CANCEL )
         return;
 
-    FILE* file = wxFopen( optionsDialog.GetFileName(), "wt" );
+    path = optionsDialog.GetFileName();
+    SetLastPath( LAST_PATH_GENCAD, path );
+    FILE* file = wxFopen( path, "wt" );
 
     if( !file )
     {
         DisplayError( this, wxString::Format( _( "Unable to create \"%s\"" ),
-                    GetChars( optionsDialog.GetFileName() ) ) );
+                                              optionsDialog.GetFileName() ) );
         return;
     }
 
@@ -318,7 +330,7 @@ void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& aEvent )
 
         if( module->GetLayer() == B_Cu )
         {
-            module->Flip( module->GetPosition() );
+            module->Flip( module->GetPosition(), Settings().m_FlipLeftRight );
             module->SetFlag( 1 );
         }
     }
@@ -352,7 +364,7 @@ void PCB_EDIT_FRAME::ExportToGenCAD( wxCommandEvent& aEvent )
     {
         if( module->GetFlag() )
         {
-            module->Flip( module->GetPosition() );
+            module->Flip( module->GetPosition(), Settings().m_FlipLeftRight );
             module->SetFlag( 0 );
         }
     }

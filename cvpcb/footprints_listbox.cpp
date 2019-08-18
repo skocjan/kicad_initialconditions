@@ -27,16 +27,15 @@
  * class to display the list of available footprints
  */
 
-#include <fctsys.h>
+#include <footprint_filter.h>
+#include <tool/tool_manager.h>
+#include <trace_helpers.h>
 #include <wx/wupdlock.h>
 
-#include <cvpcb.h>
+#include <cvpcb_id.h>
 #include <cvpcb_mainframe.h>
 #include <listboxes.h>
-#include <cvpcb_id.h>
-#include <eda_pattern_match.h>
-#include <footprint_filter.h>
-
+#include <tools/cvpcb_actions.h>
 
 FOOTPRINTS_LISTBOX::FOOTPRINTS_LISTBOX( CVPCB_MAINFRAME* parent,
                                         wxWindowID id, const wxPoint& loc,
@@ -215,7 +214,7 @@ void FOOTPRINTS_LISTBOX::OnLeftClick( wxListEvent& event )
 
     // If the footprint view window is displayed, update the footprint.
     if( GetParent()->GetFootprintViewerFrame() )
-        GetParent()->CreateScreenCmp();
+        GetParent()->GetToolManager()->RunAction( CVPCB_ACTIONS::showFootprintViewer, true );
 
     GetParent()->DisplayStatus();
 
@@ -226,29 +225,18 @@ void FOOTPRINTS_LISTBOX::OnLeftClick( wxListEvent& event )
 
 void FOOTPRINTS_LISTBOX::OnLeftDClick( wxListEvent& event )
 {
-    wxString footprintName = GetSelectedFootprint();
-
-    GetParent()->SetNewPkg( footprintName );
+    GetParent()->GetToolManager()->RunAction( CVPCB_ACTIONS::associate, true );
 }
 
 
 void FOOTPRINTS_LISTBOX::OnChar( wxKeyEvent& event )
 {
+    wxLogTrace( kicadTraceKeyEvent, "FOOTPRINTS_LISTBOX::OnChar %s", dump( event ) );
+
     int key = event.GetKeyCode();
 
     switch( key )
     {
-    case WXK_TAB:
-    case WXK_RIGHT:
-    case WXK_NUMPAD_RIGHT:
-        GetParent()->ChangeFocus( true );
-        return;
-
-    case WXK_LEFT:
-    case WXK_NUMPAD_LEFT:
-        GetParent()->ChangeFocus( false );
-        return;
-
     case WXK_HOME:
     case WXK_END:
     case WXK_UP:

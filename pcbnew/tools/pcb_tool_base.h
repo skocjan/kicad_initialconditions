@@ -109,9 +109,8 @@ protected:
     enum INTERACTIVE_PLACEMENT_OPTIONS {
         IPO_ROTATE = 1,
         IPO_FLIP = 2,
-        IPO_PROPERTIES = 4,
-        IPO_SINGLE_CLICK = 8,
-        IPO_REPEAT = 16
+        IPO_SINGLE_CLICK = 4,
+        IPO_REPEAT = 8
     };
 
 
@@ -127,7 +126,7 @@ protected:
      * @param aItemCreator the callable that will attempt to create the item
      * @param aCommitMessage the message used on a successful commit
      */
-    void doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE *aPlacer,
+    void doInteractiveItemPlacement( const std::string& aTool, INTERACTIVE_PLACER_BASE *aPlacer,
                                      const wxString& aCommitMessage,
                                      int aOptions = IPO_ROTATE | IPO_FLIP | IPO_REPEAT );
 

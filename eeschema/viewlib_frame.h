@@ -93,6 +93,7 @@ public:
     void CloseLibraryViewer( wxCommandEvent& event );
     void ReCreateHToolbar() override;
     void ReCreateVToolbar() override;
+    void ReCreateOptToolbar() override {}
     void ReCreateMenuBar() override;
 
     double BestZoom() override;
@@ -102,6 +103,7 @@ public:
 
     void LoadSettings( wxConfigBase* aCfg ) override;
     void SaveSettings( wxConfigBase* aCfg ) override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     /**
      * Set a filter to display only libraries and/or components which match the filter.

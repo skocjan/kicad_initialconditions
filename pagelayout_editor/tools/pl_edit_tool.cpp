@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -22,20 +23,17 @@
  */
 
 #include <tool/tool_manager.h>
+#include <tool/picker_tool.h>
 #include <tools/pl_selection_tool.h>
-#include <tools/pl_drawing_tools.h>
 #include <tools/pl_actions.h>
 #include <tools/pl_edit_tool.h>
-#include <tools/pl_picker_tool.h>
 #include <ws_data_model.h>
 #include <ws_draw_item.h>
 #include <bitmaps.h>
 #include <confirm.h>
 #include <base_struct.h>
-#include <view/view.h>
 #include <pl_editor_frame.h>
 #include <pl_editor_id.h>
-#include <wildcards_and_files_ext.h>
 
 
 PL_EDIT_TOOL::PL_EDIT_TOOL() :
@@ -59,7 +57,7 @@ bool PL_EDIT_TOOL::Init()
     ctxMenu.AddItem( ACTIONS::cancelInteractive,     SELECTION_CONDITIONS::ShowAlways, 1 );
 
     ctxMenu.AddSeparator( 200 );
-    ctxMenu.AddItem( PL_ACTIONS::doDelete,           SELECTION_CONDITIONS::NotEmpty, 200 );
+    ctxMenu.AddItem( ACTIONS::doDelete,              SELECTION_CONDITIONS::NotEmpty, 200 );
 
     // Finally, add the standard zoom/grid items
     m_frame->AddStandardSubMenus( m_menu );
@@ -69,11 +67,11 @@ bool PL_EDIT_TOOL::Init()
     //
     CONDITIONAL_MENU& selToolMenu = m_selectionTool->GetToolMenu().GetMenu();
 
-    selToolMenu.AddItem( PL_ACTIONS::cut,            SELECTION_CONDITIONS::NotEmpty, 200 );
-    selToolMenu.AddItem( PL_ACTIONS::copy,           SELECTION_CONDITIONS::NotEmpty, 200 );
-    selToolMenu.AddItem( PL_ACTIONS::paste,          SELECTION_CONDITIONS::ShowAlways, 200 );
+    selToolMenu.AddItem( ACTIONS::cut,               SELECTION_CONDITIONS::NotEmpty, 200 );
+    selToolMenu.AddItem( ACTIONS::copy,              SELECTION_CONDITIONS::NotEmpty, 200 );
+    selToolMenu.AddItem( ACTIONS::paste,             SELECTION_CONDITIONS::ShowAlways, 200 );
     selToolMenu.AddItem( PL_ACTIONS::move,           SELECTION_CONDITIONS::NotEmpty, 200 );
-    selToolMenu.AddItem( PL_ACTIONS::doDelete,       SELECTION_CONDITIONS::NotEmpty, 200 );
+    selToolMenu.AddItem( ACTIONS::doDelete,          SELECTION_CONDITIONS::NotEmpty, 200 );
 
     return true;
 }
@@ -101,7 +99,8 @@ int PL_EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
     if( selection.Empty() )
         return 0;
 
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     controls->ShowCursor( true );
@@ -118,10 +117,11 @@ int PL_EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     do
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         controls->SetSnapping( !evt->Modifier( MD_ALT ) );
 
         if( evt->IsAction( &PL_ACTIONS::move ) || evt->IsMotion() || evt->IsDrag( BUT_LEFT )
-            || evt->IsAction( &PL_ACTIONS::refreshPreview ) )
+            || evt->IsAction( &ACTIONS::refreshPreview ) )
         {
             //------------------------------------------------------------------------
             // Start a move operation
@@ -184,7 +184,7 @@ int PL_EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
         //------------------------------------------------------------------------
         // Handle cancel
         //
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             if( m_moveInProgress )
                 restore_state = true;
@@ -201,7 +201,7 @@ int PL_EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
         }
         else if( evt->Category() == TC_COMMAND )
         {
-            if( evt->IsAction( &PL_ACTIONS::doDelete ) )
+            if( evt->IsAction( &ACTIONS::doDelete ) )
             {
                 // Exit on a remove operation; there is no further processing for removed items.
                 break;
@@ -221,6 +221,8 @@ int PL_EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
         {
             break; // Finish
         }
+        else
+            evt->SetPassEvent();
 
     } while( ( evt = Wait() ) ); //Should be assignment not equality test
 
@@ -246,7 +248,7 @@ int PL_EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
         m_frame->OnModify();
 
     m_moveInProgress = false;
-    m_frame->PopTool();
+    m_frame->PopTool( tool );
     return 0;
 }
 
@@ -290,10 +292,10 @@ bool PL_EDIT_TOOL::updateModificationPoint( PL_SELECTION& aSelection )
 
 int PL_EDIT_TOOL::ImportWorksheetContent( const TOOL_EVENT& aEvent )
 {
+    m_toolMgr->RunAction( ACTIONS::cancelInteractive, true );
+
     wxCommandEvent evt( wxEVT_NULL, ID_APPEND_DESCR_FILE );
     m_frame->Files_io( evt );
-
-    m_frame->SetNoToolSelected();
 
     return 0;
 }
@@ -334,33 +336,75 @@ int PL_EDIT_TOOL::DoDelete( const TOOL_EVENT& aEvent )
 }
 
 
-static bool deleteItem( PL_EDITOR_FRAME* aFrame, const VECTOR2D& aPosition )
-{
-    PL_SELECTION_TOOL* selectionTool = aFrame->GetToolManager()->GetTool<PL_SELECTION_TOOL>();
-    wxCHECK( selectionTool, false );
-
-    aFrame->GetToolManager()->RunAction( PL_ACTIONS::clearSelection, true );
-
-    EDA_ITEM* item = selectionTool->SelectPoint( aPosition );
-
-    if( item )
-        aFrame->GetToolManager()->RunAction( PL_ACTIONS::doDelete, true );
-
-    return true;
-}
+#define HITTEST_THRESHOLD_PIXELS 5
 
 
 int PL_EDIT_TOOL::DeleteItemCursor( const TOOL_EVENT& aEvent )
 {
+    std::string  tool = aEvent.GetCommandStr().get();
+    PICKER_TOOL* picker = m_toolMgr->GetTool<PICKER_TOOL>();
+
+    // Deactivate other tools; particularly important if another PICKER is currently running
     Activate();
 
-    PL_PICKER_TOOL* picker = m_toolMgr->GetTool<PL_PICKER_TOOL>();
-    wxCHECK( picker, 0 );
+    picker->SetCursor( wxStockCursor( wxCURSOR_BULLSEYE ) );
+    m_pickerItem = nullptr;
 
-    m_frame->SetToolID( ID_PL_DELETE_TOOL, wxCURSOR_BULLSEYE, _( "Delete item" ) );
-    picker->SetClickHandler( std::bind( deleteItem, m_frame, std::placeholders::_1 ) );
-    picker->Activate();
-    Wait();
+    picker->SetClickHandler(
+        [this] ( const VECTOR2D& aPosition ) -> bool
+        {
+            if( m_pickerItem )
+            {
+                PL_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<PL_SELECTION_TOOL>();
+                selectionTool->UnbrightenItem( m_pickerItem );
+                selectionTool->AddItemToSel( m_pickerItem, true );
+                m_toolMgr->RunAction( ACTIONS::doDelete, true );
+                m_pickerItem = nullptr;
+            }
+
+            return true;
+        } );
+
+    picker->SetMotionHandler(
+        [this] ( const VECTOR2D& aPos )
+        {
+            int threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
+            EDA_ITEM* item = nullptr;
+
+            for( WS_DATA_ITEM* dataItem : WS_DATA_MODEL::GetTheInstance().GetItems() )
+            {
+                for( WS_DRAW_ITEM_BASE* drawItem : dataItem->GetDrawItems() )
+                {
+                    if( drawItem->HitTest( (wxPoint) aPos, threshold ) )
+                    {
+                        item = drawItem;
+                        break;
+                    }
+                }
+            }
+
+            if( m_pickerItem != item )
+            {
+                PL_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<PL_SELECTION_TOOL>();
+
+                if( m_pickerItem )
+                    selectionTool->UnbrightenItem( m_pickerItem );
+
+                m_pickerItem = item;
+
+                if( m_pickerItem )
+                    selectionTool->BrightenItem( m_pickerItem );
+            }
+        } );
+
+    picker->SetFinalizeHandler(
+        [this] ( const int& aFinalState )
+        {
+            if( m_pickerItem )
+                m_toolMgr->GetTool<PL_SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
+        } );
+
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
 
     return 0;
 }
@@ -459,7 +503,6 @@ void PL_EDIT_TOOL::setTransitions()
     Go( &PL_EDIT_TOOL::Main,                   PL_ACTIONS::move.MakeEvent() );
 
     Go( &PL_EDIT_TOOL::ImportWorksheetContent, PL_ACTIONS::appendImportedWorksheet.MakeEvent() );
-    Go( &PL_EDIT_TOOL::DeleteItemCursor,       PL_ACTIONS::deleteItemCursor.MakeEvent() );
 
     Go( &PL_EDIT_TOOL::Undo,                   ACTIONS::undo.MakeEvent() );
     Go( &PL_EDIT_TOOL::Redo,                   ACTIONS::redo.MakeEvent() );
@@ -468,4 +511,6 @@ void PL_EDIT_TOOL::setTransitions()
     Go( &PL_EDIT_TOOL::Copy,                   ACTIONS::copy.MakeEvent() );
     Go( &PL_EDIT_TOOL::Paste,                  ACTIONS::paste.MakeEvent() );
     Go( &PL_EDIT_TOOL::DoDelete,               ACTIONS::doDelete.MakeEvent() );
+
+    Go( &PL_EDIT_TOOL::DeleteItemCursor,       ACTIONS::deleteTool.MakeEvent() );
 }

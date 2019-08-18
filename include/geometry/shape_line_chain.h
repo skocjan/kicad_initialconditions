@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2013 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
- * Copyright (C) 2013-2017
+ * Copyright (C) 2013-2019
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -125,6 +125,17 @@ public:
 
         for( int i = 0; i < aCount; i++ )
             m_points[i] = *aV++;
+    }
+
+
+    SHAPE_LINE_CHAIN( const std::vector<wxPoint>& aV ) :
+        SHAPE( SH_LINE_CHAIN ),
+        m_closed( false )
+    {
+        m_points.reserve( aV.size() );
+
+        for( auto pt : aV )
+            m_points.emplace_back( pt.x, pt.y );
     }
 
     SHAPE_LINE_CHAIN( const ClipperLib::Path& aPath ) :
@@ -303,6 +314,11 @@ public:
             bbox.Inflate( aClearance );
 
         return bbox;
+    }
+
+    void GenerateBBoxCache()
+    {
+        m_bbox.Compute( m_points );
     }
 
     /**
@@ -552,9 +568,11 @@ public:
      * Checks if point aP lies inside a polygon (any type) defined by the line chain.
      * For closed shapes only.
      * @param aPt point to check
+     * @param aUseBBoxCache gives better peformance if the bounding boxe caches have been
+     *                      generated.
      * @return true if the point is inside the shape (edge is not treated as being inside).
      */
-     bool PointInside( const VECTOR2I& aPt, int aAccuracy = 0 ) const;
+     bool PointInside( const VECTOR2I& aPt, int aAccuracy = 0, bool aUseBBoxCache = false ) const;
 
     /**
      * Function PointOnEdge()

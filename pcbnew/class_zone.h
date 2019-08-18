@@ -130,7 +130,7 @@ public:
      * Function IsOnCopperLayer
      * @return true if this zone is on a copper layer, false if on a technical layer
      */
-    bool IsOnCopperLayer() const;
+    bool IsOnCopperLayer() const override;
 
     /**
      * Function CommonLayerExist
@@ -248,24 +248,19 @@ public:
     bool HitTest( const wxPoint& aPosition, int aAccuracy = 0 ) const override;
 
     /**
-     * Function HitTest
-     * tests if a point is inside the zone area, i.e. inside the main outline
-     * and outside holes.
-     * @param aPosition : the wxPoint to test
-     * @return bool - true if a hit, else false
-     */
-    bool HitTestInsideZone( const wxPoint& aPosition ) const
-    {
-        return m_Poly->Contains( VECTOR2I( aPosition ), 0 );
-    }
-
-    /**
      * Function HitTestFilledArea
      * tests if the given wxPoint is within the bounds of a filled area of this zone.
      * @param aRefPos A wxPoint to test
      * @return bool - true if a hit, else false
      */
     bool HitTestFilledArea( const wxPoint& aRefPos ) const;
+
+    /**
+     * Some intersecting zones, despite being on the same layer with the same net, cannot be
+     * merged due to other parameters such as fillet radius.  The copper pour will end up
+     * effectively merged though, so we want to keep the corners of such intersections sharp.
+     */
+    void GetColinearCorners( BOARD* aBoard, std::set<VECTOR2I>& colinearCorners );
 
     /**
      * Function TransformSolidAreasShapesToPolygonSet
@@ -291,11 +286,12 @@ public:
      * @param aUseNetClearance = true to use a clearance which is the max value between
      *          aMinClearanceValue and the net clearance
      *          false to use aMinClearanceValue only
+     * @param aPreserveCorners an optional set of corners which should not be smoothed.
      * if both aMinClearanceValue = 0 and aUseNetClearance = false: create the zone outline polygon.
      */
     void TransformOutlinesShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
-                                                        int aMinClearanceValue,
-                                                        bool aUseNetClearance ) const;
+                                int aMinClearanceValue, bool aUseNetClearance,
+                                std::set<VECTOR2I>* aPreserveCorners = nullptr ) const;
 
     /**
      * Function TransformShapeWithClearanceToPolygon
@@ -400,15 +396,16 @@ public:
      * (like Mirror() but changes layer)
      * @param aCentre - the rotation point.
      */
-    virtual void Flip( const wxPoint& aCentre ) override;
+    virtual void Flip( const wxPoint& aCentre, bool aFlipLeftRight ) override;
 
     /**
      * Function Mirror
      * Mirror the outlines , relative to a given horizontal axis
      * the layer is not changed
-     * @param mirror_ref = vertical axis position
+     * @param aMirrorRef = axis position
+     * @param aMirrorLeftRight mirror across Y axis (otherwise mirror across X)
      */
-    void Mirror( const wxPoint& mirror_ref );
+    void Mirror( const wxPoint& aMirrorRef, bool aMirrorLeftRight );
 
     /**
      * Function GetClass
@@ -574,11 +571,12 @@ public:
 
     /**
      * Function GetSmoothedPoly
-     * returns a pointer to the corner-smoothed version of
-     * m_Poly if it exists, otherwise it returns m_Poly.
+     * returns a pointer to the corner-smoothed version of m_Poly.
+     * @param aPreserveCorners - set of corners which should /not/ be smoothed
      * @return SHAPE_POLY_SET* - pointer to the polygon.
      */
-    bool BuildSmoothedPoly( SHAPE_POLY_SET& aSmoothedPoly ) const;
+    bool BuildSmoothedPoly( SHAPE_POLY_SET& aSmoothedPoly,
+                            std::set<VECTOR2I>* aPreserveCorners ) const;
 
     void SetCornerSmoothingType( int aType ) { m_cornerSmoothingType = aType; };
 

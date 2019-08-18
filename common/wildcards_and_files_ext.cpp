@@ -91,7 +91,6 @@ wxString AddFileExtListToFilter( const std::vector<std::string>& aExts )
 
 const std::string SchematicSymbolFileExtension( "sym" );
 const std::string SchematicLibraryFileExtension( "lib" );
-const std::string SchematicBackupFileExtension( "bak" );
 
 const std::string VrmlFileExtension( "wrl" );
 
@@ -102,6 +101,7 @@ const std::string ComponentFileExtension( "cmp" );
 const std::string GerberFileExtension( "gbr" );
 const std::string GerberJobFileExtension( "gbrjob" );
 const std::string HtmlFileExtension( "html" );
+const std::string EquFileExtension( "equ" );
 
 const std::string LegacyPcbFileExtension( "brd" );
 const std::string KiCadPcbFileExtension( "kicad_pcb" );

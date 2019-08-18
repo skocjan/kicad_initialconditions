@@ -57,7 +57,7 @@
 #include <geometry/shape_arc.h>
 
 #include <drc/courtyard_overlap.h>
-
+#include "zone_filler_tool.h"
 
 DRC::DRC() :
         PCB_TOOL_BASE( "pcbnew.DRCTool" )
@@ -192,8 +192,11 @@ int DRC::TestZoneToZoneOutline( ZONE_CONTAINER* aZone, bool aCreateMarkers )
 
     for( int ia = 0; ia < board->GetAreaCount(); ia++ )
     {
-        ZONE_CONTAINER* zoneRef = board->GetArea( ia );
-        zoneRef->BuildSmoothedPoly( smoothed_polys[ia] );
+        ZONE_CONTAINER*    zoneRef = board->GetArea( ia );
+        std::set<VECTOR2I> colinearCorners;
+        zoneRef->GetColinearCorners( board, colinearCorners );
+
+        zoneRef->BuildSmoothedPoly( smoothed_polys[ia], &colinearCorners );
     }
 
     // iterate through all areas
@@ -393,14 +396,14 @@ void DRC::RunTests( wxTextCtrl* aMessages )
         if( aMessages )
             aMessages->AppendText( _( "Refilling all zones...\n" ) );
 
-        m_pcbEditorFrame->Fill_All_Zones();
+        m_toolMgr->GetTool<ZONE_FILLER_TOOL>()->FillAllZones( caller );
     }
     else
     {
         if( aMessages )
             aMessages->AppendText( _( "Checking zone fills...\n" ) );
 
-        m_pcbEditorFrame->Check_All_Zones( caller );
+        m_toolMgr->GetTool<ZONE_FILLER_TOOL>()->CheckAllZones( caller );
     }
 
     // test track and via clearances to other tracks, pads, and vias
@@ -795,7 +798,7 @@ void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
         }
 
         // Test new segment against tracks and pads, optionally against copper zones
-        if( !doTrackDrc( *seg_it, seg_it + 1, m_pcb->Tracks().end(), true, m_doZonesTest ) )
+        if( !doTrackDrc( *seg_it, seg_it + 1, m_pcb->Tracks().end(), m_doZonesTest ) )
         {
             if( m_currentMarker )
             {

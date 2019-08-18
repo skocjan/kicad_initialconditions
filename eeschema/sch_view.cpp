@@ -68,6 +68,16 @@ SCH_VIEW::~SCH_VIEW()
 }
 
 
+void SCH_VIEW::SetScale( double aScale, VECTOR2D aAnchor )
+{
+    VIEW::SetScale( aScale, aAnchor );
+
+    //Redraw selection halos since their width is dependant on zoom
+    if( m_frame )
+        m_frame->RefreshSelection();
+}
+
+
 void SCH_VIEW::ResizeSheetWorkingArea( SCH_SCREEN* aScreen )
 {
     const PAGE_INFO& page_info = aScreen->GetPageSettings();
@@ -156,20 +166,6 @@ void SCH_VIEW::AddToPreview( EDA_ITEM* aItem, bool aTakeOwnership )
 }
 
 
-void SCH_VIEW::ShowSelectionArea( bool aShow )
-{
-    if( aShow )
-    {
-        // Reset seleciton area so the previous one doesn't flash before the first
-        // mouse move updates it
-        m_selectionArea->SetOrigin( VECTOR2I() );
-        m_selectionArea->SetEnd( VECTOR2I() );
-    }
-
-    SetVisible( m_selectionArea.get(), aShow );
-}
-
-
 void SCH_VIEW::ShowPreview( bool aShow )
 {
     SetVisible( m_preview.get(), aShow );
@@ -190,13 +186,21 @@ void SCH_VIEW::HideWorksheet()
 
 void SCH_VIEW::HighlightItem( EDA_ITEM *aItem, LIB_PIN* aPin )
 {
-    if( !aItem )
+    if( aItem && aItem->Type() == SCH_COMPONENT_T && aPin )
+    {
+        static_cast<SCH_COMPONENT*>( aItem )->HighlightPin( aPin );
+    }
+    else if( aItem )
+    {
+        aItem->SetFlags( HIGHLIGHTED );
+    }
+    else
     {
         for( auto item : *m_allItems )
         {
             // Not all view items can be highlighted, only EDA_ITEMs
             // So clear flag of only EDA_ITEMs.
-            auto eitem = dynamic_cast<EDA_ITEM *>( item );
+            EDA_ITEM* eitem = dynamic_cast<EDA_ITEM*>( item );
 
             if( eitem )
             {
@@ -209,15 +213,6 @@ void SCH_VIEW::HighlightItem( EDA_ITEM *aItem, LIB_PIN* aPin )
                 }
             }
         }
-    }
-    else
-    {
-        if( ( aItem->Type() == SCH_COMPONENT_T ) && aPin )
-        {
-            static_cast<SCH_COMPONENT*>( aItem )->HighlightPin( aPin );
-        }
-        else
-            aItem->SetFlags( HIGHLIGHTED );
     }
 
     // ugly but I guess OK for the moment...

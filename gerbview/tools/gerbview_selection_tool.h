@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2017 Jon Evans <jon@craftyjon.com>
- * Copyright (C) 2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2017-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -73,22 +73,12 @@ public:
      */
     GERBVIEW_SELECTION& GetSelection();
 
-    ///> Select a single item under cursor event handler.
-    int CursorSelection( const TOOL_EVENT& aEvent );
-
-    ///> Clear current selection event handler.
     int ClearSelection( const TOOL_EVENT& aEvent );
 
-    ///> Item selection event handler.
     int SelectItem( const TOOL_EVENT& aEvent );
-
-    ///> Multiple item selection event handler
     int SelectItems( const TOOL_EVENT& aEvent );
 
-    ///> Item unselection event handler.
     int UnselectItem( const TOOL_EVENT& aEvent );
-
-    ///> Multiple item unselection event handler
     int UnselectItems( const TOOL_EVENT& aEvent );
 
     ///> Launches a tool to measure between points
@@ -97,15 +87,11 @@ public:
     ///> Sets up handlers for various events.
     void setTransitions() override;
 
-    ///> Zooms the screen to center and fit the current selection.
-    void zoomFitSelection( void );
-
 private:
     /**
      * Function selectPoint()
-     * Selects an item pointed by the parameter aWhere. If there is more than
-     * one item at that place, there is a menu displayed that allows one to
-     * choose the item.
+     * Selects an item pointed by the parameter aWhere. If there is more than one item at that
+     * place, there is a menu displayed that allows one to choose the item.
      *
      * @param aWhere is the place where the item should be selected.
      * @param aAllowDisambiguation decides what to do in case of disambiguation. If true, then
@@ -116,21 +102,12 @@ private:
 
     /**
      * Function selectCursor()
-     * Selects an item under the cursor unless there is something already selected or aSelectAlways
-     * is true.
+     * Selects an item under the cursor unless there is something already selected or
+     * aSelectAlways is true.
      * @param aSelectAlways forces to select an item even if there is an item already selected.
      * @return true if eventually there is an item selected, false otherwise.
      */
     bool selectCursor( bool aSelectAlways = false );
-
-    /**
-     * Function selectMultiple()
-     * Handles drawing a selection box that allows one to select many items at
-     * the same time.
-     *
-     * @return true if the function was cancelled (i.e. CancelEvent was received).
-     */
-    bool selectMultiple();
 
     /**
      * Function clearSelection()
@@ -146,14 +123,6 @@ private:
      * @param aItems contains list of items that are displayed to the user.
      */
     EDA_ITEM* disambiguationMenu( GERBER_COLLECTOR* aItems );
-
-    /**
-     * Function toggleSelection()
-     * Changes selection status of a given item.
-     *
-     * @param aItem is the item to have selection status changed.
-     */
-    void toggleSelection( EDA_ITEM* aItem );
 
     /**
      * Function selectable()
@@ -193,39 +162,13 @@ private:
      */
     void unselectVisually( EDA_ITEM* aItem );
 
-    /**
-     * Function selectionContains()
-     * Checks if the given point is placed within any of selected items' bounding box.
-     *
-     * @return True if the given point is contained in any of selected items' bouding box.
-     */
-    bool selectionContains( const VECTOR2I& aPoint ) const;
+    GERBVIEW_FRAME* m_frame;        // Pointer to the parent frame.
+    GERBVIEW_SELECTION m_selection; // Current state of selection.
 
-    /**
-     * Function guessSelectionCandidates()
-     * Tries to guess best selection candidates in case multiple items are clicked, by
-     * doing some braindead heuristics.
-     * @param aCollector is the collector that has a list of items to be queried.
-     */
-    void guessSelectionCandidates( GERBER_COLLECTOR& aCollector ) const;
-
-    /// Pointer to the parent frame.
-    GERBVIEW_FRAME* m_frame;
-
-    /// Current state of selection.
-    GERBVIEW_SELECTION m_selection;
-
-    /// Flag saying if items should be added to the current selection or rather replace it.
-    bool m_additive;
-
-    /// Flag saying if items should be removed from the current selection
-    bool m_subtractive;
-
-    /// Flag saying if multiple selection mode is active.
-    bool m_multiple;
-
-    /// Determines if the selection is preliminary or final.
-    bool m_preliminary;
+    bool m_additive;                // Items should be added to selection (instead of replacing)
+    bool m_subtractive;             // Items should be removed from selection
+    bool m_exclusive_or;            // Items' selection state should be toggled
+    bool m_preliminary;             // Determines if the selection is preliminary or final.
 };
 
 #endif

@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -60,7 +61,7 @@ TOOL_ACTION PL_ACTIONS::placeImage( "plEditor.InteractiveDrawing.placeImage",
 
 // PL_EDIT_TOOL
 //
-TOOL_ACTION PL_ACTIONS::move( "plEditor.InteractiveEdit.move",
+TOOL_ACTION PL_ACTIONS::move( "plEditor.InteractiveMove.move",
         AS_GLOBAL,
         'M', LEGACY_HK_NAME( "Move Item" ),
         _( "Move" ), _( "Moves the selected item(s)" ),
@@ -72,17 +73,9 @@ TOOL_ACTION PL_ACTIONS::appendImportedWorksheet( "plEditor.InteractiveEdit.appen
         _( "Append an existing page layout design file to current file" ),
         import_xpm, AF_ACTIVATE );
 
-TOOL_ACTION PL_ACTIONS::deleteItemCursor( "plEditor.InteractiveEdit.deleteTool",
-        AS_GLOBAL, 0, "",
-        _( "Delete Items" ), _( "Delete clicked items" ),
-        delete_xpm, AF_ACTIVATE );
-
 
 // PL_EDITOR_CONTROL
 //
-TOOL_ACTION PL_ACTIONS::refreshPreview( "plEditor.EditorControl.refreshPreview",
-         AS_GLOBAL );
-
 TOOL_ACTION PL_ACTIONS::toggleBackground( "plEditor.EditorControl.ToggleBackground",
         AS_GLOBAL, 0, "",
         _( "Background White" ), _( "Switch between white and black background" ),
@@ -93,11 +86,10 @@ TOOL_ACTION PL_ACTIONS::showInspector( "plEditor.EditorControl.ShowInspector",
         _( "Show Design Inspector" ), _( "Show the list of items in page layout" ),
         spreadsheet_xpm );
 
-
-// PL_PICKER_TOOL
-//
-TOOL_ACTION PL_ACTIONS::pickerTool( "plEditor.InteractivePicker",
-        AS_GLOBAL, 0, "", "", "", NULL, AF_ACTIVATE );
+TOOL_ACTION PL_ACTIONS::previewSettings( "plEditor.EditorControl.PreviewSettings",
+        AS_GLOBAL, 0, "",
+        _( "Page Preview Settings..." ), _( "Edit preview data for page size and title block" ),
+        sheetset_xpm );
 
 
 // PL_SELECTION_TOOL

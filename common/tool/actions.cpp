@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -91,7 +92,7 @@ TOOL_ACTION ACTIONS::revert( "common.Control.revert",
 TOOL_ACTION ACTIONS::pageSettings( "common.Control.pageSettings",
         AS_GLOBAL, 
         0, "",
-        _( "Page Settings..." ), _( "Settings for paper size and frame references" ),
+        _( "Page Settings..." ), _( "Settings for paper size and title block info" ),
         sheetset_xpm );
 
 TOOL_ACTION ACTIONS::print( "common.Control.print",
@@ -118,6 +119,12 @@ TOOL_ACTION ACTIONS::cancelInteractive( "common.Interactive.cancel",
         0, "",   // ESC key is handled in the dispatcher
         _( "Cancel" ), _( "Cancel current tool" ),
         cancel_xpm, AF_NONE );
+
+TOOL_ACTION ACTIONS::showContextMenu( "common.Control.showContextMenu",
+        AS_GLOBAL,
+        0, "",
+        _( "Show Context Menu" ), _( "Perform the right-mouse-button action" ),
+        nullptr, AF_NONE, (void*) CURSOR_RIGHT_CLICK );
 
 TOOL_ACTION ACTIONS::updateMenu( "common.Interactive.updateMenu",
         AS_GLOBAL );
@@ -168,6 +175,11 @@ TOOL_ACTION ACTIONS::doDelete( "common.Interactive.delete",
         WXK_DELETE, LEGACY_HK_NAME( "Delete Item" ),
         _( "Delete" ), _( "Deletes selected item(s)" ),
         delete_xpm );
+
+TOOL_ACTION ACTIONS::deleteTool( "common.Interactive.deleteTool",
+        AS_GLOBAL, 0, "",
+        _( "Interactive Delete Tool" ), _( "Delete clicked items" ),
+        delete_xpm, AF_ACTIVATE );
 
 TOOL_ACTION ACTIONS::activatePointEditor( "common.Control.activatePointEditor",
         AS_GLOBAL );
@@ -220,7 +232,7 @@ TOOL_ACTION ACTIONS::zoomRedraw( "common.Control.zoomRedraw",
         WXK_F3,
 #endif
         LEGACY_HK_NAME( "Zoom Redraw" ),
-        _( "Refresh" ), "",
+        _( "Refresh" ), _( "Refresh" ),
         zoom_redraw_xpm );
 
 TOOL_ACTION ACTIONS::zoomFitScreen( "common.Control.zoomFitScreen",
@@ -231,7 +243,7 @@ TOOL_ACTION ACTIONS::zoomFitScreen( "common.Control.zoomFitScreen",
         WXK_HOME,
 #endif
         LEGACY_HK_NAME( "Zoom Auto" ),
-        _( "Zoom to Fit" ), "",
+        _( "Zoom to Fit" ), _( "Zoom to Fit" ),
         zoom_fit_in_page_xpm );
 
 TOOL_ACTION ACTIONS::zoomIn( "common.Control.zoomIn",
@@ -242,7 +254,7 @@ TOOL_ACTION ACTIONS::zoomIn( "common.Control.zoomIn",
         WXK_F1, 
 #endif
         LEGACY_HK_NAME( "Zoom In" ),
-        _( "Zoom In at Cursor" ), "",
+        _( "Zoom In at Cursor" ), _( "Zoom In at Cursor" ),
         zoom_in_xpm );
 
 TOOL_ACTION ACTIONS::zoomOut( "common.Control.zoomOut",
@@ -253,31 +265,31 @@ TOOL_ACTION ACTIONS::zoomOut( "common.Control.zoomOut",
         WXK_F2,
 #endif
         LEGACY_HK_NAME( "Zoom Out" ),
-        _( "Zoom Out at Cursor" ), "",
+        _( "Zoom Out at Cursor" ), _( "Zoom Out at Cursor" ),
         zoom_out_xpm );
 
 TOOL_ACTION ACTIONS::zoomInCenter( "common.Control.zoomInCenter",
         AS_GLOBAL, 
         0, "",
-        _( "Zoom In" ), "",
+        _( "Zoom In" ), _( "Zoom In" ),
         zoom_in_xpm );
 
 TOOL_ACTION ACTIONS::zoomOutCenter( "common.Control.zoomOutCenter",
         AS_GLOBAL, 
         0, "",
-        _( "Zoom Out" ), "",
+        _( "Zoom Out" ), _( "Zoom Out" ),
         zoom_out_xpm );
 
 TOOL_ACTION ACTIONS::zoomCenter( "common.Control.zoomCenter",
         AS_GLOBAL, 
         WXK_F4, LEGACY_HK_NAME( "Zoom Center" ),
-        _( "Center" ), "",
+        _( "Center" ), _( "Center" ),
         zoom_center_on_screen_xpm );
 
 TOOL_ACTION ACTIONS::zoomTool( "common.Control.zoomTool",
         AS_GLOBAL, 
         MD_CTRL + WXK_F5, LEGACY_HK_NAME( "Zoom to Selection" ),
-        _( "Zoom to Selection" ), "",
+        _( "Zoom to Selection" ), _( "Zoom to Selection" ),
         zoom_area_xpm, AF_ACTIVATE );
 
 TOOL_ACTION ACTIONS::zoomPreset( "common.Control.zoomPreset",
@@ -290,107 +302,110 @@ TOOL_ACTION ACTIONS::centerContents( "common.Control.centerContents",
 TOOL_ACTION ACTIONS::cursorUp( "common.Control.cursorUp",
         AS_GLOBAL, 
         WXK_UP, "",
-        "", "", 
+        _( "Cursor Up" ), "",
         nullptr, AF_NONE, (void*) CURSOR_UP );
 
 TOOL_ACTION ACTIONS::cursorDown( "common.Control.cursorDown",
         AS_GLOBAL, 
         WXK_DOWN, "",
-        "", "" , 
+        _( "Cursor Down" ), "" ,
         nullptr, AF_NONE, (void*) CURSOR_DOWN );
 
 TOOL_ACTION ACTIONS::cursorLeft( "common.Control.cursorLeft",
         AS_GLOBAL, 
         WXK_LEFT, "",
-        "", "" , 
+        _( "Cursor Left" ), "" ,
         nullptr, AF_NONE, (void*) CURSOR_LEFT );
 
 TOOL_ACTION ACTIONS::cursorRight( "common.Control.cursorRight",
         AS_GLOBAL, 
         WXK_RIGHT, "",
-        "", "" , 
+        _( "Cursor Right" ), "" ,
         nullptr, AF_NONE, (void*) CURSOR_RIGHT );
 
 
 TOOL_ACTION ACTIONS::cursorUpFast( "common.Control.cursorUpFast",
         AS_GLOBAL, 
         MD_CTRL + WXK_UP, "",
-        "", "", 
+        _( "Cursor Up Fast" ), "",
         nullptr, AF_NONE, (void*) ( CURSOR_UP | CURSOR_FAST_MOVE ) );
 
 TOOL_ACTION ACTIONS::cursorDownFast( "common.Control.cursorDownFast",
         AS_GLOBAL, 
         MD_CTRL + WXK_DOWN, "",
-        "", "" , 
+        _( "Cursor Down Fast" ), "" ,
         nullptr, AF_NONE, (void*) ( CURSOR_DOWN | CURSOR_FAST_MOVE ) );
 
 TOOL_ACTION ACTIONS::cursorLeftFast( "common.Control.cursorLeftFast",
         AS_GLOBAL, 
         MD_CTRL + WXK_LEFT, "",
-        "", "" , 
+        _( "Cursor Left Fast" ), "" ,
         nullptr, AF_NONE, (void*) ( CURSOR_LEFT | CURSOR_FAST_MOVE ) );
 
 TOOL_ACTION ACTIONS::cursorRightFast( "common.Control.cursorRightFast",
         AS_GLOBAL, 
         MD_CTRL + WXK_RIGHT, "",
-        "", "" , 
+        _( "Cursor Right Fast" ), "" ,
         nullptr, AF_NONE, (void*) ( CURSOR_RIGHT | CURSOR_FAST_MOVE ) );
 
 TOOL_ACTION ACTIONS::cursorClick( "common.Control.cursorClick",
         AS_GLOBAL, 
         WXK_RETURN, LEGACY_HK_NAME( "Mouse Left Click" ),
-        "", "", 
+        _( "Click" ), "Performs left mouse button click",
         nullptr, AF_NONE, (void*) CURSOR_CLICK );
 
 TOOL_ACTION ACTIONS::cursorDblClick( "common.Control.cursorDblClick",
         AS_GLOBAL, 
         WXK_END, LEGACY_HK_NAME( "Mouse Left Double Click" ),
-        "", "",
+        _( "Double-click" ), "Performs left mouse button double-click",
         nullptr, AF_NONE, (void*) CURSOR_DBL_CLICK );
+
+TOOL_ACTION ACTIONS::refreshPreview( "common.Control.refreshPreview",
+         AS_GLOBAL );
 
 TOOL_ACTION ACTIONS::panUp( "common.Control.panUp",
         AS_GLOBAL, 
         MD_SHIFT + WXK_UP, "",
-        "", "", 
+        _( "Pan Up" ), "",
         nullptr, AF_NONE, (void*) CURSOR_UP );
 
 TOOL_ACTION ACTIONS::panDown( "common.Control.panDown",
         AS_GLOBAL, 
         MD_SHIFT + WXK_DOWN, "",
-        "", "" ,
+        _( "Pan Down" ), "" ,
         nullptr, AF_NONE, (void*) CURSOR_DOWN );
 
 TOOL_ACTION ACTIONS::panLeft( "common.Control.panLeft",
         AS_GLOBAL, 
         MD_SHIFT + WXK_LEFT, "",
-        "", "" ,
+        _( "Pan Left" ), "" ,
         nullptr, AF_NONE, (void*) CURSOR_LEFT );
 
 TOOL_ACTION ACTIONS::panRight( "common.Control.panRight",
         AS_GLOBAL, 
         MD_SHIFT + WXK_RIGHT, "",
-        "", "" ,
+        _( "Pan Right" ), "" ,
         nullptr, AF_NONE, (void*) CURSOR_RIGHT );
 
 // Grid control
 TOOL_ACTION ACTIONS::gridFast1( "common.Control.gridFast1",
         AS_GLOBAL, 
         MD_ALT + '1', LEGACY_HK_NAME( "Switch Grid To Fast Grid1" ),
-        "", "" );
+        _( "Switch to Fast Grid 1" ), "" );
 
 TOOL_ACTION ACTIONS::gridFast2( "common.Control.gridFast2",
         AS_GLOBAL, 
         MD_ALT + '2', LEGACY_HK_NAME( "Switch Grid To Fast Grid2" ),
-        "", "" );
+        _( "Switch to Fast Grid 2" ), "" );
 
 TOOL_ACTION ACTIONS::gridNext( "common.Control.gridNext",
         AS_GLOBAL, 
         'N', LEGACY_HK_NAME( "Switch Grid To Next" ),
-        "", "" );
+        _("Switch to Next Grid" ), "" );
 
 TOOL_ACTION ACTIONS::gridPrev( "common.Control.gridPrev",
         AS_GLOBAL, MD_SHIFT + 'N', LEGACY_HK_NAME( "Switch Grid To Previous" ),
-        "", "" );
+        _( "Switch to Previous Grid" ), "" );
 
 TOOL_ACTION ACTIONS::gridSetOrigin( "common.Control.gridSetOrigin",
         AS_GLOBAL, 
@@ -401,7 +416,7 @@ TOOL_ACTION ACTIONS::gridSetOrigin( "common.Control.gridSetOrigin",
 TOOL_ACTION ACTIONS::gridResetOrigin( "common.Control.gridResetOrigin",
         AS_GLOBAL, 
         'Z', LEGACY_HK_NAME( "Reset Grid Origin" ),
-        "", "" );
+        _( "Reset Grid Origin" ), "" );
 
 TOOL_ACTION ACTIONS::gridPreset( "common.Control.gridPreset",
         AS_GLOBAL );
@@ -440,10 +455,11 @@ TOOL_ACTION ACTIONS::togglePolarCoords( "common.Control.togglePolarCoords",
 TOOL_ACTION ACTIONS::resetLocalCoords( "common.Control.resetLocalCoords",
         AS_GLOBAL, 
         ' ', LEGACY_HK_NAME( "Reset Local Coordinates" ),
-        "", "" );
+        _( "Reset Local Coordinates" ), "" );
 
 TOOL_ACTION ACTIONS::toggleCursor( "common.Control.toggleCursor",
         AS_GLOBAL, 
+        // Don't be tempted to remove "Modern Toolset only".  It's in the legacy property name.
         MD_CTRL + MD_SHIFT + 'X', LEGACY_HK_NAME( "Toggle Cursor Display (Modern Toolset only)" ),
         _( "Always Show Cursor" ), _( "Display crosshairs even in selection tool" ),
         cursor_xpm );
@@ -466,9 +482,13 @@ TOOL_ACTION ACTIONS::selectionTool( "common.InteractiveSelection.selectionTool",
 
 TOOL_ACTION ACTIONS::measureTool( "common.InteractiveEdit.measureTool",
         AS_GLOBAL,
+        // Don't be tempted to remove "Modern Toolset only".  It's in the legacy property name.
         MD_CTRL + MD_SHIFT + 'M', LEGACY_HK_NAME( "Measure Distance (Modern Toolset only)" ),
         _( "Measure Tool" ), _( "Interactively measure distance between points" ),
         measurement_xpm, AF_ACTIVATE );
+
+TOOL_ACTION ACTIONS::pickerTool( "common.InteractivePicker.pickerTool",
+        AS_GLOBAL, 0, "", "", "", NULL, AF_ACTIVATE );
 
 TOOL_ACTION ACTIONS::show3DViewer( "common.Control.show3DViewer",
         AS_GLOBAL,

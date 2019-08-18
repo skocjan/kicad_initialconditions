@@ -389,7 +389,7 @@ int SCH_SHEET::GetPenSize() const
 wxPoint SCH_SHEET::GetSheetNamePosition()
 {
     wxPoint pos = m_pos;
-    int      margin = KiROUND( GetPenSize() / 2.0 + 4 + m_sheetNameSize * 0.3 );
+    int     margin = KiROUND( GetPenSize() / 2.0 + 4 + m_sheetNameSize * 0.3 );
 
     if( IsVerticalOrientation() )
     {
@@ -426,10 +426,11 @@ wxPoint SCH_SHEET::GetFileNamePosition()
 
 void SCH_SHEET::ViewGetLayers( int aLayers[], int& aCount ) const
 {
-    aCount      = 3;
+    aCount      = 4;
     aLayers[0]  = LAYER_HIERLABEL;
     aLayers[1]  = LAYER_SHEET;
     aLayers[2]  = LAYER_SHEET_BACKGROUND;
+    aLayers[3]  = LAYER_SELECTION_SHADOWS;
 }
 
 
@@ -548,17 +549,21 @@ bool SCH_SHEET::SearchHierarchy( const wxString& aFilename, SCH_SCREEN** aScreen
         {
             if( item->Type() == SCH_SHEET_T )
             {
-                SCH_SHEET* sheet = (SCH_SHEET*) item;
+                // Must use the screen's path (which is always absolute) rather than the
+                // sheet's (which could be relative).
 
-                if( sheet->m_screen
-                    && sheet->m_screen->GetFileName().CmpNoCase( aFilename ) == 0 )
+                SCH_SHEET*  sheet = (SCH_SHEET*) item;
+                SCH_SCREEN* screen = sheet->m_screen;
+
+                if( screen && screen->GetFileName().CmpNoCase( aFilename ) == 0 )
                 {
-                    *aScreen = sheet->m_screen;
+                    *aScreen = screen;
                     return true;
                 }
-
-                if( sheet->SearchHierarchy( aFilename, aScreen ) )
+                else if( sheet->SearchHierarchy( aFilename, aScreen ) )
+                {
                     return true;
+                }
             }
 
             item = item->Next();

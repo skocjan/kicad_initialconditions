@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017-2019 Kicad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,7 +38,6 @@
 #include <microwave/microwave_inductor.h>
 #include "pcb_actions.h"
 #include "selection_tool.h"
-#include "tool_event_utils.h"
 
 
 MICROWAVE_TOOL::MICROWAVE_TOOL() :
@@ -56,112 +55,44 @@ void MICROWAVE_TOOL::Reset( RESET_REASON aReason )
 }
 
 
-struct MICROWAVE_TOOL_INFO
-{
-    using MOD_CREATOR = std::function<std::unique_ptr<MODULE>()>;
-
-    wxString  name;
-    int       toolId;
-    MOD_CREATOR creatorFunc;
-};
-
-
-MICROWAVE_TOOL_INFO getMicrowaveItemCreator( PCB_EDIT_FRAME& frame, int aParam )
-{
-    MICROWAVE_TOOL_INFO info;
-
-    switch( aParam )
-    {
-    case MWAVE_TOOL_SIMPLE_ID::GAP:
-        info.name =  _( "Add Gap" );
-        info.toolId = ID_PCB_MUWAVE_TOOL_GAP_CMD;
-        info.creatorFunc = [&frame] () {
-            return std::unique_ptr<MODULE>( frame.Create_MuWaveComponent( 0 ) );
-        };
-        break;
-
-    case MWAVE_TOOL_SIMPLE_ID::STUB:
-        info.name =  _( "Add Stub" );
-        info.toolId = ID_PCB_MUWAVE_TOOL_STUB_CMD;
-        info.creatorFunc = [&frame] () {
-            return std::unique_ptr<MODULE>( frame.Create_MuWaveComponent( 1 ) );
-        };
-        break;
-
-    case MWAVE_TOOL_SIMPLE_ID::STUB_ARC:
-        info.name =  _( "Add Stub (Arc)" );
-        info.toolId = ID_PCB_MUWAVE_TOOL_STUB_ARC_CMD;
-        info.creatorFunc = [&frame] () {
-            return std::unique_ptr<MODULE>( frame.Create_MuWaveComponent( 2 ) );
-        };
-        break;
-
-    case MWAVE_TOOL_SIMPLE_ID::FUNCTION_SHAPE:
-        info.name =  _( "Add Polynomial Shape" );
-        info.toolId = ID_PCB_MUWAVE_TOOL_FUNCTION_SHAPE_CMD;
-        info.creatorFunc = [&frame] () {
-            return std::unique_ptr<MODULE>( frame.Create_MuWavePolygonShape() );
-        };
-        break;
-
-    default:
-        // Avoid uninitilized value:
-        info.toolId = 0;
-        // info.name is already set to empty string
-        break;
-    };
-
-    return info;
-}
-
-
 int MICROWAVE_TOOL::addMicrowaveFootprint( const TOOL_EVENT& aEvent )
 {
-    auto& frame = *getEditFrame<PCB_EDIT_FRAME>();
-
-    const int param = aEvent.Parameter<intptr_t>();
-
-    MICROWAVE_TOOL_INFO info = getMicrowaveItemCreator( frame, param );
-
-    // failed to find suitable item info - shouldn't be possible
-    // if all the id's are handled
-    if( !info.name )
-    {
-        wxASSERT_MSG( 0, "Failed to find suitable microwave tool info" );
-        return 0;
-    }
-
-    frame.SetToolID( info.toolId, wxCURSOR_PENCIL, info.name );
+    PCB_EDIT_FRAME* frame = getEditFrame<PCB_EDIT_FRAME>();
 
     struct MICROWAVE_PLACER : public INTERACTIVE_PLACER_BASE
     {
-        MICROWAVE_TOOL_INFO& m_info;
-
-        MICROWAVE_PLACER( MICROWAVE_TOOL_INFO& aInfo ) :
-            m_info( aInfo ) {};
+        MICROWAVE_PLACER( PCB_EDIT_FRAME* aFrame, int aType ) :
+                m_frame( aFrame ),
+                m_itemType( aType )
+        { };
 
         std::unique_ptr<BOARD_ITEM> CreateItem() override
         {
-            auto module = m_info.creatorFunc();
-
-            // Module has been added in the legacy backend,
-            // so we have to remove it before committing the change
-            // @todo LEGACY
-            if( module )
+            switch( m_itemType )
             {
-                m_board->Remove( module.get() );
-            }
-
-            return std::unique_ptr<BOARD_ITEM>( module.release() );
+            case MWAVE_TOOL_SIMPLE_ID::GAP:
+                return std::unique_ptr<MODULE>( m_frame->Create_MuWaveComponent( 0 ) );
+            case MWAVE_TOOL_SIMPLE_ID::STUB:
+                return std::unique_ptr<MODULE>( m_frame->Create_MuWaveComponent( 1 ) );
+            case MWAVE_TOOL_SIMPLE_ID::STUB_ARC:
+                return std::unique_ptr<MODULE>( m_frame->Create_MuWaveComponent( 2 ) );
+            case MWAVE_TOOL_SIMPLE_ID::FUNCTION_SHAPE:
+                return std::unique_ptr<MODULE>( m_frame->Create_MuWavePolygonShape() );
+            default:
+                return std::unique_ptr<MODULE>();
+            };
         }
+
+    private:
+        PCB_EDIT_FRAME* m_frame;
+        int             m_itemType;
     };
 
-    MICROWAVE_PLACER placer ( info );
+    MICROWAVE_PLACER placer( frame, aEvent.Parameter<intptr_t>() );
 
-    doInteractiveItemPlacement( &placer,  _( "Place microwave feature" ),
-                                IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP | IPO_PROPERTIES );
-
-    frame.SetNoToolSelected();
+    doInteractiveItemPlacement( aEvent.GetCommandStr().get(), &placer,
+                                _( "Place microwave feature" ),
+                                IPO_REPEAT | IPO_ROTATE | IPO_FLIP );
 
     return 0;
 }
@@ -183,22 +114,11 @@ void MICROWAVE_TOOL::createInductorBetween( const VECTOR2I& aStart, const VECTOR
     auto inductorModule = std::unique_ptr<MODULE>( CreateMicrowaveInductor( pattern, &frame,
                                                                             errorMessage ) );
 
-    if( inductorModule )
-    {
-        // legacy mode tools add to the board
-        // so remove it and add it back with the commit object
-        // this has to happen, even if we don't end up storing the module
-        // @todo LEGACY
-        board()->Remove( inductorModule.get() );
-    }
-
     // on any error, report if we can
     if ( !inductorModule || !errorMessage.IsEmpty() )
     {
         if ( !errorMessage.IsEmpty() )
-        {
             DisplayError( &frame, errorMessage );
-        }
     }
     else
     {
@@ -229,8 +149,8 @@ int MICROWAVE_TOOL::drawMicrowaveInductor( const TOOL_EVENT& aEvent )
     KIGFX::VIEW_CONTROLS& controls = *getViewControls();
     auto& frame = *getEditFrame<PCB_EDIT_FRAME>();
 
-    frame.SetToolID( ID_PCB_MUWAVE_TOOL_SELF_CMD, wxCURSOR_PENCIL, _( "Add Microwave Inductor" ) );
-
+    std::string tool = aEvent.GetCommandStr().get();
+    frame.PushTool( tool );
     Activate();
 
     TWO_POINT_GEOMETRY_MANAGER tpGeomMgr;
@@ -252,30 +172,47 @@ int MICROWAVE_TOOL::drawMicrowaveInductor( const TOOL_EVENT& aEvent )
 
     while( auto evt = Wait() )
     {
+        frame.GetCanvas()->SetCurrentCursor( wxCURSOR_PENCIL );
         VECTOR2I cursorPos = controls.GetCursorPosition();
 
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
-        {
-            // overriding action, or we're cancelling without
-            // an in-progress preview area
-            if ( evt->IsActivate() || !originSet )
-            {
-                break;
-            }
-
-            // had an in-progress area, so start again but don't
-            // cancel the tool
+        auto cleanup = [&] () {
             originSet = false;
             controls.CaptureCursor( false );
             controls.SetAutoPan( false );
-
             view.SetVisible( &previewRect, false );
             view.Update( &previewRect, KIGFX::GEOMETRY );
+        };
+
+        if( evt->IsCancelInteractive() )
+        {
+            if( originSet )
+                cleanup();
+            else
+            {
+                frame.PopTool( tool );
+                break;
+            }
+        }
+
+        else if( evt->IsActivate() )
+        {
+            if( originSet )
+                cleanup();
+
+            if( evt->IsMoveTool() )
+            {
+                // leave ourselves on the stack so we come back after the move
+                break;
+            }
+            else
+            {
+                frame.PopTool( tool );
+                break;
+            }
         }
 
         // A click or drag starts
-        else if( !originSet &&
-                ( evt->IsClick( BUT_LEFT ) || evt->IsDrag( BUT_LEFT ) ) )
+        else if( !originSet && ( evt->IsClick( BUT_LEFT ) || evt->IsDrag( BUT_LEFT ) ) )
         {
             tpGeomMgr.SetOrigin( cursorPos );
             tpGeomMgr.SetEnd( cursorPos );
@@ -287,8 +224,7 @@ int MICROWAVE_TOOL::drawMicrowaveInductor( const TOOL_EVENT& aEvent )
 
         // another click after origin set is the end
         // left up is also the end, as you'll only get that after a drag
-        else if( originSet &&
-                ( evt->IsClick( BUT_LEFT ) || evt->IsMouseUp( BUT_LEFT ) ) )
+        else if( originSet && ( evt->IsClick( BUT_LEFT ) || evt->IsMouseUp( BUT_LEFT ) ) )
         {
             // second click, we're done:
             // delegate to the point-to-point inductor creator function
@@ -305,8 +241,7 @@ int MICROWAVE_TOOL::drawMicrowaveInductor( const TOOL_EVENT& aEvent )
 
         // any move or drag once the origin was set updates
         // the end point
-        else if( originSet &&
-                ( evt->IsMotion() || evt->IsDrag( BUT_LEFT ) ) )
+        else if( originSet && ( evt->IsMotion() || evt->IsDrag( BUT_LEFT ) ) )
         {
             tpGeomMgr.SetAngleSnap( evt->Modifier( MD_CTRL ) );
             tpGeomMgr.SetEnd( cursorPos );
@@ -319,14 +254,14 @@ int MICROWAVE_TOOL::drawMicrowaveInductor( const TOOL_EVENT& aEvent )
         {
             m_menu.ShowContextMenu( selection() );
         }
+
+        else
+            evt->SetPassEvent();
     }
 
     controls.CaptureCursor( false );
     controls.SetAutoPan( false );
     view.Remove( &previewRect );
-
-    frame.SetNoToolSelected();
-
     return 0;
 }
 

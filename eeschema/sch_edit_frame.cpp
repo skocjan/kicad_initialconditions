@@ -22,24 +22,21 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
-#include <kiface_i.h>
-#include <pgm_base.h>
-#include <gr_basic.h>
-#include <sch_draw_panel.h>
-#include <gestfich.h>
-#include <confirm.h>
 #include <base_units.h>
-#include <msgpanel.h>
-#include <html_messagebox.h>
-#include <executable_names.h>
+#include <confirm.h>
 #include <eda_dockart.h>
+#include <executable_names.h>
+#include <fctsys.h>
+#include <gestfich.h>
+#include <gr_basic.h>
+#include <html_messagebox.h>
+#include <kiface_i.h>
+#include <kiway.h>
+#include <pgm_base.h>
 #include <profile.h>
-
 #include <advanced_config.h>
 #include <general.h>
 #include <eeschema_id.h>
-#include <netlist.h>
 #include <class_library.h>
 #include <sch_edit_frame.h>
 #include <symbol_lib_table.h>
@@ -52,16 +49,15 @@
 #include <invoke_sch_dialog.h>
 #include <dialogs/dialog_schematic_find.h>
 #include <dialog_symbol_remap.h>
-#include <view/view.h>
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
 #include <tool/action_toolbar.h>
 #include <tool/common_control.h>
 #include <tool/common_tools.h>
+#include <tool/picker_tool.h>
 #include <tool/zoom_tool.h>
 #include <tools/ee_actions.h>
 #include <tools/ee_selection_tool.h>
-#include <tools/ee_picker_tool.h>
 #include <tools/ee_point_editor.h>
 #include <tools/sch_drawing_tools.h>
 #include <tools/sch_line_wire_bus_tool.h>
@@ -69,10 +65,8 @@
 #include <tools/sch_edit_tool.h>
 #include <tools/ee_inspection_tool.h>
 #include <tools/sch_editor_control.h>
-#include <build_version.h>
 #include <wildcards_and_files_ext.h>
 #include <connection_graph.h>
-#include <sch_view.h>
 #include <sch_painter.h>
 
 #include <gal/graphics_abstraction_layer.h>
@@ -222,6 +216,7 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( ID_IMPORT_NON_KICAD_SCH, SCH_EDIT_FRAME::OnImportProject )
 
     EVT_MENU( wxID_EXIT, SCH_EDIT_FRAME::OnExit )
+    EVT_MENU( wxID_CLOSE, SCH_EDIT_FRAME::OnExit )
 
     EVT_TOOL( ID_RESCUE_CACHED, SCH_EDIT_FRAME::OnRescueProject )
     EVT_MENU( ID_REMAP_SYMBOLS, SCH_EDIT_FRAME::OnRemapSymbols )
@@ -233,7 +228,7 @@ END_EVENT_TABLE()
 SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     SCH_BASE_FRAME( aKiway, aParent, FRAME_SCH, wxT( "Eeschema" ),
         wxDefaultPosition, wxDefaultSize, KICAD_DEFAULT_DRAWFRAME_STYLE, SCH_EDIT_FRAME_NAME ),
-    m_item_to_repeat( 0 )
+    m_item_to_repeat( nullptr )
 {
     g_CurrentSheet = new SCH_SHEET_PATH();
     g_ConnectionGraph = new CONNECTION_GRAPH( this );
@@ -247,15 +242,15 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     SetShowPageLimits( true );
     m_undoItem = NULL;
     m_hasAutoSave = true;
+    m_showIllegalSymbolLibDialog = true;
     m_FrameSize = ConvertDialogToPixels( wxSize( 500, 350 ) );    // default in case of no prefs
     m_AboutTitle = "Eeschema";
 
-    m_findReplaceData = new wxFindReplaceData( wxFR_DOWN );
     m_findReplaceDialog = nullptr;
     m_findReplaceStatusPopup = nullptr;
 
     SetForceHVLines( true );
-    SetSpiceAjustPassiveValues( false );
+    SetSpiceAdjustPassiveValues( false );
 
     // Give an icon
     wxIcon icon;
@@ -295,10 +290,12 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     m_auimgr.Update();
 
     GetToolManager()->RunAction( ACTIONS::gridPreset, true, m_LastGridSizeId );
-    GetToolManager()->RunAction( ACTIONS::zoomFitScreen, false );
+    GetToolManager()->RunAction( ACTIONS::zoomFitScreen, true );
 
     if( GetCanvas() )
         GetCanvas()->GetGAL()->SetGridVisibility( IsGridVisible() );
+
+    InitExitKey();
 
     // Net list generator
     DefaultExecFlags();
@@ -316,7 +313,6 @@ SCH_EDIT_FRAME::~SCH_EDIT_FRAME()
     delete g_CurrentSheet;          // a SCH_SHEET_PATH, on the heap.
     delete g_ConnectionGraph;
     delete m_undoItem;
-    delete m_findReplaceData;
     delete g_RootSheet;
 
     g_CurrentSheet = nullptr;
@@ -339,7 +335,7 @@ void SCH_EDIT_FRAME::setupTools()
     m_toolManager->RegisterTool( new COMMON_TOOLS );
     m_toolManager->RegisterTool( new ZOOM_TOOL );
     m_toolManager->RegisterTool( new EE_SELECTION_TOOL );
-    m_toolManager->RegisterTool( new EE_PICKER_TOOL );
+    m_toolManager->RegisterTool( new PICKER_TOOL );
     m_toolManager->RegisterTool( new SCH_DRAWING_TOOLS );
     m_toolManager->RegisterTool( new SCH_LINE_WIRE_BUS_TOOL );
     m_toolManager->RegisterTool( new SCH_MOVE_TOOL );
@@ -359,14 +355,17 @@ void SCH_EDIT_FRAME::setupTools()
 void SCH_EDIT_FRAME::SaveCopyForRepeatItem( SCH_ITEM* aItem )
 {
     // we cannot store a pointer to an item in the display list here since
-    // that item may be deleted, such as part of a line concatonation or other.
+    // that item may be deleted, such as part of a line concatenation or other.
     // So simply always keep a copy of the object which is to be repeated.
 
-    delete m_item_to_repeat;
+    if( aItem )
+    {
+        delete m_item_to_repeat;
 
-    m_item_to_repeat = (SCH_ITEM*) aItem->Clone();
-    // Clone() preserves the flags, we want 'em cleared.
-    m_item_to_repeat->ClearFlags();
+        m_item_to_repeat = (SCH_ITEM*) aItem->Clone();
+        // Clone() preserves the flags, we want 'em cleared.
+        m_item_to_repeat->ClearFlags();
+    }
 }
 
 
@@ -384,9 +383,9 @@ void SCH_EDIT_FRAME::SetSheetNumberAndCount()
 
     // Examine all sheets path to find the current sheets path,
     // and count them from root to the current sheet path:
-    for( unsigned i = 0; i < sheetList.size(); i++ )
+    for( const SCH_SHEET_PATH& sheet : sheetList )
     {
-        wxString sheetpath = sheetList[i].Path();
+        wxString sheetpath = sheet.Path();
 
         if( sheetpath == current_sheetpath )   // Current sheet path found
             break;
@@ -602,8 +601,8 @@ wxString SCH_EDIT_FRAME::GetUniqueFilenameForCurrentSheet()
     wxString filename = fn.GetName();
     wxString sheetFullName =  g_CurrentSheet->PathHumanReadable();
 
-    if( sheetFullName == "<root sheet>" || sheetFullName == _( "<root sheet>" ) ||
-        sheetFullName == "/" )
+    if( sheetFullName == SCH_SHEET_PATH::GetRootPathName( false ) ||
+        sheetFullName == SCH_SHEET_PATH::GetRootPathName( true ) )
     {
         // For the root sheet, use root schematic file name.
         sheetFullName.clear();
@@ -652,10 +651,9 @@ void SCH_EDIT_FRAME::OnUpdatePCB( wxCommandEvent& event )
 
     if( Kiface().IsSingle() )
     {
-        DisplayError( this,  _( "Cannot update the PCB, because the Schematic Editor is"
-                                " opened in stand-alone mode. In order to create/update"
-                                " PCBs from schematics, you need to launch Kicad shell"
-                                " and create a PCB project." ) );
+        DisplayError( this,  _( "Cannot update the PCB, because the Schematic Editor is opened"
+                                " in stand-alone mode. In order to create/update PCBs from"
+                                " schematics, launch the Kicad shell and create a project." ) );
         return;
     }
 
@@ -698,7 +696,7 @@ void SCH_EDIT_FRAME::ShowFindReplaceDialog( bool aReplace )
     if( m_findReplaceStatusPopup )
         m_findReplaceStatusPopup->Destroy();
 
-    // Must destroy statup popup first as it holds a pointer to the dialog
+    // Must destroy statusPopup first as it holds a pointer to the dialog
 
     if( m_findReplaceDialog )
         m_findReplaceDialog->Destroy();
@@ -862,7 +860,6 @@ void SCH_EDIT_FRAME::OnOpenCvpcb( wxCommandEvent& event )
         {
             player = Kiway().Player( FRAME_CVPCB, true );
             player->Show( true );
-            // player->OpenProjectFiles( std::vector<wxString>( 1, fn.GetFullPath() ) );
         }
 
         sendNetlistToCvpcb();
@@ -899,7 +896,11 @@ void SCH_EDIT_FRAME::OnRemapSymbols( wxCommandEvent& event )
 
 void SCH_EDIT_FRAME::OnExit( wxCommandEvent& event )
 {
-    Close( false );
+    if( event.GetId() == wxID_EXIT )
+        Kiway().OnKiCadExit();
+
+    if( event.GetId() == wxID_CLOSE || Kiface().IsSingle() )
+        Close( false );
 }
 
 
@@ -948,7 +949,7 @@ void SCH_EDIT_FRAME::AddItemToScreenAndUndoList( SCH_ITEM* aItem, bool aUndoAppe
 {
     SCH_SCREEN* screen = GetScreen();
 
-    wxCHECK_RET( aItem != NULL, wxT( "Cannot add current aItem to list." ) );
+    wxCHECK_RET( aItem != NULL, wxT( "Cannot add null item to list." ) );
 
     SCH_SHEET*     parentSheet = nullptr;
     SCH_COMPONENT* parentComponent = nullptr;
@@ -1039,7 +1040,8 @@ void SCH_EDIT_FRAME::UpdateTitle()
 
     if( GetScreen()->GetFileName() == m_DefaultSchematicFileName )
     {
-        title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s" ), GetScreen()->GetFileName() );
+        title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s" ),
+                      GetScreen()->GetFileName() );
     }
     else
     {
@@ -1047,7 +1049,8 @@ void SCH_EDIT_FRAME::UpdateTitle()
         wxFileName  fn = fileName;
 
         title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s [%s] \u2014 %s" ),
-                      fn.GetFullName(), g_CurrentSheet->PathHumanReadable(),
+                      fn.GetFullName(),
+                      g_CurrentSheet->PathHumanReadable(),
                       fn.GetPath() );
 
         if( fn.FileExists() )
@@ -1083,13 +1086,11 @@ void SCH_EDIT_FRAME::RecalculateConnections( bool aDoCleanup )
 }
 
 
-void SCH_EDIT_FRAME::CommonSettingsChanged()
+void SCH_EDIT_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    SCH_BASE_FRAME::CommonSettingsChanged();
+    SCH_BASE_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
-    ReCreateHToolbar();
-    ReCreateVToolbar();
-    ReCreateOptToolbar();
+    RecreateToolbars();
     Layout();
     SendSizeEvent();
 }
@@ -1108,9 +1109,7 @@ void SCH_EDIT_FRAME::ShowChangedLanguage()
     SCH_BASE_FRAME::ShowChangedLanguage();
 
     // tooltips in toolbars
-    ReCreateHToolbar();
-    ReCreateVToolbar();
-    ReCreateOptToolbar();
+    RecreateToolbars();
 
     // status bar
     UpdateMsgPanel();
@@ -1138,4 +1137,46 @@ const BOX2I SCH_EDIT_FRAME::GetDocumentExtents() const
     int sizeY = GetScreen()->GetPageSettings().GetHeightIU();
 
     return BOX2I( VECTOR2I(0, 0), VECTOR2I( sizeX, sizeY ) );
+}
+
+void SCH_EDIT_FRAME::FixupJunctions()
+{
+    // Save the current sheet, to retrieve it later
+    auto currSheet = GetCurrentSheet();
+
+    SCH_SHEET_LIST sheetList;
+    sheetList.BuildSheetList( g_RootSheet );
+
+    for( const SCH_SHEET_PATH& sheet : sheetList )
+    {
+        std::vector<wxPoint> anchors;
+
+        SetCurrentSheet( sheet );
+        GetCurrentSheet().UpdateAllScreenReferences();
+
+        auto screen = GetCurrentSheet().LastScreen();
+
+        for( SCH_ITEM* item = screen->GetDrawItems(); item; item = item->Next() )
+        {
+            if( item->Type() == SCH_COMPONENT_T )
+            {
+                auto cmp = static_cast<SCH_COMPONENT*>( item );
+                auto xform = cmp->GetTransform();
+
+                for( const SCH_PIN& pin : cmp->GetPins() )
+                {
+                    auto pos = cmp->GetPosition() + xform.TransformCoordinate( pin.GetPosition() );
+
+                    // Test if a _new_ junction is needed, and add it if missing
+                    if ( screen->IsJunctionNeeded( pos, true ) )
+                        AddJunction( pos );
+                }
+            }
+        }
+    }
+
+    // Reselect the initial sheet:
+    SetCurrentSheet( currSheet );
+    GetCurrentSheet().UpdateAllScreenReferences();
+    SetScreen( GetCurrentSheet().LastScreen() );
 }

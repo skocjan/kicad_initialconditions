@@ -25,8 +25,6 @@
 
 
 #include <view/wx_view_controls.h>
-#include <ws_proxy_view_item.h>
-
 #include <gal/graphics_abstraction_layer.h>
 #include <sch_draw_panel.h>
 #include <sch_view.h>
@@ -38,10 +36,7 @@
 #include <functional>
 #include <sch_sheet.h>
 #include <pgm_base.h>
-#include <tools/ee_actions.h>
 #include <tools/ee_selection_tool.h>
-
-using namespace std::placeholders;
 
 
 SCH_DRAW_PANEL::SCH_DRAW_PANEL( wxWindow* aParentWindow, wxWindowID aWindowId,
@@ -50,7 +45,7 @@ SCH_DRAW_PANEL::SCH_DRAW_PANEL( wxWindow* aParentWindow, wxWindowID aWindowId,
     EDA_DRAW_PANEL_GAL( aParentWindow, aWindowId, aPosition, aSize, aOptions, aGalType ),
     m_parent( aParentWindow )
 {
-    m_defaultCursor = m_currentCursor = wxCURSOR_ARROW;
+    m_currentCursor = wxCURSOR_ARROW;
     m_view = new KIGFX::SCH_VIEW( true, dynamic_cast<SCH_BASE_FRAME*>( aParentWindow ) );
     m_view->SetGAL( m_gal );
 
@@ -149,17 +144,20 @@ void SCH_DRAW_PANEL::setDefaultLayerDeps()
         m_view->SetLayerTarget( i, target );
 
     // Bitmaps are draw on a non cached GAL layer:
-    m_view->SetLayerTarget( LAYER_DRAW_BITMAPS , KIGFX::TARGET_NONCACHED );
+    m_view->SetLayerTarget( LAYER_DRAW_BITMAPS, KIGFX::TARGET_NONCACHED );
 
     // Some draw layers need specific settings
-    m_view->SetLayerTarget( LAYER_GP_OVERLAY , KIGFX::TARGET_OVERLAY );
+    m_view->SetLayerTarget( LAYER_GP_OVERLAY, KIGFX::TARGET_OVERLAY );
     m_view->SetLayerDisplayOnly( LAYER_GP_OVERLAY ) ;
 
-    m_view->SetLayerTarget( LAYER_SELECT_OVERLAY , KIGFX::TARGET_OVERLAY );
+    m_view->SetLayerTarget( LAYER_SELECT_OVERLAY, KIGFX::TARGET_OVERLAY );
     m_view->SetLayerDisplayOnly( LAYER_SELECT_OVERLAY ) ;
 
-    m_view->SetLayerTarget( LAYER_WORKSHEET , KIGFX::TARGET_NONCACHED );
+    m_view->SetLayerTarget( LAYER_WORKSHEET, KIGFX::TARGET_NONCACHED );
     m_view->SetLayerDisplayOnly( LAYER_WORKSHEET ) ;
+
+//    m_view->SetLayerTarget( LAYER_SELECTION_SHADOWS, KIGFX::TARGET_NONCACHED );
+//    m_view->SetLayerDisplayOnly( LAYER_SELECTION_SHADOWS ) ;
 }
 
 

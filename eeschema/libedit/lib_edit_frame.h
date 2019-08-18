@@ -30,7 +30,7 @@
 
 #include <sch_base_frame.h>
 #include <sch_screen.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 #include <ee_collectors.h>
 #include <core/optional.h>
 
@@ -239,9 +239,10 @@ public:
     void RebuildSymbolUnitsList();
 
     void OnCloseWindow( wxCloseEvent& Event );
+    void   OnExitKiCad( wxCommandEvent& event );
     void ReCreateHToolbar() override;
     void ReCreateVToolbar() override;
-    void ReCreateOptToolbar();
+    void ReCreateOptToolbar() override;
     double BestZoom() override;         // Returns the best zoom
 
     void LoadSettings( wxConfigBase* aCfg ) override;
@@ -400,8 +401,6 @@ public:
 
     /**
      * Creates the SVG print file for the current edited component.
-     *
-     * @param aFullFileName = the full filename
      */
     void SVG_PlotComponent( const wxString& aFullFileName );
 
@@ -419,7 +418,7 @@ public:
     /**
      * Called after the preferences dialog is run.
      */
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     void ShowChangedLanguage() override;
 

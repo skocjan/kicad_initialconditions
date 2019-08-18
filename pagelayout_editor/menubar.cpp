@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2016-2019 KiCad Developers, see AUTHORS.txt for contributors.
- * Copyright (C) 2013 CERN
+ * Copyright (C) 2013-2019 CERN
  * @author Jean-Pierre Charras, jp.charras at wanadoo.fr
  *
  * This program is free software; you can redistribute it and/or
@@ -75,12 +75,10 @@ void PL_EDITOR_FRAME::ReCreateMenuBar()
     fileMenu->AddItem( ACTIONS::saveAs,        SELECTION_CONDITIONS::ShowAlways );
 
     fileMenu->AddSeparator();
-    fileMenu->AddItem( ACTIONS::pageSettings,  SELECTION_CONDITIONS::ShowAlways );
     fileMenu->AddItem( ACTIONS::print,         SELECTION_CONDITIONS::ShowAlways );
 
-    fileMenu->AppendSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm, SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddSeparator();
+    fileMenu->AddQuitOrClose( &Kiface(), _( "Page Layout Editor" ) );
 
     fileMenu->Resolve();
 
@@ -135,13 +133,10 @@ void PL_EDITOR_FRAME::ReCreateMenuBar()
     viewMenu->AddCheckItem( ACTIONS::toggleGrid,             gridShownCondition );
     viewMenu->AddCheckItem( ACTIONS::toggleCursorStyle,      fullCrosshairCondition );
 
-    viewMenu->Resolve();
+    viewMenu->AddSeparator();
+    viewMenu->AddItem( PL_ACTIONS::previewSettings,          SELECTION_CONDITIONS::ShowAlways );
 
-    //-- Inspector menu -------------------------------------------------------
-    //
-    CONDITIONAL_MENU* inspectorMenu = new CONDITIONAL_MENU( false, selTool );
-    inspectorMenu->AddItem( PL_ACTIONS::showInspector,       SELECTION_CONDITIONS::ShowAlways );
-    inspectorMenu->Resolve();
+    viewMenu->Resolve();
 
     //-- Place menu -------------------------------------------------------
     //
@@ -157,6 +152,13 @@ void PL_EDITOR_FRAME::ReCreateMenuBar()
 
     placeMenu->Resolve();
 
+    //-- Inspector menu -------------------------------------------------------
+    //
+    CONDITIONAL_MENU* inspectorMenu = new CONDITIONAL_MENU( false, selTool );
+    inspectorMenu->AddItem( PL_ACTIONS::showInspector,       SELECTION_CONDITIONS::ShowAlways );
+
+    inspectorMenu->Resolve();
+
     //-- Preferences menu --------------------------------------------------
     //
     CONDITIONAL_MENU* preferencesMenu = new CONDITIONAL_MENU( false, selTool );
@@ -169,13 +171,15 @@ void PL_EDITOR_FRAME::ReCreateMenuBar()
     // Language submenu
     AddMenuLanguageList( preferencesMenu, selTool );
 
+    preferencesMenu->Resolve();
+
     //-- Menubar -----------------------------------------------------------
     //
     menuBar->Append( fileMenu, _( "&File" ) );
     menuBar->Append( editMenu, _( "&Edit" ) );
     menuBar->Append( viewMenu, _( "&View" ) );
-    menuBar->Append( inspectorMenu, _( "&Inspect" ) );
     menuBar->Append( placeMenu, _( "&Place" ) );
+    menuBar->Append( inspectorMenu, _( "&Inspect" ) );
     menuBar->Append( preferencesMenu, _( "P&references" ) );
     AddStandardHelpMenu( menuBar );
 

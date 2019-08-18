@@ -340,10 +340,50 @@ void GRID_TRICKS::onKeyDown( wxKeyEvent& ev )
             return;
     }
 
-    // shift-return (Mac default) or Ctrl-Return (GTK) for OK
-    if( ev.GetKeyCode() == WXK_RETURN && ( ev.ShiftDown() || ev.ControlDown() ) )
+    // ctrl-tab for exit grid
+#ifdef __APPLE__
+    bool ctrl = ev.RawControlDown();
+#else
+    bool ctrl = ev.ControlDown();
+#endif
+
+    if( ctrl && ev.GetKeyCode() == WXK_TAB )
     {
-        wxPostEvent( this, wxCommandEvent( wxEVT_COMMAND_BUTTON_CLICKED, wxID_OK ) );
+        wxWindow* test = m_grid->GetNextSibling();
+
+        if( !test )
+            test = m_grid->GetParent()->GetNextSibling();
+
+        while( test && !test->IsTopLevel() )
+        {
+            test->SetFocus();
+
+            if( test->HasFocus() )
+                break;
+
+            if( !test->GetChildren().empty() )
+                test = test->GetChildren().front();
+            else if( test->GetNextSibling() )
+                test = test->GetNextSibling();
+            else
+            {
+                while( test )
+                {
+                    test = test->GetParent();
+
+                    if( test && test->IsTopLevel() )
+                    {
+                        break;
+                    }
+                    else if( test && test->GetNextSibling() )
+                    {
+                        test = test->GetNextSibling();
+                        break;
+                    }
+                }
+            }
+        }
+
         return;
     }
 

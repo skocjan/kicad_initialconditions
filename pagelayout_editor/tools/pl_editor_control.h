@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -58,7 +59,6 @@ public:
     int PageSetup( const TOOL_EVENT& aEvent );
     int Print( const TOOL_EVENT& aEvent );
     int Plot( const TOOL_EVENT& aEvent );
-    int Quit( const TOOL_EVENT& aEvent );
 
     int ToggleBackgroundColor( const TOOL_EVENT& aEvent );
     int ShowInspector( const TOOL_EVENT& aEvent );

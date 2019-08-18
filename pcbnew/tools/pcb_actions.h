@@ -43,6 +43,16 @@ enum MWAVE_TOOL_SIMPLE_ID
     FUNCTION_SHAPE,
 };
 
+
+enum class ZONE_MODE
+{
+    ADD,             ///< Add a new zone/keepout with fresh settings
+    CUTOUT,          ///< Make a cutout to an existing zone
+    SIMILAR,         ///< Add a new zone with the same settings as an existing one
+    GRAPHIC_POLYGON
+};
+
+
 /**
  * Class PCB_ACTIONS
  *
@@ -93,10 +103,6 @@ public:
 
     /// Filters the items in the current selection (invokes dialog)
     static TOOL_ACTION filterSelection;
-
-    // Edit Tool
-    /// Activation of the edit tool
-    static TOOL_ACTION editActivate;
 
     /// move an item
     static TOOL_ACTION move;
@@ -170,10 +176,10 @@ public:
     // Push and Shove Router Tool
 
     /// Activation of the Push and Shove router
-    static TOOL_ACTION routerActivateSingle;
+    static TOOL_ACTION routeSingleTrack;
 
     /// Activation of the Push and Shove router (differential pair mode)
-    static TOOL_ACTION routerActivateDiffPair;
+    static TOOL_ACTION routeDiffPair;
 
     /// Activation of the Push and Shove router (tune single line mode)
     static TOOL_ACTION routerTuneSingleTrace;
@@ -226,6 +232,7 @@ public:
     static TOOL_ACTION zoneDisplayEnable;
     static TOOL_ACTION zoneDisplayDisable;
     static TOOL_ACTION zoneDisplayOutlines;
+    static TOOL_ACTION zoneDisplayToggle;
 
     // Layer control
     static TOOL_ACTION layerTop;
@@ -235,6 +242,30 @@ public:
     static TOOL_ACTION layerInner4;
     static TOOL_ACTION layerInner5;
     static TOOL_ACTION layerInner6;
+    static TOOL_ACTION layerInner7;
+    static TOOL_ACTION layerInner8;
+    static TOOL_ACTION layerInner9;
+    static TOOL_ACTION layerInner10;
+    static TOOL_ACTION layerInner11;
+    static TOOL_ACTION layerInner12;
+    static TOOL_ACTION layerInner13;
+    static TOOL_ACTION layerInner14;
+    static TOOL_ACTION layerInner15;
+    static TOOL_ACTION layerInner16;
+    static TOOL_ACTION layerInner17;
+    static TOOL_ACTION layerInner18;
+    static TOOL_ACTION layerInner19;
+    static TOOL_ACTION layerInner20;
+    static TOOL_ACTION layerInner21;
+    static TOOL_ACTION layerInner22;
+    static TOOL_ACTION layerInner23;
+    static TOOL_ACTION layerInner24;
+    static TOOL_ACTION layerInner25;
+    static TOOL_ACTION layerInner26;
+    static TOOL_ACTION layerInner27;
+    static TOOL_ACTION layerInner28;
+    static TOOL_ACTION layerInner29;
+    static TOOL_ACTION layerInner30;
     static TOOL_ACTION layerBottom;
     static TOOL_ACTION layerNext;
     static TOOL_ACTION layerPrev;
@@ -370,15 +401,16 @@ public:
     static TOOL_ACTION pickerTool;
     static TOOL_ACTION measureTool;
     static TOOL_ACTION updateUnits;
-    static TOOL_ACTION deleteTool;
     static TOOL_ACTION clearHighlight;
     static TOOL_ACTION highlightNet;
     static TOOL_ACTION toggleLastNetHighlight;
     static TOOL_ACTION highlightNetTool;
     static TOOL_ACTION highlightNetSelection;
+    static TOOL_ACTION highlightItem;
     static TOOL_ACTION drillOrigin;
-    static TOOL_ACTION crossProbeSchToPcb;
     static TOOL_ACTION appendBoard;
+    static TOOL_ACTION showEeschema;
+    static TOOL_ACTION boardStatistics;
 
     // Ratsnest
     static TOOL_ACTION localRatsnestTool;
@@ -389,7 +421,7 @@ public:
     static TOOL_ACTION find;
 
     /// Find an item and start moving
-    static TOOL_ACTION findMove;
+    static TOOL_ACTION getAndPlace;
 
     static TOOL_ACTION autoplaceOffboardComponents;
     static TOOL_ACTION autoplaceSelectedComponents;

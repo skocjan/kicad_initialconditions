@@ -24,13 +24,11 @@
 
 #include <functional>
 using namespace std::placeholders;
-
 #include <tool/tool_manager.h>
 #include <view/view_controls.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <geometry/seg.h>
 #include <confirm.h>
-
 #include "pcb_actions.h"
 #include "selection_tool.h"
 #include "point_editor.h"
@@ -38,17 +36,12 @@ using namespace std::placeholders;
 #include <board_commit.h>
 #include <bitmaps.h>
 #include <status_popup.h>
-
 #include <pcb_edit_frame.h>
 #include <class_edge_mod.h>
 #include <class_dimension.h>
 #include <class_zone.h>
-#include <class_board.h>
-#include <class_module.h>
 #include <connectivity/connectivity_data.h>
 #include <widgets/progress_reporter.h>
-
-#include "zone_filler.h"
 
 // Few constants to avoid using bare numbers for point indices
 enum SEG_POINTS
@@ -270,7 +263,7 @@ bool POINT_EDITOR::Init()
 
 void POINT_EDITOR::updateEditedPoint( const TOOL_EVENT& aEvent )
 {
-    EDIT_POINT* point = m_editedPoint;
+    EDIT_POINT* point;
 
     if( aEvent.IsMotion() )
     {
@@ -279,6 +272,10 @@ void POINT_EDITOR::updateEditedPoint( const TOOL_EVENT& aEvent )
     else if( aEvent.IsDrag( BUT_LEFT ) )
     {
         point = m_editPoints->FindPoint( aEvent.DragOrigin(), getView() );
+    }
+    else
+    {
+        point = m_editPoints->FindPoint( getViewControls()->GetCursorPosition(), getView() );
     }
 
     if( m_editedPoint != point )
@@ -317,6 +314,7 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
 
     view->Add( m_editPoints.get() );
     setEditedPoint( nullptr );
+    updateEditedPoint( aEvent );
     m_refill = false;
     bool inDrag = false;
 
@@ -333,7 +331,7 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
         grid.SetUseGrid( !evt->Modifier( MD_ALT ) );
         controls->SetSnapping( !evt->Modifier( MD_ALT ) );
 
-        if( !m_editPoints || TOOL_EVT_UTILS::IsSelectionEvent( *evt ) )
+        if( !m_editPoints || evt->IsSelectionEvent() )
             break;
 
         if ( !inDrag )
@@ -349,7 +347,7 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
                 m_original = *m_editedPoint;    // Save the original position
                 controls->SetAutoPan( true );
                 inDrag = true;
-                grid.SetAuxAxes( true, m_original.GetPosition(), true );
+                grid.SetAuxAxes( true, m_original.GetPosition() );
             }
 
             //TODO: unify the constraints to solve simultaneously instead of sequentially
@@ -382,16 +380,15 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
             m_refill = true;
         }
 
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             if( inDrag )      // Restore the last change
                 commit.Revert();
+            else if( evt->IsCancelInteractive() )
+                break;
 
-            // ESC should clear selection along with edit points
-            if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-
-            break;
+            if( evt->IsActivate() && !evt->IsMoveTool() )
+                break;
         }
 
         else
@@ -628,44 +625,30 @@ void POINT_EDITOR::finishItem()
         auto zone = static_cast<ZONE_CONTAINER*>( item );
 
         if( zone->IsFilled() && m_refill && zone->NeedRefill() )
-        {
-            ZONE_FILLER filler( board() );
-            // A progress reporter can be usefull. However it works fine only on Windows
-            // so enable it only on Windows.
-            // On Linux, the filled areas are incorrectly shown: the insulated islands
-            // remain displayed, although they are removed from the actual filled areas list
-            //
-            // Fix me: try to make it working on Linux.
-            //
-            #ifdef __WINDOWS__
-            WX_PROGRESS_REPORTER reporter( getEditFrame<PCB_BASE_FRAME>(), _( "Refill Zones" ), 4 );
-            filler.SetProgressReporter( &reporter );
-            #endif
-            filler.Fill( { zone } );
-        }
+            m_toolMgr->RunAction( PCB_ACTIONS::zoneFill, true, zone );
     }
 }
 
 
-bool POINT_EDITOR::validatePolygon( SHAPE_POLY_SET& aModified, const SHAPE_POLY_SET* aOriginal ) const
+bool POINT_EDITOR::validatePolygon( SHAPE_POLY_SET& aPoly ) const
 {
-    if( !aModified.IsSelfIntersecting() )
-    {
-        m_statusPopup->Hide();
-        return true;
-    }
+    bool valid = !aPoly.IsSelfIntersecting();
 
     if( m_statusPopup )
     {
-        wxPoint p = wxGetMousePosition() + wxPoint( 20, 20 );
-        m_statusPopup->Move( p );
-        m_statusPopup->PopupFor( 1500 );
+        if( valid )
+        {
+            m_statusPopup->Hide();
+        }
+        else
+        {
+            wxPoint p = wxGetMousePosition() + wxPoint( 20, 20 );
+            m_statusPopup->Move( p );
+            m_statusPopup->PopupFor( 1500 );
+        }
     }
 
-    if( aOriginal )
-        aModified = *aOriginal;
-
-    return false;
+    return valid;
 }
 
 
@@ -784,12 +767,15 @@ void POINT_EDITOR::setEditedPoint( EDIT_POINT* aPoint )
 
     if( aPoint )
     {
+        frame()->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         controls->ForceCursorPosition( true, aPoint->GetPosition() );
         controls->ShowCursor( true );
     }
     else
     {
-        controls->ShowCursor( false );
+        if( frame()->ToolStackIsEmpty() )
+            controls->ShowCursor( false );
+
         controls->ForceCursorPosition( false );
     }
 
@@ -1115,14 +1101,13 @@ int POINT_EDITOR::removeCorner( const TOOL_EVENT& aEvent )
     {
         const auto& vertexIdx = vertex.second;
         auto& outline = polygon->Polygon( vertexIdx.m_polygon )[vertexIdx.m_contour];
-        bool valid = true;
 
         if( outline.PointCount() > 3 )
         {
             // the usual case: remove just the corner when there are >3 vertices
             commit.Modify( item );
             polygon->RemoveVertex( vertexIdx );
-            valid = validatePolygon( *polygon );
+            validatePolygon( *polygon );
         }
         else
         {
@@ -1142,23 +1127,13 @@ int POINT_EDITOR::removeCorner( const TOOL_EVENT& aEvent )
 
         setEditedPoint( nullptr );
 
-        if( valid )
-        {
-            commit.Push( _( "Remove a zone/polygon corner" ) );
+        commit.Push( _( "Remove a zone/polygon corner" ) );
 
-            // Refresh zone hatching
-            if( item->Type() == PCB_ZONE_AREA_T)
-                static_cast<ZONE_CONTAINER*>( item )->Hatch();
+        // Refresh zone hatching
+        if( item->Type() == PCB_ZONE_AREA_T)
+            static_cast<ZONE_CONTAINER*>( item )->Hatch();
 
-            updatePoints();
-        }
-        else
-        {
-            m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-            getView()->Remove( m_editPoints.get() );
-            commit.Revert();
-            m_editPoints.reset();
-        }
+        updatePoints();
     }
 
     return 0;
@@ -1167,7 +1142,6 @@ int POINT_EDITOR::removeCorner( const TOOL_EVENT& aEvent )
 
 int POINT_EDITOR::modifiedSelection( const TOOL_EVENT& aEvent )
 {
-    m_refill = true;  // zone has been modified outside the point editor tool
     updatePoints();
     return 0;
 }

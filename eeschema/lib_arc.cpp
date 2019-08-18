@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2004-2019 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2019 CERN
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,6 +36,7 @@
 #include <general.h>
 #include <lib_arc.h>
 #include <transform.h>
+#include <status_popup.h>
 
 // Helper function
 static inline wxPoint twoPointVector( const wxPoint &startPoint, const wxPoint &endPoint )
@@ -52,10 +54,6 @@ LIB_ARC::LIB_ARC( LIB_PART*      aParent ) : LIB_ITEM( LIB_ARC_T, aParent )
     m_Fill          = NO_FILL;
     m_isFillable    = true;
     m_editState     = 0;
-    m_lastEditState = 0;
-    m_editCenterDistance = 0.0;
-    m_editSelectPoint = ARC_STATUS_START;
-    m_editDirection = 0;
 }
 
 
@@ -337,8 +335,8 @@ const EDA_RECT LIB_ARC::GetBoundingBox() const
 
     if( ( normStart == nullPoint ) || ( normEnd == nullPoint ) || ( m_Radius == 0 ) )
     {
-        wxLogDebug( wxT("Invalid arc drawing definition, center(%d, %d) \
-start(%d, %d), end(%d, %d), radius %d" ),
+        wxLogDebug( wxT("Invalid arc drawing definition, center(%d, %d), start(%d, %d), "
+                        "end(%d, %d), radius %d" ),
                     m_Pos.x, m_Pos.y, m_ArcStart.x, m_ArcStart.y, m_ArcEnd.x,
                     m_ArcEnd.y, m_Radius );
         return rect;
@@ -426,64 +424,112 @@ BITMAP_DEF LIB_ARC::GetMenuImage() const
 void LIB_ARC::BeginEdit( const wxPoint aPosition )
 {
     m_ArcStart  = m_ArcEnd = aPosition;
-    m_editState = m_lastEditState = 1;
-}
-
-
-bool LIB_ARC::ContinueEdit( const wxPoint aPosition )
-{
-    if( m_editState == 1 )        // Second position yields the arc segment length.
-    {
-        m_ArcEnd = aPosition;
-        m_editState = 2;
-        return true;              // Need third position to calculate center point.
-    }
-
-    return false;
-}
-
-
-void LIB_ARC::EndEdit()
-{
-    m_lastEditState = 0;
-    m_editState = 0;
+    m_editState = 1;
 }
 
 
 void LIB_ARC::CalcEdit( const wxPoint& aPosition )
 {
-    if( m_editState == 1 )
+#define sq( x ) pow( x, 2 )
+
+    // Edit state 0: drawing: place ArcStart
+    // Edit state 1: drawing: place ArcEnd (center calculated for 90-degree subtended angle)
+    // Edit state 2: point editing: move ArcStart (center calculated for invariant subtended angle)
+    // Edit state 3: point editing: move ArcEnd (center calculated for invariant subtended angle)
+    // Edit state 4: point editing: move center
+
+    switch( m_editState )
     {
+    case 0:
+        m_ArcStart = aPosition;
         m_ArcEnd = aPosition;
+        m_Pos = aPosition;
+        m_Radius = 0;
+        m_t1 = 0;
+        m_t2 = 0;
+        return;
+
+    case 1:
+        m_ArcEnd = aPosition;
+        m_Radius = KiROUND( sqrt( pow( GetLineLength( m_ArcStart, m_ArcEnd ), 2 ) / 2.0 ) );
+        break;
+
+    case 2:
+    case 3:
+    {
+        wxPoint v = m_ArcStart - m_ArcEnd;
+        double chordBefore = sq( v.x ) + sq( v.y );
+
+        if( m_editState == 2 )
+            m_ArcStart = aPosition;
+        else
+            m_ArcEnd = aPosition;
+
+        v = m_ArcStart - m_ArcEnd;
+        double chordAfter = sq( v.x ) + sq( v.y );
+        double ratio = chordAfter / chordBefore;
+
+        if( ratio > 0 )
+        {
+            m_Radius = int( sqrt( m_Radius * m_Radius * ratio ) ) + 1;
+            m_Radius = std::max( m_Radius, int( sqrt( chordAfter ) / 2 ) + 1 );
+        }
+
+        break;
     }
 
-    if( m_editState != m_lastEditState )
-        m_lastEditState = m_editState;
+    case 4:
+    {
+        double chordA = GetLineLength( m_ArcStart, aPosition );
+        double chordB = GetLineLength( m_ArcEnd, aPosition );
+        m_Radius = int( ( chordA + chordB ) / 2.0 ) + 1;
+        break;
+    }
+    }
 
-    // Keep the arc center point up to date.  Otherwise, there will be edit graphic
-    // artifacts left behind from the initial draw.
-    int dx, dy;
-    int cX, cY;
-    double angle;
+    // Calculate center based on start, end, and radius
+    //
+    // Let 'l' be the length of the chord and 'm' the middle point of the chord
+    double  l = GetLineLength( m_ArcStart, m_ArcEnd );
+    wxPoint m = ( m_ArcStart + m_ArcEnd ) / 2;
 
-    cX = aPosition.x;
-    cY = aPosition.y;
+    // Calculate 'd', the vector from the chord midpoint to the center
+    wxPoint d;
+    d.x = KiROUND( sqrt( sq( m_Radius ) - sq( l/2 ) ) * ( m_ArcStart.y - m_ArcEnd.y ) / l );
+    d.y = KiROUND( sqrt( sq( m_Radius ) - sq( l/2 ) ) * ( m_ArcEnd.x - m_ArcStart.x ) / l );
 
-    dx = m_ArcEnd.x - m_ArcStart.x;
-    dy = m_ArcEnd.y - m_ArcStart.y;
-    cX -= m_ArcStart.x;
-    cY -= m_ArcStart.y;
-    angle = ArcTangente( dy, dx );
-    RotatePoint( &dx, &dy, angle );     /* The segment dx, dy is horizontal
-                                         * -> Length = dx, dy = 0 */
-    RotatePoint( &cX, &cY, angle );
-    cX = dx / 2;           /* cX, cY is on the median segment 0.0 a dx, 0 */
+    wxPoint c1 = m + d;
+    wxPoint c2 = m - d;
 
-    RotatePoint( &cX, &cY, -angle );
-    cX += m_ArcStart.x;
-    cY += m_ArcStart.y;
-    m_Pos.x = cX;
-    m_Pos.y = cY;
+    // Solution gives us 2 centers; we need to pick one:
+    switch( m_editState )
+    {
+    case 1:
+    {
+        // Keep center clockwise from chord while drawing
+        wxPoint chordVector = twoPointVector( m_ArcStart, m_ArcEnd );
+        double  chordAngle = ArcTangente( chordVector.y, chordVector.x );
+        NORMALIZE_ANGLE_POS( chordAngle );
+
+        wxPoint c1Test = c1;
+        RotatePoint( &c1Test, m_ArcStart, -chordAngle );
+
+        m_Pos = c1Test.x > 0 ? c2 : c1;
+    }
+        break;
+
+    case 2:
+    case 3:
+        // Pick the one closer to the old center
+        m_Pos = ( GetLineLength( c1, m_Pos ) < GetLineLength( c2, m_Pos ) ) ? c1 : c2;
+        break;
+
+    case 4:
+        // Pick the one closer to the mouse position
+        m_Pos = ( GetLineLength( c1, aPosition ) < GetLineLength( c2, aPosition ) ) ? c1 : c2;
+        break;
+    }
+
     CalcRadiusAngles();
 }
 

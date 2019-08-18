@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -40,8 +41,9 @@ class SCH_EDITOR_CONTROL : public wxEvtHandler, public EE_TOOL_BASE<SCH_EDIT_FRA
 {
 public:
     SCH_EDITOR_CONTROL()  :
-        EE_TOOL_BASE<SCH_EDIT_FRAME>( "eeschema.EditorControl" ),
-        m_probingSchToPcb( false )
+            EE_TOOL_BASE<SCH_EDIT_FRAME>( "eeschema.EditorControl" ),
+            m_probingPcbToSch( false ),
+            m_pickerItem( nullptr )
     { }
 
     ~SCH_EDITOR_CONTROL() { }
@@ -64,10 +66,6 @@ public:
     int ReplaceAll( const TOOL_EVENT& aEvent );
 
     int UpdateFind( const TOOL_EVENT& aEvent );
-
-    int ToggleLockSelected( const TOOL_EVENT& aEvent );
-    int LockSelected( const TOOL_EVENT& aEvent );
-    int UnlockSelected( const TOOL_EVENT& aEvent );
 
     ///> Notifies pcbnew about the selected item.
     int CrossProbeToPcb( const TOOL_EVENT& aEvent );
@@ -124,6 +122,20 @@ public:
 
     void BackAnnotateFootprints( const std::string& aChangedSetOfReferences );
 
+    /**
+     * Finds a component in the schematic and an item in this component.
+     *
+     * @param aReference The component reference designator to find.
+     * @param aSearchHierarchy If false, search the current sheet only.  Otherwise,
+     *                         the entire hierarchy
+     * @param aSearchType A #SCH_SEARCH_T value used to determine what to search for.
+     * @param aSearchText The text to search for, either in value, reference or elsewhere.
+     */
+    SCH_ITEM* FindComponentAndItem( const wxString& aReference,
+                                    bool            aSearchHierarchy,
+                                    SCH_SEARCH_T    aSearchType,
+                                    const wxString& aSearchText );
+
 private:
     ///> copy selection to clipboard
     bool doCopy();
@@ -166,7 +178,9 @@ private:
     void setTransitions() override;
 
 private:
-    bool m_probingSchToPcb;     ///> Recursion guard when cross-probing to PCBNew
+    bool      m_probingPcbToSch;    // Recursion guard when cross-probing to PCBNew
+    EDA_ITEM* m_pickerItem;         // Current item for picker highlighting.
+    wxString  m_pickerNet;
 };
 
 

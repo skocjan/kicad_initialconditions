@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -27,14 +28,10 @@ using namespace std::placeholders;
 #include "ee_point_editor.h"
 #include <tool/tool_manager.h>
 #include <view/view_controls.h>
-#include <gal/graphics_abstraction_layer.h>
 #include <geometry/seg.h>
-#include <confirm.h>
-
 #include <tools/ee_actions.h>
 #include <tools/ee_selection_tool.h>
 #include <bitmaps.h>
-#include <status_popup.h>
 #include <sch_edit_frame.h>
 #include <sch_line.h>
 #include <sch_bitmap.h>
@@ -44,8 +41,6 @@ using namespace std::placeholders;
 #include <lib_circle.h>
 #include <lib_rectangle.h>
 #include <lib_polyline.h>
-#include <eeschema_id.h>
-
 
 
 // Few constants to avoid using bare numbers for point indices
@@ -112,13 +107,20 @@ public:
         case LIB_RECTANGLE_T:
         {
             LIB_RECTANGLE* rect = (LIB_RECTANGLE*) aItem;
-            wxPoint        topLeft = rect->GetPosition();
-            wxPoint        botRight = rect->GetEnd();
+            // point editor works only with rectangles having width and height > 0
+            // Some symbols can have rectangles with width or height < 0
+            // So normalize the size:
+            BOX2I dummy;
+            dummy.SetOrigin( mapCoords( rect->GetPosition() ) );
+            dummy.SetEnd( mapCoords( rect->GetEnd() ) );
+            dummy.Normalize();
+            VECTOR2I topLeft = dummy.GetPosition();
+            VECTOR2I botRight = dummy.GetEnd();
 
-            points->AddPoint( mapCoords( topLeft ) );
-            points->AddPoint( mapCoords( botRight.x, topLeft.y ) );
-            points->AddPoint( mapCoords( topLeft.x, botRight.y ) );
-            points->AddPoint( mapCoords( botRight ) );
+            points->AddPoint( topLeft );
+            points->AddPoint( VECTOR2I( botRight.x, topLeft.y ) );
+            points->AddPoint( VECTOR2I( topLeft.x, botRight.y ) );
+            points->AddPoint( botRight );
             break;
         }
         case SCH_SHEET_T:
@@ -242,6 +244,10 @@ void EE_POINT_EDITOR::updateEditedPoint( const TOOL_EVENT& aEvent )
     {
         point = m_editPoints->FindPoint( aEvent.DragOrigin(), getView() );
     }
+    else
+    {
+        point = m_editPoints->FindPoint( getViewControls()->GetCursorPosition(), getView() );
+    }
 
     if( m_editedPoint != point )
         setEditedPoint( point );
@@ -282,19 +288,16 @@ int EE_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
     controls->ShowCursor( true );
 
     m_editPoints = EDIT_POINTS_FACTORY::Make( item, m_frame );
-
-    if( !m_editPoints )
-        return 0;
-
     view->Add( m_editPoints.get() );
     setEditedPoint( nullptr );
+    updateEditedPoint( aEvent );
     bool inDrag = false;
     bool modified = false;
 
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
-        if( !m_editPoints || TOOL_EVT_UTILS::IsSelectionEvent( *evt ) )
+        if( !m_editPoints || evt->IsSelectionEvent() )
             break;
 
         if ( !inDrag )
@@ -310,7 +313,12 @@ int EE_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
                 modified = true;
             }
 
-            m_editedPoint->SetPosition( controls->GetCursorPosition( !evt->Modifier( MD_ALT ) ) );
+            bool snap = !evt->Modifier( MD_ALT );
+
+            if( item->Type() == LIB_ARC_T && getEditedPointIndex() == ARC_CENTER )
+                snap = false;
+
+            m_editedPoint->SetPosition( controls->GetCursorPosition( snap ) );
 
             updateItem();
             updatePoints();
@@ -322,20 +330,20 @@ int EE_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
             inDrag = false;
         }
 
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             if( inDrag )      // Restore the last change
             {
                 rollbackFromUndo();
                 inDrag = false;
                 modified = false;
+                break;
             }
+            else if( evt->IsCancelInteractive() )
+                break;
 
-            // ESC should clear selection along with edit points
-            if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
-
-            break;
+            if( evt->IsActivate() && !evt->IsMoveTool() )
+                break;
         }
 
         else
@@ -427,10 +435,24 @@ void EE_POINT_EDITOR::updateItem() const
     case LIB_ARC_T:
     {
         LIB_ARC* arc = (LIB_ARC*) item;
+        int      i = getEditedPointIndex();
 
-        arc->SetPosition( mapCoords( m_editPoints->Point( ARC_CENTER ).GetPosition() ) );
-        arc->SetStart( mapCoords( m_editPoints->Point( ARC_START ).GetPosition() ) );
-        arc->SetEnd( mapCoords( m_editPoints->Point( ARC_END ).GetPosition() ) );
+        if( i == ARC_CENTER )
+        {
+            arc->SetEditState( 4 );
+            arc->CalcEdit( mapCoords( m_editPoints->Point( ARC_CENTER ).GetPosition() ) );
+        }
+        else if( i == ARC_START )
+        {
+            arc->SetEditState( 2 );
+            arc->CalcEdit( mapCoords( m_editPoints->Point( ARC_START ).GetPosition() ) );
+        }
+        else if( i == ARC_END )
+        {
+            arc->SetEditState( 3 );
+            arc->CalcEdit( mapCoords( m_editPoints->Point( ARC_END ).GetPosition() ) );
+        }
+
         break;
     }
 
@@ -457,7 +479,6 @@ void EE_POINT_EDITOR::updateItem() const
 
     case LIB_RECTANGLE_T:
     {
-        LIB_RECTANGLE* rect = (LIB_RECTANGLE*) item;
         VECTOR2I       topLeft = m_editPoints->Point( RECT_TOPLEFT ).GetPosition();
         VECTOR2I       topRight = m_editPoints->Point( RECT_TOPRIGHT ).GetPosition();
         VECTOR2I       botLeft = m_editPoints->Point( RECT_BOTLEFT ).GetPosition();
@@ -466,6 +487,7 @@ void EE_POINT_EDITOR::updateItem() const
         pinEditedCorner( getEditedPointIndex(), Mils2iu( 1 ), Mils2iu( 1 ),
                          topLeft, topRight, botLeft, botRight );
 
+        LIB_RECTANGLE* rect = (LIB_RECTANGLE*) item;
         rect->SetPosition( mapCoords( topLeft ) );
         rect->SetEnd( mapCoords( botRight ) );
         break;
@@ -626,13 +648,20 @@ void EE_POINT_EDITOR::updatePoints()
     case LIB_RECTANGLE_T:
     {
         LIB_RECTANGLE* rect = (LIB_RECTANGLE*) item;
-        wxPoint        topLeft = rect->GetPosition();
-        wxPoint        botRight = rect->GetEnd();
+        // point editor works only with rectangles having width and height > 0
+        // Some symbols can have rectangles with width or height < 0
+        // So normalize the size:
+        BOX2I dummy;
+        dummy.SetOrigin( mapCoords( rect->GetPosition() ) );
+        dummy.SetEnd( mapCoords( rect->GetEnd() ) );
+        dummy.Normalize();
+        VECTOR2I topLeft = dummy.GetPosition();
+        VECTOR2I botRight = dummy.GetEnd();
 
-        m_editPoints->Point( RECT_TOPLEFT ).SetPosition( mapCoords( topLeft ) );
-        m_editPoints->Point( RECT_TOPRIGHT ).SetPosition( mapCoords( botRight.x, topLeft.y ) );
-        m_editPoints->Point( RECT_BOTLEFT ).SetPosition( mapCoords( topLeft.x, botRight.y ) );
-        m_editPoints->Point( RECT_BOTRIGHT ).SetPosition( mapCoords( botRight ) );
+        m_editPoints->Point( RECT_TOPLEFT ).SetPosition( topLeft );
+        m_editPoints->Point( RECT_TOPRIGHT ).SetPosition( VECTOR2I( botRight.x, topLeft.y ) );
+        m_editPoints->Point( RECT_BOTLEFT ).SetPosition( VECTOR2I( topLeft.x, botRight.y ) );
+        m_editPoints->Point( RECT_BOTRIGHT ).SetPosition( botRight );
         break;
     }
 
@@ -685,12 +714,15 @@ void EE_POINT_EDITOR::setEditedPoint( EDIT_POINT* aPoint )
 
     if( aPoint )
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         controls->ForceCursorPosition( true, aPoint->GetPosition() );
         controls->ShowCursor( true );
     }
     else
     {
-        controls->ShowCursor( false );
+        if( m_frame->ToolStackIsEmpty() )
+            controls->ShowCursor( false );
+
         controls->ForceCursorPosition( false );
     }
 

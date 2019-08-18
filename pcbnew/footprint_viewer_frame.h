@@ -83,9 +83,10 @@ public:
     bool ShowModal( wxString* aFootprint, wxWindow* aParent ) override;
 
 private:
-
-    wxListBox*          m_libList;               // The list of libs names
-    wxListBox*          m_footprintList;         // The list of footprint names
+    wxTextCtrl*         m_libFilter;
+    wxListBox*          m_libList;        // The list of libs names
+    wxTextCtrl*         m_fpFilter;
+    wxListBox*          m_fpList;         // The list of footprint names
 
     bool                m_autoZoom;
     double              m_lastZoom;
@@ -109,19 +110,27 @@ private:
 
     void OnCloseWindow( wxCloseEvent& Event ) override;
     void CloseFootprintViewer( wxCommandEvent& event );
+    void OnExitKiCad( wxCommandEvent& event );
 
     void ReCreateHToolbar() override;
     void ReCreateVToolbar() override;
     void ReCreateMenuBar() override;
 
-    void ClickOnLibList( wxCommandEvent& event );
-    void ClickOnFootprintList( wxCommandEvent& event );
-    void DClickOnFootprintList( wxCommandEvent& event );
+    void OnLibFilter( wxCommandEvent& aEvent );
+    void OnFPFilter( wxCommandEvent& aEvent );
+    void OnCharHook( wxKeyEvent& aEvent ) override;
 
-    void InstallDisplayOptions( wxCommandEvent& event );
+    void selectPrev( wxListBox* aListBox );
+    void selectNext( wxListBox* aListBox );
+    void ClickOnLibList( wxCommandEvent& aEvent );
+    void ClickOnFootprintList( wxCommandEvent& aEvent );
+    void DClickOnFootprintList( wxCommandEvent& aEvent );
+
+    void InstallDisplayOptions( wxCommandEvent& aEvent );
 
     void LoadSettings( wxConfigBase* aCfg ) override;
     void SaveSettings( wxConfigBase* aCfg ) override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     /**
      * Function OnActivate
@@ -131,16 +140,10 @@ private:
     void OnActivate( wxActivateEvent& event );
 
     /**
-     * Function SelectCurrentFootprint
-     * Selects the current footprint name and display it
-     */
-    void SelectCurrentFootprint( wxCommandEvent& event );
-
-    /**
      * Function AddFootprintToPCB
      * exports the current footprint name and close the library browser.
      */
-    void AddFootprintToPCB( wxCommandEvent& event );
+    void AddFootprintToPCB( wxCommandEvent& aEvent );
 
     /**
      * Function SelectAndViewFootprint

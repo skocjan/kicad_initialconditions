@@ -137,6 +137,9 @@ ITEM* TOOL_BASE::pickSingleItem( const VECTOR2I& aWhere, int aNet, int aLayer, b
         if( !IsCopperLayer( item->Layers().Start() ) )
             continue;
 
+        if( !m_iface->IsAnyLayerVisible( item->Layers() ) )
+            continue;
+
         if( std::find( aAvoidItems.begin(), aAvoidItems.end(), item ) != aAvoidItems.end() )
             continue;
 
@@ -237,11 +240,11 @@ bool TOOL_BASE::checkSnap( ITEM *aItem )
     // Sync PNS engine settings with the general PCB editor options.
     auto& pnss = m_router->Settings();
 
-    pnss.SetSnapToPads( PCB_GENERAL_SETTINGS::g_MagneticPads == CAPTURE_CURSOR_IN_TRACK_TOOL
-                     || PCB_GENERAL_SETTINGS::g_MagneticPads == CAPTURE_ALWAYS );
+    pnss.SetSnapToPads( frame()->Settings().m_MagneticPads == CAPTURE_CURSOR_IN_TRACK_TOOL
+                     || frame()->Settings().m_MagneticPads == CAPTURE_ALWAYS );
 
-    pnss.SetSnapToTracks( PCB_GENERAL_SETTINGS::g_MagneticTracks == CAPTURE_CURSOR_IN_TRACK_TOOL
-                       || PCB_GENERAL_SETTINGS::g_MagneticTracks == CAPTURE_ALWAYS );
+    pnss.SetSnapToTracks( frame()->Settings().m_MagneticTracks == CAPTURE_CURSOR_IN_TRACK_TOOL
+                       || frame()->Settings().m_MagneticTracks == CAPTURE_ALWAYS );
 
     if( aItem )
     {

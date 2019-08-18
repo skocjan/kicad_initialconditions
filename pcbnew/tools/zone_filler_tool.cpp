@@ -24,14 +24,11 @@
  */
 #include <cstdint>
 #include <thread>
-#include <mutex>
-
 #include <class_zone.h>
-#include <class_module.h>
 #include <connectivity/connectivity_data.h>
 #include <board_commit.h>
-
 #include <widgets/progress_reporter.h>
+#include <wx/event.h>
 #include <tool/tool_manager.h>
 #include <bitmaps.h>
 #include "pcb_actions.h"
@@ -55,59 +52,92 @@ void ZONE_FILLER_TOOL::Reset( RESET_REASON aReason )
 {
 }
 
-// Zone actions
-int ZONE_FILLER_TOOL::ZoneFill( const TOOL_EVENT& aEvent )
+
+void ZONE_FILLER_TOOL::CheckAllZones( wxWindow* aCaller )
 {
+    if( !getEditFrame<PCB_EDIT_FRAME>()->m_ZoneFillsDirty )
+        return;
+
     std::vector<ZONE_CONTAINER*> toFill;
+
+    for( auto zone : board()->Zones() )
+        toFill.push_back(zone);
 
     BOARD_COMMIT commit( this );
 
-    for( auto item : selection() )
+    ZONE_FILLER filler( frame()->GetBoard(), &commit );
+    filler.InstallNewProgressReporter( aCaller, _( "Checking Zones" ), 4 );
+
+    if( filler.Fill( toFill, true ) )
     {
-        assert( item->Type() == PCB_ZONE_AREA_T );
-
-        ZONE_CONTAINER* zone = static_cast<ZONE_CONTAINER*> ( item );
-
-        toFill.push_back(zone);
+        getEditFrame<PCB_EDIT_FRAME>()->m_ZoneFillsDirty = false;
+        canvas()->Refresh();
     }
-
-    std::unique_ptr<WX_PROGRESS_REPORTER> progressReporter(
-            new WX_PROGRESS_REPORTER( frame(), _( "Fill Zone" ), 4 )
-            );
-
-    ZONE_FILLER filler( board(), &commit );
-    filler.SetProgressReporter( progressReporter.get() );
-    filler.Fill( toFill );
-
-    canvas()->Refresh();
-
-    return 0;
 }
 
 
-int ZONE_FILLER_TOOL::ZoneFillAll( const TOOL_EVENT& aEvent )
+void ZONE_FILLER_TOOL::singleShotRefocus( wxIdleEvent& )
+{
+    canvas()->SetFocus();
+    canvas()->Unbind( wxEVT_IDLE, &ZONE_FILLER_TOOL::singleShotRefocus, this );
+}
+
+
+void ZONE_FILLER_TOOL::FillAllZones( wxWindow* aCaller )
 {
     std::vector<ZONE_CONTAINER*> toFill;
 
     BOARD_COMMIT commit( this );
 
     for( auto zone : board()->Zones() )
-    {
         toFill.push_back(zone);
-    }
-
-    std::unique_ptr<WX_PROGRESS_REPORTER> progressReporter(
-            new WX_PROGRESS_REPORTER( frame(), _( "Fill All Zones" ), 4 )
-            );
 
     ZONE_FILLER filler( board(), &commit );
-    filler.SetProgressReporter( progressReporter.get() );
+    filler.InstallNewProgressReporter( aCaller, _( "Fill All Zones" ),  4 );
 
     if( filler.Fill( toFill ) )
         getEditFrame<PCB_EDIT_FRAME>()->m_ZoneFillsDirty = false;
 
     canvas()->Refresh();
 
+    // wxWidgets has keyboard focus issues after the progress reporter.  Re-setting the focus
+    // here doesn't work, so we delay it to an idle event.
+    canvas()->Bind( wxEVT_IDLE, &ZONE_FILLER_TOOL::singleShotRefocus, this );
+}
+
+
+int ZONE_FILLER_TOOL::ZoneFill( const TOOL_EVENT& aEvent )
+{
+    std::vector<ZONE_CONTAINER*> toFill;
+
+    BOARD_COMMIT commit( this );
+
+    if( auto passedZone = aEvent.Parameter<ZONE_CONTAINER*>() )
+    {
+        if( passedZone->Type() == PCB_ZONE_AREA_T )
+            toFill.push_back( passedZone );
+    }
+    else
+    {
+        for( auto item : selection() )
+        {
+            if( auto zone = dyn_cast<ZONE_CONTAINER*>( item ) )
+                toFill.push_back( zone );
+        }
+    }
+
+    ZONE_FILLER filler( board(), &commit );
+    filler.InstallNewProgressReporter( frame(), _( "Fill Zone" ), 4 );
+    filler.Fill( toFill );
+
+    canvas()->Refresh();
+    return 0;
+}
+
+
+int ZONE_FILLER_TOOL::ZoneFillAll( const TOOL_EVENT& aEvent )
+{
+    FillAllZones( frame() );
     return 0;
 }
 

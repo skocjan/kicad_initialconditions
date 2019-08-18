@@ -84,122 +84,116 @@ static const char s_BitmapLayerIcon[BM_LAYERICON_SIZE][BM_LAYERICON_SIZE] =
 };
 
 
-void PCB_EDIT_FRAME::PrepareLayerIndicator()
+void PCB_EDIT_FRAME::PrepareLayerIndicator( bool aForceRebuild )
 {
     int        ii, jj;
     COLOR4D    active_layer_color, top_color, bottom_color, via_color, background_color;
-    bool       change = false;
-
-    static int previous_requested_scale;
-    static COLOR4D previous_active_layer_color, previous_Route_Layer_TOP_color,
-                   previous_Route_Layer_BOTTOM_color, previous_via_color,
-                   previous_background_color;
+    bool       change = aForceRebuild;
 
     int requested_scale;
     Pgm().CommonSettings()->Read( ICON_SCALE_KEY, &requested_scale, 0 );
 
-    if( requested_scale != previous_requested_scale )
+    if( m_prevIconVal.previous_requested_scale != requested_scale )
     {
-        previous_requested_scale = requested_scale;
+        m_prevIconVal.previous_requested_scale = requested_scale;
         change = true;
     }
 
-    active_layer_color = Settings().Colors().GetLayerColor(GetActiveLayer());
+    active_layer_color = Settings().Colors().GetLayerColor( GetActiveLayer() );
 
-    if( previous_active_layer_color != active_layer_color )
+    if( m_prevIconVal.previous_active_layer_color != active_layer_color )
     {
-        previous_active_layer_color = active_layer_color;
+        m_prevIconVal.previous_active_layer_color = active_layer_color;
         change = true;
     }
 
     top_color = Settings().Colors().GetLayerColor( GetScreen()->m_Route_Layer_TOP );
 
-    if( previous_Route_Layer_TOP_color != top_color )
+    if( m_prevIconVal.previous_Route_Layer_TOP_color != top_color )
     {
-        previous_Route_Layer_TOP_color = top_color;
+        m_prevIconVal.previous_Route_Layer_TOP_color = top_color;
         change = true;
     }
 
     bottom_color = Settings().Colors().GetLayerColor( GetScreen()->m_Route_Layer_BOTTOM );
 
-    if( previous_Route_Layer_BOTTOM_color != bottom_color )
+    if( m_prevIconVal.previous_Route_Layer_BOTTOM_color != bottom_color )
     {
-        previous_Route_Layer_BOTTOM_color = bottom_color;
+        m_prevIconVal.previous_Route_Layer_BOTTOM_color = bottom_color;
         change = true;
     }
 
     int via_type = GetDesignSettings().m_CurrentViaType;
     via_color = Settings().Colors().GetItemColor( LAYER_VIAS + via_type );
 
-    if( previous_via_color != via_color )
+    if( m_prevIconVal.previous_via_color != via_color )
     {
-        previous_via_color = via_color;
+        m_prevIconVal.previous_via_color = via_color;
         change = true;
     }
 
     background_color = Settings().Colors().GetItemColor( LAYER_PCB_BACKGROUND );
 
-    if( previous_background_color != background_color )
+    if( m_prevIconVal.previous_background_color != background_color )
     {
-        previous_background_color = background_color;
+        m_prevIconVal.previous_background_color = background_color;
         change = true;
     }
 
-    if( !change && LayerPairBitmap )
-        return;
-
-    LayerPairBitmap = std::make_unique<wxBitmap>( 24, 24 );
-
-    /* Draw the icon, with colors according to the active layer and layer
-     * pairs for via command (change layer)
-     */
-    wxMemoryDC iconDC;
-    iconDC.SelectObject( *LayerPairBitmap );
-    wxBrush    brush;
-    wxPen      pen;
-    int buttonColor = -1;
-
-    brush.SetStyle( wxBRUSHSTYLE_SOLID );
-    brush.SetColour( background_color.WithAlpha(1.0).ToColour() );
-    iconDC.SetBrush( brush );
-    iconDC.DrawRectangle( 0, 0, BM_LAYERICON_SIZE, BM_LAYERICON_SIZE );
-
-    for( ii = 0; ii < BM_LAYERICON_SIZE; ii++ )
+    if( change || !LayerPairBitmap )
     {
-        for( jj = 0; jj < BM_LAYERICON_SIZE; jj++ )
+        LayerPairBitmap = std::make_unique<wxBitmap>( 24, 24 );
+
+        // Draw the icon, with colors according to the active layer and layer pairs for via
+        // command (change layer)
+        wxMemoryDC iconDC;
+        iconDC.SelectObject( *LayerPairBitmap );
+        wxBrush    brush;
+        wxPen      pen;
+        int buttonColor = -1;
+
+        brush.SetStyle( wxBRUSHSTYLE_SOLID );
+        brush.SetColour( background_color.WithAlpha(1.0).ToColour() );
+        iconDC.SetBrush( brush );
+        iconDC.DrawRectangle( 0, 0, BM_LAYERICON_SIZE, BM_LAYERICON_SIZE );
+
+        for( ii = 0; ii < BM_LAYERICON_SIZE; ii++ )
         {
-            if( s_BitmapLayerIcon[ii][jj] != buttonColor )
+            for( jj = 0; jj < BM_LAYERICON_SIZE; jj++ )
             {
-                switch( s_BitmapLayerIcon[ii][jj] )
+                if( s_BitmapLayerIcon[ii][jj] != buttonColor )
                 {
-                default:
-                case 0: pen.SetColour( active_layer_color.ToColour() ); break;
-                case 1: pen.SetColour( top_color.ToColour() );          break;
-                case 2: pen.SetColour( bottom_color.ToColour() );       break;
-                case 3: pen.SetColour( via_color.ToColour() );          break;
+                    switch( s_BitmapLayerIcon[ii][jj] )
+                    {
+                    default:
+                    case 0: pen.SetColour( active_layer_color.ToColour() ); break;
+                    case 1: pen.SetColour( top_color.ToColour() );          break;
+                    case 2: pen.SetColour( bottom_color.ToColour() );       break;
+                    case 3: pen.SetColour( via_color.ToColour() );          break;
+                    }
+
+                    buttonColor = s_BitmapLayerIcon[ii][jj];
+                    iconDC.SetPen( pen );
                 }
 
-                buttonColor = s_BitmapLayerIcon[ii][jj];
-                iconDC.SetPen( pen );
+                iconDC.DrawPoint( jj, ii );
             }
-
-            iconDC.DrawPoint( jj, ii );
         }
+
+        // Deselect the bitmap from the DC in order to delete the MemoryDC safely without
+        // deleting the bitmap
+        iconDC.SelectObject( wxNullBitmap );
+
+        // Scale the bitmap
+        const int scale = ( requested_scale <= 0 ) ? KiIconScale( this ) : requested_scale;
+        wxImage image = LayerPairBitmap->ConvertToImage();
+
+        // "NEAREST" causes less mixing of colors
+        image.Rescale( scale * image.GetWidth() / 4, scale * image.GetHeight() / 4,
+                       wxIMAGE_QUALITY_NEAREST );
+
+        LayerPairBitmap = std::make_unique<wxBitmap>( image );
     }
-
-    /* Deselect the Tool Bitmap from DC,
-     *  in order to delete the MemoryDC safely without deleting the bitmap */
-    iconDC.SelectObject( wxNullBitmap );
-
-    // Scale the bitmap
-    const int scale = ( requested_scale <= 0 ) ? KiIconScale( this ) : requested_scale;
-    wxImage image = LayerPairBitmap->ConvertToImage();
-
-    // "NEAREST" causes less mixing of colors
-    image.Rescale( scale * image.GetWidth() / 4, scale * image.GetHeight() / 4,
-                   wxIMAGE_QUALITY_NEAREST );
-
-    LayerPairBitmap = std::make_unique<wxBitmap>( image );
 
     if( m_mainToolBar )
     {
@@ -282,10 +276,10 @@ void PCB_EDIT_FRAME::ReCreateHToolbar()
     m_mainToolBar->AddControl( m_SelLayerBox );
 
     m_mainToolBar->Add( PCB_ACTIONS::selectLayerPair );
-    PrepareLayerIndicator();    // Initialize the bitmap with the active layer colors
-    
+    PrepareLayerIndicator( true );    // Force rebuild of the bitmap with the active layer colors
+
     KiScaledSeparator( m_mainToolBar, this );
-    ADD_TOOL( ID_RUN_EESCHEMA, eeschema_xpm, _( "Open schematic in Eeschema" ) );
+    m_mainToolBar->Add( PCB_ACTIONS::showEeschema );
 
     // Access to the scripting console
 #if defined(KICAD_SCRIPTING_WXPYTHON)
@@ -367,13 +361,13 @@ void PCB_EDIT_FRAME::ReCreateVToolbar()
         m_drawToolBar = new ACTION_TOOLBAR( this, ID_V_TOOLBAR, wxDefaultPosition, wxDefaultSize,
                                             KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
 
-    m_drawToolBar->Add( PCB_ACTIONS::selectionTool,        ACTION_TOOLBAR::TOGGLE );
+    m_drawToolBar->Add( ACTIONS::selectionTool,            ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::highlightNetTool,     ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::localRatsnestTool,    ACTION_TOOLBAR::TOGGLE );
 
     KiScaledSeparator( m_drawToolBar, this );
     m_drawToolBar->Add( PCB_ACTIONS::placeModule,          ACTION_TOOLBAR::TOGGLE );
-    m_drawToolBar->Add( PCB_ACTIONS::routerActivateSingle, ACTION_TOOLBAR::TOGGLE );
+    m_drawToolBar->Add( PCB_ACTIONS::routeSingleTrack,     ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::drawVia,              ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::drawZone,             ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::drawZoneKeepout,      ACTION_TOOLBAR::TOGGLE );
@@ -386,7 +380,7 @@ void PCB_EDIT_FRAME::ReCreateVToolbar()
     m_drawToolBar->Add( PCB_ACTIONS::placeText,            ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::drawDimension,        ACTION_TOOLBAR::TOGGLE );
     m_drawToolBar->Add( PCB_ACTIONS::placeTarget,          ACTION_TOOLBAR::TOGGLE );
-    m_drawToolBar->Add( PCB_ACTIONS::deleteTool,           ACTION_TOOLBAR::TOGGLE );
+    m_drawToolBar->Add( ACTIONS::deleteTool,               ACTION_TOOLBAR::TOGGLE );
 
     KiScaledSeparator( m_drawToolBar, this );
     m_drawToolBar->Add( PCB_ACTIONS::drillOrigin,          ACTION_TOOLBAR::TOGGLE );
@@ -406,37 +400,18 @@ void PCB_EDIT_FRAME::ReCreateMicrowaveVToolbar()
     if( m_microWaveToolBar )
         m_microWaveToolBar->Clear();
     else
-        m_microWaveToolBar = new wxAuiToolBar( this, ID_MICROWAVE_V_TOOLBAR, wxDefaultPosition,
-                                               wxDefaultSize,
-                                               KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
+        m_microWaveToolBar = new ACTION_TOOLBAR( this, ID_MICROWAVE_V_TOOLBAR, wxDefaultPosition,
+                                                 wxDefaultSize,
+                                                 KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
 
     // Set up toolbar
-    m_microWaveToolBar->AddTool( ID_PCB_MUWAVE_TOOL_SELF_CMD, wxEmptyString,
-                                 KiScaledBitmap( mw_add_line_xpm, this ),
-                                 _( "Create line of specified length for microwave applications" ),
-                                 wxITEM_CHECK );
-
-    m_microWaveToolBar->AddTool( ID_PCB_MUWAVE_TOOL_GAP_CMD, wxEmptyString,
-                                 KiScaledBitmap( mw_add_gap_xpm, this ),
-                                 _( "Create gap of specified length for microwave applications" ),
-                                 wxITEM_CHECK );
+    m_microWaveToolBar->Add( PCB_ACTIONS::microwaveCreateLine,          ACTION_TOOLBAR::TOGGLE );
+    m_microWaveToolBar->Add( PCB_ACTIONS::microwaveCreateGap,           ACTION_TOOLBAR::TOGGLE );
 
     KiScaledSeparator( m_microWaveToolBar, this );
-
-    m_microWaveToolBar->AddTool( ID_PCB_MUWAVE_TOOL_STUB_CMD, wxEmptyString,
-                                 KiScaledBitmap( mw_add_stub_xpm, this ),
-                                 _( "Create stub of specified length for microwave applications" ),
-                                 wxITEM_CHECK );
-
-    m_microWaveToolBar->AddTool( ID_PCB_MUWAVE_TOOL_STUB_ARC_CMD, wxEmptyString,
-                                 KiScaledBitmap( mw_add_stub_arc_xpm, this ),
-                                 _( "Create stub (arc) of specified length for microwave applications" ),
-                                 wxITEM_CHECK );
-
-    m_microWaveToolBar->AddTool( ID_PCB_MUWAVE_TOOL_FUNCTION_SHAPE_CMD, wxEmptyString,
-                                 KiScaledBitmap( mw_add_shape_xpm, this ),
-                                 _( "Create a polynomial shape for microwave applications" ),
-                                 wxITEM_CHECK );
+    m_microWaveToolBar->Add( PCB_ACTIONS::microwaveCreateStub,          ACTION_TOOLBAR::TOGGLE );
+    m_microWaveToolBar->Add( PCB_ACTIONS::microwaveCreateStubArc,       ACTION_TOOLBAR::TOGGLE );
+    m_microWaveToolBar->Add( PCB_ACTIONS::microwaveCreateFunctionShape, ACTION_TOOLBAR::TOGGLE );
 
     m_microWaveToolBar->Realize();
 }
@@ -684,15 +659,10 @@ bool PCB_EDIT_FRAME::MicrowaveToolbarShown()
 }
 
 
-void PCB_EDIT_FRAME::OnUpdateMuWaveToolbar( wxUpdateUIEvent& aEvent )
-{
-    if( aEvent.GetEventObject() == m_microWaveToolBar )
-        aEvent.Check( GetToolId() == aEvent.GetId() );
-}
-
-
 void PCB_EDIT_FRAME::SyncToolbars()
 {
+#define TOGGLE_TOOL( toolbar, tool ) toolbar->Toggle( tool, IsCurrentTool( tool ) )
+
     PCB_DISPLAY_OPTIONS*        opts = (PCB_DISPLAY_OPTIONS*) GetDisplayOptions();
     KIGFX::GAL_DISPLAY_OPTIONS& galOpts = GetGalDisplayOptions();
     int                         zoneMode = opts->m_DisplayZonesMode;
@@ -700,7 +670,7 @@ void PCB_EDIT_FRAME::SyncToolbars()
     m_mainToolBar->Toggle( ACTIONS::save, GetScreen() && GetScreen()->IsModify() );
     m_mainToolBar->Toggle( ACTIONS::undo, GetScreen() && GetScreen()->GetUndoCommandCount() > 0 );
     m_mainToolBar->Toggle( ACTIONS::redo, GetScreen() && GetScreen()->GetRedoCommandCount() > 0 );
-    m_mainToolBar->Toggle( ACTIONS::zoomTool, GetToolId() == ID_ZOOM_SELECTION );
+    TOGGLE_TOOL( m_mainToolBar, ACTIONS::zoomTool );
 #if defined(KICAD_SCRIPTING_WXPYTHON)
     if( IsWxPythonLoaded() )
     {
@@ -731,24 +701,31 @@ void PCB_EDIT_FRAME::SyncToolbars()
     m_optionsToolBar->Toggle( ACTIONS::highContrastMode,         opts->m_ContrastModeDisplay );
     m_optionsToolBar->Refresh();
 
-    m_drawToolBar->Toggle( PCB_ACTIONS::selectionTool,    GetToolId() == ID_NO_TOOL_SELECTED );
-    m_drawToolBar->Toggle( PCB_ACTIONS::highlightNetTool, GetToolId() == ID_PCB_HIGHLIGHT_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::localRatsnestTool,GetToolId() == ID_LOCAL_RATSNEST_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::placeModule,      GetToolId() == ID_PCB_MODULE_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::routerActivateSingle, GetToolId() == ID_TRACK_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawVia,          GetToolId() == ID_PCB_DRAW_VIA_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawZone,         GetToolId() == ID_PCB_ZONES_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawZoneKeepout,  GetToolId() == ID_PCB_KEEPOUT_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawLine,         GetToolId() == ID_PCB_ADD_LINE_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawCircle,       GetToolId() == ID_PCB_CIRCLE_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawArc,          GetToolId() == ID_PCB_ARC_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawPolygon,      GetToolId() == ID_PCB_ADD_POLYGON_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::placeText,        GetToolId() == ID_PCB_ADD_TEXT_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drawDimension,    GetToolId() == ID_PCB_DIMENSION_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::placeTarget,      GetToolId() == ID_PCB_TARGET_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::deleteTool,       GetToolId() == ID_PCB_DELETE_ITEM_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::drillOrigin,      GetToolId() == ID_PCB_PLACE_OFFSET_COORD_BUTT );
-    m_drawToolBar->Toggle( PCB_ACTIONS::gridSetOrigin,    GetToolId() == ID_PCB_PLACE_GRID_COORD_BUTT );
-    m_drawToolBar->Toggle( ACTIONS::measureTool,          GetToolId() == ID_PCB_MEASUREMENT_TOOL );
+    TOGGLE_TOOL( m_drawToolBar, ACTIONS::selectionTool );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::highlightNetTool );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::localRatsnestTool );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::placeModule );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::routeSingleTrack );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawVia );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawZone );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawZoneKeepout );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawLine );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawCircle );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawArc );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawPolygon );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::placeText );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drawDimension );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::placeTarget );
+    TOGGLE_TOOL( m_drawToolBar, ACTIONS::deleteTool );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::drillOrigin );
+    TOGGLE_TOOL( m_drawToolBar, PCB_ACTIONS::gridSetOrigin );
+    TOGGLE_TOOL( m_drawToolBar, ACTIONS::measureTool );
     m_drawToolBar->Refresh();
+
+    TOGGLE_TOOL( m_microWaveToolBar, PCB_ACTIONS::microwaveCreateLine );
+    TOGGLE_TOOL( m_microWaveToolBar, PCB_ACTIONS::microwaveCreateGap );
+    TOGGLE_TOOL( m_microWaveToolBar, PCB_ACTIONS::microwaveCreateStub );
+    TOGGLE_TOOL( m_microWaveToolBar, PCB_ACTIONS::microwaveCreateStubArc );
+    TOGGLE_TOOL( m_microWaveToolBar, PCB_ACTIONS::microwaveCreateFunctionShape );
+    m_microWaveToolBar->Refresh();
 }

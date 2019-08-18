@@ -46,11 +46,14 @@ void ZOOM_TOOL::Reset( RESET_REASON aReason )
 
 int ZOOM_TOOL::Main( const TOOL_EVENT& aEvent )
 {
-    m_frame->SetToolID( ID_ZOOM_SELECTION, wxCURSOR_MAGNIFIER, _( "Zoom to selection" ) );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
 
-    while( auto evt = Wait() )
+    while( TOOL_EVENT* evt = Wait() )
     {
-        if( evt->IsCancel() || evt->IsActivate() )
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
+
+        if( evt->IsCancelInteractive() || evt->IsActivate() )
             break;
 
         else if( evt->IsDrag( BUT_LEFT ) || evt->IsDrag( BUT_RIGHT ) )
@@ -64,7 +67,7 @@ int ZOOM_TOOL::Main( const TOOL_EVENT& aEvent )
     }
 
     // Exit zoom tool
-    m_frame->SetNoToolSelected();
+    m_frame->PopTool( tool );
     return 0;
 }
 
@@ -80,9 +83,9 @@ bool ZOOM_TOOL::selectRegion()
     KIGFX::PREVIEW::SELECTION_AREA area;
     view->Add( &area );
 
-    while( auto evt = Wait() )
+    while( TOOL_EVENT* evt = Wait() )
     {
-        if( evt->IsCancel() || evt->IsActivate() )
+        if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             cancelled = true;
             break;

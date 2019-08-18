@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -137,6 +138,10 @@ void PL_POINT_EDITOR::updateEditedPoint( const TOOL_EVENT& aEvent )
     {
         point = m_editPoints->FindPoint( aEvent.DragOrigin(), getView() );
     }
+    else
+    {
+        point = m_editPoints->FindPoint( getViewControls()->GetCursorPosition(), getView() );
+    }
 
     if( m_editedPoint != point )
         setEditedPoint( point );
@@ -174,13 +179,14 @@ int PL_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
 
     view->Add( m_editPoints.get() );
     setEditedPoint( nullptr );
+    updateEditedPoint( aEvent );
     bool inDrag = false;
     bool modified = false;
 
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
-        if( !m_editPoints || TOOL_EVT_UTILS::IsSelectionEvent( *evt ) )
+        if( !m_editPoints || evt->IsSelectionEvent() )
             break;
 
         if ( !inDrag )
@@ -208,7 +214,7 @@ int PL_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
             inDrag = false;
         }
 
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             if( inDrag )      // Restore the last change
             {
@@ -216,12 +222,11 @@ int PL_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
                 inDrag = false;
                 modified = false;
             }
+            else if( evt->IsCancelInteractive() )
+                break;
 
-            // ESC should clear selection along with edit points
-            if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                m_toolMgr->RunAction( PL_ACTIONS::clearSelection, true );
-
-            break;
+            if( evt->IsActivate() && !evt->IsMoveTool() )
+                break;
         }
 
         else
@@ -392,12 +397,15 @@ void PL_POINT_EDITOR::setEditedPoint( EDIT_POINT* aPoint )
 
     if( aPoint )
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         controls->ForceCursorPosition( true, aPoint->GetPosition() );
         controls->ShowCursor( true );
     }
     else
     {
-        controls->ShowCursor( false );
+        if( m_frame->ToolStackIsEmpty() )
+            controls->ShowCursor( false );
+
         controls->ForceCursorPosition( false );
     }
 

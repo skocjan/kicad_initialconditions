@@ -30,10 +30,6 @@
 #include <sch_draw_panel.h>
 #include <base_screen.h>
 #include <confirm.h>
-#include <eda_doc.h>
-#include <sch_edit_frame.h>
-#include <msgpanel.h>
-#include <confirm.h>
 #include <eda_dockart.h>
 #include <general.h>
 #include <eeschema_id.h>
@@ -43,18 +39,17 @@
 #include <widgets/symbol_tree_pane.h>
 #include <widgets/lib_tree.h>
 #include <symbol_lib_table.h>
-#include <eeschema_config.h>
 #include <wildcards_and_files_ext.h>
 #include <wx/progdlg.h>
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
 #include <tool/action_toolbar.h>
 #include <tool/common_control.h>
+#include <tool/picker_tool.h>
 #include <tool/common_tools.h>
 #include <tool/zoom_tool.h>
 #include <tools/ee_actions.h>
 #include <tools/ee_selection_tool.h>
-#include <tools/ee_picker_tool.h>
 #include <tools/ee_inspection_tool.h>
 #include <tools/lib_pin_tool.h>
 #include <tools/lib_edit_tool.h>
@@ -90,7 +85,8 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_TOOL( ID_LIBEDIT_EXPORT_BODY_BUTT, LIB_EDIT_FRAME::OnExportBody )
 
     // menubar commands
-    EVT_MENU( wxID_EXIT, LIB_EDIT_FRAME::CloseWindow )
+    EVT_MENU( wxID_EXIT, LIB_EDIT_FRAME::OnExitKiCad )
+    EVT_MENU( wxID_CLOSE, LIB_EDIT_FRAME::CloseWindow )
     EVT_MENU( ID_GRID_SETTINGS, SCH_BASE_FRAME::OnGridSettings )
 
     // Update user interface elements.
@@ -152,6 +148,7 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     ReCreateHToolbar();
     ReCreateVToolbar();
     ReCreateOptToolbar();
+    InitExitKey();
 
     updateTitle();
     DisplayCmpDoc();
@@ -178,8 +175,6 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     Raise();
     Show( true );
 
-    m_toolManager->RunAction( ACTIONS::zoomFitScreen, false );
-
     SyncView();
     GetCanvas()->GetViewControls()->SetSnapping( true );
     GetCanvas()->GetView()->UseDrawPriority( true );
@@ -194,6 +189,8 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     bbox.SetOrigin( -max_size_x /2, -max_size_y/2 );
     bbox.SetSize( max_size_x, max_size_y );
     GetCanvas()->GetView()->SetBoundary( bbox );
+
+    m_toolManager->RunAction( ACTIONS::zoomFitScreen, true );
 }
 
 
@@ -221,7 +218,7 @@ void LIB_EDIT_FRAME::setupTools()
     m_toolManager->RegisterTool( new COMMON_TOOLS );
     m_toolManager->RegisterTool( new ZOOM_TOOL );
     m_toolManager->RegisterTool( new EE_SELECTION_TOOL );
-    m_toolManager->RegisterTool( new EE_PICKER_TOOL );
+    m_toolManager->RegisterTool( new PICKER_TOOL );
     m_toolManager->RegisterTool( new EE_INSPECTION_TOOL );
     m_toolManager->RegisterTool( new LIB_PIN_TOOL );
     m_toolManager->RegisterTool( new LIB_DRAWING_TOOLS );
@@ -279,7 +276,7 @@ void LIB_EDIT_FRAME::RebuildSymbolUnitsList()
     if( m_unitSelectBox->GetCount() != 0 )
         m_unitSelectBox->Clear();
 
-    LIB_PART*      part = GetCurPart();
+    LIB_PART* part = GetCurPart();
 
     if( !part || part->GetUnitCount() <= 1 )
     {
@@ -296,8 +293,7 @@ void LIB_EDIT_FRAME::RebuildSymbolUnitsList()
         }
     }
 
-    // Ensure the current selected unit is compatible with
-    // the number of units of the current part:
+    // Ensure the selected unit is compatible with the number of units of the current part:
     if( part && part->GetUnitCount() < m_unit )
         m_unit = 1;
 
@@ -328,6 +324,12 @@ void LIB_EDIT_FRAME::FreezeSearchTree()
 void LIB_EDIT_FRAME::ThawSearchTree()
 {
     m_libMgr->GetAdapter()->Thaw();
+}
+
+
+void LIB_EDIT_FRAME::OnExitKiCad( wxCommandEvent& event )
+{
+    Kiway().OnKiCadExit();
 }
 
 
@@ -691,13 +693,15 @@ void LIB_EDIT_FRAME::emptyScreen()
 }
 
 
-void LIB_EDIT_FRAME::CommonSettingsChanged()
+void LIB_EDIT_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    SCH_BASE_FRAME::CommonSettingsChanged();
+    SCH_BASE_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
-    ReCreateHToolbar();
-    ReCreateVToolbar();
-    ReCreateOptToolbar();
+    RecreateToolbars();
+
+    if( aEnvVarsChanged )
+        SyncLibraries( true );
+
     Layout();
     SendSizeEvent();
 }
@@ -709,9 +713,7 @@ void LIB_EDIT_FRAME::ShowChangedLanguage()
     SCH_BASE_FRAME::ShowChangedLanguage();
 
     // tooltips in toolbars
-    ReCreateHToolbar();
-    ReCreateVToolbar();
-    ReCreateOptToolbar();
+    RecreateToolbars();
 
     // status bar
     UpdateMsgPanel();

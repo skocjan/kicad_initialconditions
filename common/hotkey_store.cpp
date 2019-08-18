@@ -40,13 +40,13 @@ public:
 };
 
 static GESTURE_PSEUDO_ACTION* g_gesturePseudoActions[] = {
-    new GESTURE_PSEUDO_ACTION( _( "Highlight Net" ), MD_CTRL + PSEUDO_WXK_CLICK ),
-    new GESTURE_PSEUDO_ACTION( _( "Clear Net Highlighting" ), MD_CTRL + PSEUDO_WXK_CLICK ),
     new GESTURE_PSEUDO_ACTION( _( "Pan Left/Right" ), MD_CTRL + PSEUDO_WXK_WHEEL ),
     new GESTURE_PSEUDO_ACTION( _( "Pan Up/Down" ), MD_SHIFT + PSEUDO_WXK_WHEEL ),
     new GESTURE_PSEUDO_ACTION( _( "Finish Drawing" ), PSEUDO_WXK_DBLCLICK ),
+    new GESTURE_PSEUDO_ACTION( _( "Show Clarify Selection Menu" ), MD_ALT + PSEUDO_WXK_CLICK ),
     new GESTURE_PSEUDO_ACTION( _( "Add to Selection" ), MD_SHIFT + PSEUDO_WXK_CLICK ),
-    new GESTURE_PSEUDO_ACTION( _( "Remove from Selection" ), MD_CTRL + PSEUDO_WXK_CLICK ),
+    new GESTURE_PSEUDO_ACTION( _( "Toggle Selection State" ), MD_CTRL + PSEUDO_WXK_CLICK ),
+    new GESTURE_PSEUDO_ACTION( _( "Remove from Selection" ), MD_SHIFT + MD_CTRL + PSEUDO_WXK_CLICK ),
     new GESTURE_PSEUDO_ACTION( _( "Ignore Grid Snaps" ), MD_ALT ),
     new GESTURE_PSEUDO_ACTION( _( "Ignore Other Snaps" ), MD_SHIFT ),
 };
@@ -71,7 +71,7 @@ wxString HOTKEY_STORE::GetSectionName( TOOL_ACTION* aAction )
     };
 
     wxString appName = GetAppName( aAction );
-    
+
     if( s_AppNames.count( appName ) )
         return s_AppNames[ appName ];
     else
@@ -87,11 +87,11 @@ HOTKEY_STORE::HOTKEY_STORE()
 void HOTKEY_STORE::Init( std::vector<TOOL_MANAGER*> aToolManagerList, bool aIncludeGestures )
 {
     m_toolManagers = std::move( aToolManagerList );
-    
+
     // Collect all action maps into a single master map.  This will re-group everything
     // and collect duplicates together
     std::map<std::string, HOTKEY> masterMap;
-    
+
     for( TOOL_MANAGER* toolMgr : m_toolManagers )
     {
         for( const auto& entry : toolMgr->GetActions() )
@@ -105,9 +105,12 @@ void HOTKEY_STORE::Init( std::vector<TOOL_MANAGER*> aToolManagerList, bool aIncl
             hotkey.m_EditKeycode = entry.second->GetHotKey();
         }
     }
-    
+
     wxString        currentApp;
     HOTKEY_SECTION* currentSection = nullptr;
+
+    // If a previous list was built, ensure this previous list is cleared:
+    m_hk_sections.clear();
 
     for( const auto& entry : masterMap )
     {
@@ -184,12 +187,12 @@ bool HOTKEY_STORE::CheckKeyConflicts( TOOL_ACTION* aAction, long aKey, HOTKEY** 
     {
         if( section.m_SectionName != sectionName )
             continue;
-        
+
         for( HOTKEY& hotkey: section.m_HotKeys )
         {
             if( hotkey.m_Actions[ 0 ] == aAction )
                 continue;
-            
+
             if( hotkey.m_EditKeycode == aKey )
             {
                 *aConflict = &hotkey;
@@ -197,6 +200,6 @@ bool HOTKEY_STORE::CheckKeyConflicts( TOOL_ACTION* aAction, long aKey, HOTKEY** 
             }
         }
     }
-    
+
     return false;
 }

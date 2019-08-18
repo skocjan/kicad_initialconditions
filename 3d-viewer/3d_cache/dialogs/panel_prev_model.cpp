@@ -44,7 +44,7 @@ PANEL_PREV_3D::PANEL_PREV_3D( wxWindow* aParent, PCB_BASE_FRAME* aFrame, MODULE*
     initPanel();
 
     // Initialize the color settings to draw the board and the footprint
-    m_dummyBoard->SetColorsSettings( &aFrame->Settings().Colors() );
+    m_dummyBoard->SetGeneralSettings( &aFrame->Settings() );
 
     m_parentModelList = aParentModelList;
 
@@ -100,8 +100,8 @@ void PANEL_PREV_3D::initPanel()
         m_spinXoffset,m_spinYoffset, m_spinZoffset
     };
 
-    for( int ii = 0; ii < 9; ii++ )
-        spinButtonList[ii]->SetRange( INT_MIN, INT_MAX );
+    for( wxSpinButton* button : spinButtonList )
+        button->SetRange(INT_MIN, INT_MAX );
 }
 
 

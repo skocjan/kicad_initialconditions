@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 CERN
+ * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +28,6 @@
 #include "grid_helper.h"
 #include <view/view_controls.h>
 #include <tool/tool_manager.h>
-#include "tool_event_utils.h"
 #include "selection_tool.h"
 
 
@@ -44,10 +44,15 @@ int PCBNEW_PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
     GRID_HELPER grid( frame() );
     int finalize_state = WAIT_CANCEL;
 
+    std::string tool = *aEvent.Parameter<std::string*>();
+    frame()->PushTool( tool );
+    Activate();
     setControls();
 
     while( TOOL_EVENT* evt = Wait() )
     {
+        frame()->GetCanvas()->SetCursor( m_cursor );
+
         grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
         grid.SetUseGrid( !evt->Modifier( MD_ALT ) );
         controls->SetSnapping( !evt->Modifier( MD_ALT ) );
@@ -83,7 +88,22 @@ int PCBNEW_PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
                 setControls();
         }
 
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        else if( evt->IsMotion() )
+        {
+            if( m_motionHandler )
+            {
+                try
+                {
+                    (*m_motionHandler)( cursorPos );
+                }
+                catch( std::exception& e )
+                {
+                    std::cerr << "PCBNEW_PICKER_TOOL motion handler error: " << e.what() << std::endl;
+                }
+            }
+        }
+
+        else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             if( m_cancelHandler )
             {
@@ -130,26 +150,25 @@ int PCBNEW_PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
 
     reset();
     controls->ForceCursorPosition( false );
-    getEditFrame<PCB_BASE_FRAME>()->SetNoToolSelected();
-
+    frame()->PopTool( tool );
     return 0;
 }
 
 
 void PCBNEW_PICKER_TOOL::setTransitions()
 {
-    Go( &PCBNEW_PICKER_TOOL::Main, PCB_ACTIONS::pickerTool.MakeEvent() );
+    Go( &PCBNEW_PICKER_TOOL::Main, ACTIONS::pickerTool.MakeEvent() );
 }
 
 
 void PCBNEW_PICKER_TOOL::reset()
 {
-    m_cursorCapture = false;
-    m_autoPanning = false;
     m_layerMask = LSET::AllLayersMask();
+    m_cursor = wxStockCursor( wxCURSOR_ARROW );
 
     m_picked = NULLOPT;
     m_clickHandler = NULLOPT;
+    m_motionHandler = NULLOPT;
     m_cancelHandler = NULLOPT;
     m_finalizeHandler = NULLOPT;
 }
@@ -162,6 +181,6 @@ void PCBNEW_PICKER_TOOL::setControls()
     // Ensure that the view controls do not handle our snapping as we use the GRID_HELPER
     controls->SetSnapping( false );
 
-    controls->CaptureCursor( m_cursorCapture );
-    controls->SetAutoPan( m_autoPanning );
+    controls->CaptureCursor( false );
+    controls->SetAutoPan( false );
 }

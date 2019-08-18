@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -25,7 +26,7 @@
 #include <functional>
 #include <tools/ee_selection.h>
 #include <sch_item.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 
 EDA_ITEM* EE_SELECTION::GetTopLeftItem( bool onlyModules ) const
 {

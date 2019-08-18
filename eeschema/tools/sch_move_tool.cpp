@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -44,6 +45,7 @@
 SCH_MOVE_TOOL::SCH_MOVE_TOOL() :
         EE_TOOL_BASE<SCH_EDIT_FRAME>( "eeschema.InteractiveMove" ),
         m_moveInProgress( false ),
+        m_isDragOperation( false ),
         m_moveOffset( 0, 0 )
 {
 }
@@ -79,6 +81,8 @@ bool SCH_MOVE_TOOL::Init()
   - add preferences option "Default drag action: drag items / move"
   - add preferences option "Drag always selects"
   */
+
+#define STD_VECTOR_REMOVE( v, item ) v.erase( std::remove( v.begin(), v.end(), item ), v.end() )
 
 
 int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
@@ -117,11 +121,14 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
     else
         return 0;
 
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
 
     if( m_moveInProgress )
     {
-        if( !m_selectionTool->GetSelection().Front()->IsNew() )
+        auto sel = m_selectionTool->GetSelection().Front();
+
+        if( sel && !sel->IsNew() )
         {
             // User must have switched from move to drag or vice-versa.  Reset the selected
             // items so we can start again with the current m_isDragOperation.
@@ -160,17 +167,18 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     do
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         controls->SetSnapping( !evt->Modifier( MD_ALT ) );
 
         if( evt->IsAction( &EE_ACTIONS::moveActivate ) || evt->IsAction( &EE_ACTIONS::restartMove )
                 || evt->IsAction( &EE_ACTIONS::move ) || evt->IsAction( &EE_ACTIONS::drag )
                 || evt->IsMotion() || evt->IsDrag( BUT_LEFT )
-                || evt->IsAction( &EE_ACTIONS::refreshPreview ) )
+                || evt->IsAction( &ACTIONS::refreshPreview ) )
         {
             if( !m_moveInProgress )    // Prepare to start moving/dragging
             {
                 SCH_ITEM* sch_item = (SCH_ITEM*) selection.Front();
-                bool      appendUndo = sch_item->IsNew();
+                bool      appendUndo = sch_item && sch_item->IsNew();
 
                 //------------------------------------------------------------------------
                 // Setup a drag or a move
@@ -228,6 +236,7 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
                         {
                             // Item was added in getConnectedDragItems
                             saveCopyInUndoList( (SCH_ITEM*) item, UR_NEW, appendUndo );
+                            STD_VECTOR_REMOVE( m_dragAdditions, item );
                             appendUndo = true;
                         }
                         else
@@ -290,7 +299,7 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
                     else
                         m_anchorPos = sch_item->GetPosition();
 
-                    getViewControls()->WarpCursor( *m_anchorPos );
+                    getViewControls()->WarpCursor( *m_anchorPos, true, true );
                     m_cursor = *m_anchorPos;
                 }
                 // ...otherwise modify items with regard to the grid-snapped cursor position
@@ -334,7 +343,7 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
         //------------------------------------------------------------------------
         // Handle cancel
         //
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
+        else if( evt->IsCancelInteractive() )
         {
             if( m_moveInProgress )
                 restore_state = true;
@@ -351,7 +360,7 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
         }
         else if( evt->Category() == TC_COMMAND )
         {
-            if( evt->IsAction( &EE_ACTIONS::doDelete ) )
+            if( evt->IsAction( &ACTIONS::doDelete ) )
             {
                 // Exit on a remove operation; there is no further processing for removed items.
                 break;
@@ -382,7 +391,7 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
                     if( component )
                     {
                         m_frame->SelectUnit( component, unit );
-                        m_toolMgr->RunAction( EE_ACTIONS::refreshPreview );
+                        m_toolMgr->RunAction( ACTIONS::refreshPreview );
                     }
                 }
             }
@@ -401,6 +410,8 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
         {
             break; // Finish
         }
+        else
+            evt->SetPassEvent();
 
         controls->SetAutoPan( m_moveInProgress );
 
@@ -444,7 +455,7 @@ int SCH_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
 
     m_dragAdditions.clear();
     m_moveInProgress = false;
-    m_frame->PopTool();
+    m_frame->PopTool( tool );
     return 0;
 }
 

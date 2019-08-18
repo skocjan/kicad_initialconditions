@@ -23,27 +23,22 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#include <limits>
 
+#include <limits>
 #include <functional>
 using namespace std::placeholders;
-
 #include <class_board.h>
 #include <class_board_item.h>
 #include <class_track.h>
 #include <class_module.h>
-#include <class_pcb_text.h>
 #include <class_drawsegment.h>
 #include <class_zone.h>
-
-#include <pcb_edit_frame.h>
 #include <collectors.h>
 #include <confirm.h>
 #include <dialog_find.h>
 #include <dialog_block_options.h>
 #include <class_draw_panel_gal.h>
 #include <view/view_controls.h>
-#include <view/view_group.h>
 #include <preview_items/selection_area.h>
 #include <painter.h>
 #include <bitmaps.h>
@@ -119,6 +114,7 @@ SELECTION_TOOL::SELECTION_TOOL() :
         m_frame( NULL ),
         m_additive( false ),
         m_subtractive( false ),
+        m_exclusive_or( false ),
         m_multiple( false ),
         m_skip_heuristics( false ),
         m_locked( true ),
@@ -190,13 +186,18 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
-        // Should selected items be added to the current selection or
-        // become the new selection (discarding previously selected items)
-        m_additive = evt->Modifier( MD_SHIFT );
+        if( m_frame->ToolStackIsEmpty() )
+            m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
 
-        // Should selected items be REMOVED from the current selection?
-        // This will be ignored if the SHIFT modifier is pressed
-        m_subtractive = !m_additive && evt->Modifier( MD_CTRL );
+        bool dragAlwaysSelects = getEditFrame<PCB_BASE_FRAME>()->GetDragSelects();
+        m_additive = m_subtractive = m_exclusive_or = false;
+
+        if( evt->Modifier( MD_SHIFT ) && evt->Modifier( MD_CTRL ) )
+            m_subtractive = true;
+        else if( evt->Modifier( MD_SHIFT ) )
+            m_additive = true;
+        else if( evt->Modifier( MD_CTRL ) )
+            m_exclusive_or = true;
 
         // Is the user requesting that the selection list include all possible
         // items without removing less likely selection candidates
@@ -205,18 +206,7 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         // Single click? Select single object
         if( evt->IsClick( BUT_LEFT ) )
         {
-            if( evt->Modifier( MD_CTRL ) && !m_editModules )
-            {
-                m_toolMgr->RunAction( PCB_ACTIONS::highlightNet, true );
-            }
-            else
-            {
-                // If no modifier keys are pressed, clear the selection
-                if( !m_additive )
-                    clearSelection();
-
-                selectPoint( evt->Position() );
-            }
+            selectPoint( evt->Position() );
         }
 
         // right click? if there is any object - show the context menu
@@ -246,51 +236,42 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         // drag with LMB? Select multiple objects (or at least draw a selection box) or drag them
         else if( evt->IsDrag( BUT_LEFT ) )
         {
-            if( m_additive || m_subtractive )
+            if( m_additive || m_subtractive || m_exclusive_or || dragAlwaysSelects )
             {
                 selectMultiple();
             }
-            else if( m_selection.Empty() )
-            {
-                // There is nothing selected, so try to select something
-                if( getEditFrame<PCB_BASE_FRAME>()->Settings().g_DragSelects || !selectCursor() )
-                {
-                    // If nothings has been selected, user wants to select more or selection
-                    // box is preferred to dragging - draw selection box
-                    selectMultiple();
-                }
-                else
-                {
-                    m_selection.SetIsHover( true );
-                    m_toolMgr->InvokeTool( "pcbnew.InteractiveEdit" );
-                }
-            }
-
             else
             {
+                // selection is empty? try to start dragging the item under the point where drag
+                // started
+                if( m_selection.Empty() && selectCursor() )
+                    m_selection.SetIsHover( true );
+
                 // Check if dragging has started within any of selected items bounding box
                 if( selectionContains( evt->Position() ) )
                 {
                     // Yes -> run the move tool and wait till it finishes
-                    m_toolMgr->InvokeTool( "pcbnew.InteractiveEdit" );
+                    m_toolMgr->RunAction( PCB_ACTIONS::move, true );
                 }
                 else
                 {
-                    // No -> clear the selection list
-                    clearSelection();
+                    // No -> drag a selection box
+                    selectMultiple();
                 }
             }
-        }
-
-        else if( evt->Action() == TA_UNDO_REDO_PRE )
-        {
-            clearSelection();
         }
 
         else if( evt->IsCancel() )
         {
             clearSelection();
-            m_toolMgr->RunAction( PCB_ACTIONS::clearHighlight, true );
+
+            if( evt->FirstResponder() == this )
+                m_toolMgr->RunAction( PCB_ACTIONS::clearHighlight );
+        }
+
+        else if( evt->Action() == TA_UNDO_REDO_PRE )
+        {
+            clearSelection();
         }
 
         else
@@ -310,15 +291,9 @@ PCBNEW_SELECTION& SELECTION_TOOL::GetSelection()
 }
 
 
-void SELECTION_TOOL::ClearIfOutside( const VECTOR2I& aPt )
-{
-    if( !m_selection.Empty() && !m_selection.GetBoundingBox().Contains( aPt.x, aPt.y ) )
-        m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-}
-
-
 PCBNEW_SELECTION& SELECTION_TOOL::RequestSelection( CLIENT_SELECTION_FILTER aClientFilter,
-        std::vector<BOARD_ITEM*>* aFiltered, bool aConfirmLockedItems )
+                                                    std::vector<BOARD_ITEM*>* aFiltered,
+                                                    bool aConfirmLockedItems )
 {
     bool selectionEmpty = m_selection.Empty();
     m_selection.SetIsHover( selectionEmpty );
@@ -348,15 +323,17 @@ PCBNEW_SELECTION& SELECTION_TOOL::RequestSelection( CLIENT_SELECTION_FILTER aCli
          * This can happen if the locked pads select the module instead
          */
         std::vector<EDA_ITEM*> new_items;
-        std::set_difference( collector.begin(), collector.end(), m_selection.begin(), m_selection.end(),
-                std::back_inserter( new_items ) );
+        std::set_difference( collector.begin(), collector.end(),
+                             m_selection.begin(), m_selection.end(),
+                             std::back_inserter( new_items ) );
 
         /**
          * The second step is to find the items that were removed by the client filter
          */
         std::vector<EDA_ITEM*> diff;
-        std::set_difference( m_selection.begin(), m_selection.end(), collector.begin(), collector.end(),
-                std::back_inserter( diff ) );
+        std::set_difference( m_selection.begin(), m_selection.end(),
+                             collector.begin(), collector.end(),
+                             std::back_inserter( diff ) );
 
         if( aFiltered )
         {
@@ -369,10 +346,10 @@ PCBNEW_SELECTION& SELECTION_TOOL::RequestSelection( CLIENT_SELECTION_FILTER aCli
          * apply them both
          */
         for( auto item : diff )
-            unhighlight( static_cast<BOARD_ITEM*>( item ), SELECTED, m_selection );
+            unhighlight( static_cast<BOARD_ITEM*>( item ), SELECTED, &m_selection );
 
         for( auto item : new_items )
-            highlight( static_cast<BOARD_ITEM*>( item ), SELECTED, m_selection );
+            highlight( static_cast<BOARD_ITEM*>( item ), SELECTED, &m_selection );
 
         m_frame->GetCanvas()->ForceRefresh();
     }
@@ -380,34 +357,6 @@ PCBNEW_SELECTION& SELECTION_TOOL::RequestSelection( CLIENT_SELECTION_FILTER aCli
     return m_selection;
 }
 
-
-void SELECTION_TOOL::toggleSelection( BOARD_ITEM* aItem, bool aForce )
-{
-    if( aItem->IsSelected() )
-    {
-        unselect( aItem );
-
-        // Inform other potentially interested tools
-        m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
-    }
-    else
-    {
-        if( !m_additive )
-            clearSelection();
-
-        // Prevent selection of invisible or inactive items
-        if( aForce || selectable( aItem ) )
-        {
-            select( aItem );
-
-            // Inform other potentially interested tools
-            m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
-        }
-    }
-
-    if( m_frame )
-        m_frame->GetCanvas()->ForceRefresh();
-}
 
 const GENERAL_COLLECTORS_GUIDE SELECTION_TOOL::getCollectorsGuide() const
 {
@@ -448,12 +397,10 @@ bool SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag,
         m_editModules ? GENERAL_COLLECTOR::ModuleItems : GENERAL_COLLECTOR::AllBoardItems,
         wxPoint( aWhere.x, aWhere.y ), guide );
 
-    bool anyCollected = collector.GetCount() != 0;
-
     // Remove unselectable items
     for( int i = collector.GetCount() - 1; i >= 0; --i )
     {
-        if( !selectable( collector[i] ) || ( aOnDrag && collector[i]->IsLocked() ) )
+        if( !Selectable( collector[ i ] ) || ( aOnDrag && collector[i]->IsLocked() ) )
             collector.Remove( i );
     }
 
@@ -467,16 +414,14 @@ bool SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag,
     // Apply some ugly heuristics to avoid disambiguation menus whenever possible
     if( collector.GetCount() > 1 && !m_skip_heuristics )
     {
-        guessSelectionCandidates( collector, aWhere );
+        GuessSelectionCandidates( collector, aWhere );
     }
 
     // If still more than one item we're going to have to ask the user.
     if( collector.GetCount() > 1 )
     {
         if( aOnDrag )
-        {
             Wait( TOOL_EVENT( TC_ANY, TA_MOUSE_UP, BUT_LEFT ) );
-        }
 
         if( !doSelectionMenu( &collector, _( "Clarify Selection" ) ) )
         {
@@ -487,16 +432,26 @@ bool SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag,
         }
     }
 
+    if( !m_additive && !m_subtractive && !m_exclusive_or )
+        clearSelection();
+
     if( collector.GetCount() == 1 )
     {
         BOARD_ITEM* item = collector[ 0 ];
 
-        toggleSelection( item );
-        return true;
+        if( m_subtractive || ( m_exclusive_or && item->IsSelected() ) )
+        {
+            unselect( item );
+            m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
+            return false;
+        }
+        else
+        {
+            select( item );
+            m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
+            return true;
+        }
     }
-
-    if( !m_additive && anyCollected )
-        clearSelection();
 
     return false;
 }
@@ -525,7 +480,7 @@ bool SELECTION_TOOL::selectMultiple()
 
     while( TOOL_EVENT* evt = Wait() )
     {
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             cancelled = true;
             break;
@@ -533,11 +488,15 @@ bool SELECTION_TOOL::selectMultiple()
 
         if( evt->IsDrag( BUT_LEFT ) )
         {
+            if( !m_additive && !m_subtractive && !m_exclusive_or )
+                clearSelection();
+
             // Start drawing a selection box
             area.SetOrigin( evt->DragOrigin() );
             area.SetEnd( evt->Position() );
             area.SetAdditive( m_additive );
             area.SetSubtractive( m_subtractive );
+            area.SetExclusiveOr( m_exclusive_or );
 
             view->SetVisible( &area, true );
             view->Update( &area );
@@ -568,13 +527,14 @@ bool SELECTION_TOOL::selectMultiple()
              * Right > Left : Select objects that are crossed by selection
              */
             bool windowSelection = width >= 0 ? true : false;
+            bool anyAdded = false;
+            bool anySubtracted = false;
 
             if( view->IsMirroredX() )
                 windowSelection = !windowSelection;
 
             // Construct an EDA_RECT to determine BOARD_ITEM selection
-            EDA_RECT selectionRect( wxPoint( area.GetOrigin().x, area.GetOrigin().y ),
-                                    wxSize( width, height ) );
+            EDA_RECT selectionRect( (wxPoint) area.GetOrigin(), wxSize( width, height ) );
 
             selectionRect.Normalize();
 
@@ -582,21 +542,32 @@ bool SELECTION_TOOL::selectMultiple()
             {
                 BOARD_ITEM* item = static_cast<BOARD_ITEM*>( it->first );
 
-                if( !item || !selectable( item ) )
+                if( !item || !Selectable( item ) )
                     continue;
 
                 if( item->HitTest( selectionRect, windowSelection ) )
                 {
-                    if( m_subtractive )
+                    if( m_subtractive || ( m_exclusive_or && item->IsSelected() ) )
+                    {
                         unselect( item );
+                        anySubtracted = true;
+                    }
                     else
+                    {
                         select( item );
+                        anyAdded = true;
+                    }
                 }
             }
 
+            m_selection.SetIsHover( false );
+
             // Inform other potentially interested tools
-            if( !m_selection.Empty() )
+            if( anyAdded )
                 m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
+
+            if( anySubtracted )
+                m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
 
             break;  // Stop waiting for events
         }
@@ -695,18 +666,21 @@ int SELECTION_TOOL::SelectItems( const TOOL_EVENT& aEvent )
 
 int SELECTION_TOOL::SelectItem( const TOOL_EVENT& aEvent )
 {
-    // Check if there is an item to be selected
-    BOARD_ITEM* item = aEvent.Parameter<BOARD_ITEM*>();
+    AddItemToSel( aEvent.Parameter<BOARD_ITEM*>() );
+    return 0;
+}
 
-    if( item )
+
+void SELECTION_TOOL::AddItemToSel( BOARD_ITEM* aItem, bool aQuietMode )
+{
+    if( aItem )
     {
-        select( item );
+        select( aItem );
 
         // Inform other potentially interested tools
-        m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
+        if( !aQuietMode )
+            m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
     }
-
-    return 0;
 }
 
 
@@ -741,6 +715,18 @@ int SELECTION_TOOL::UnselectItem( const TOOL_EVENT& aEvent )
     }
 
     return 0;
+}
+
+
+void SELECTION_TOOL::BrightenItem( BOARD_ITEM* aItem )
+{
+    highlight( aItem, BRIGHTENED );
+}
+
+
+void SELECTION_TOOL::UnbrightenItem( BOARD_ITEM* aItem )
+{
+    unhighlight( aItem, BRIGHTENED );
 }
 
 
@@ -1101,7 +1087,7 @@ void SELECTION_TOOL::findCallback( BOARD_ITEM* aItem )
     if( aItem )
     {
         select( aItem );
-        getView()->SetCenter( aItem->GetPosition() );
+        m_frame->FocusOnLocation( aItem->GetPosition() );
 
         // Inform other potentially interested tools
         m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
@@ -1116,37 +1102,6 @@ int SELECTION_TOOL::find( const TOOL_EVENT& aEvent )
     DIALOG_FIND dlg( m_frame );
     dlg.SetCallback( std::bind( &SELECTION_TOOL::findCallback, this, _1 ) );
     dlg.ShowModal();
-
-    return 0;
-}
-
-
-int SELECTION_TOOL::findMove( const TOOL_EVENT& aEvent )
-{
-    MODULE* module = m_frame->GetFootprintFromBoardByReference();
-
-    if( module )
-    {
-        KIGFX::VIEW_CONTROLS* viewCtrls = getViewControls();
-        clearSelection();
-        toggleSelection( module, true );
-
-        auto cursorPosition = viewCtrls->GetCursorPosition( false );
-
-        // Set a reference point so InteractiveEdit will move it to the
-        // cursor before waiting for mouse move events
-        m_selection.SetReferencePoint( module->GetPosition() );
-
-        // Place event on module origin first, so the generic anchor snap
-        // doesn't just choose the closest pin for us
-        viewCtrls->ForceCursorPosition( true, module->GetPosition() );
-
-        // pick the component up and start moving
-        m_toolMgr->InvokeTool( "pcbnew.InteractiveEdit" );
-
-        // restore the previous cursor position
-        viewCtrls->SetCursorPosition( cursorPosition, false );
-    }
 
     return 0;
 }
@@ -1275,7 +1230,7 @@ void SELECTION_TOOL::clearSelection()
         return;
 
     while( m_selection.GetSize() )
-        unhighlight( static_cast<BOARD_ITEM*>( m_selection.Front() ), SELECTED, m_selection );
+        unhighlight( static_cast<BOARD_ITEM*>( m_selection.Front() ), SELECTED, &m_selection );
 
     view()->Update( &m_selection );
 
@@ -1304,7 +1259,7 @@ void SELECTION_TOOL::RebuildSelection()
             if( parent && parent->Type() == PCB_MODULE_T && parent->IsSelected() )
                 return SEARCH_CONTINUE;
 
-            highlight( (BOARD_ITEM*) item, SELECTED, m_selection );
+            highlight( (BOARD_ITEM*) item, SELECTED, &m_selection );
         }
 
         return SEARCH_CONTINUE;
@@ -1358,7 +1313,7 @@ bool SELECTION_TOOL::doSelectionMenu( GENERAL_COLLECTOR* aCollector, const wxStr
         if( evt->Action() == TA_CHOICE_MENU_UPDATE )
         {
             if( current )
-                unhighlight( current, BRIGHTENED, highlightGroup );
+                unhighlight( current, BRIGHTENED, &highlightGroup );
 
             int id = *evt->GetCommandId();
 
@@ -1366,7 +1321,7 @@ bool SELECTION_TOOL::doSelectionMenu( GENERAL_COLLECTOR* aCollector, const wxStr
             if( id > 0 && id <= limit )
             {
                 current = ( *aCollector )[id - 1];
-                highlight( current, BRIGHTENED, highlightGroup );
+                highlight( current, BRIGHTENED, &highlightGroup );
             }
             else
             {
@@ -1376,7 +1331,7 @@ bool SELECTION_TOOL::doSelectionMenu( GENERAL_COLLECTOR* aCollector, const wxStr
         else if( evt->Action() == TA_CHOICE_MENU_CHOICE )
         {
             if( current )
-                unhighlight( current, BRIGHTENED, highlightGroup );
+                unhighlight( current, BRIGHTENED, &highlightGroup );
 
             OPT<int> id = evt->GetCommandId();
 
@@ -1439,7 +1394,7 @@ BOARD_ITEM* SELECTION_TOOL::pickSmallestComponent( GENERAL_COLLECTOR* aCollector
 }
 
 
-bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem, bool checkVisibilityOnly ) const
+bool SELECTION_TOOL::Selectable( const BOARD_ITEM* aItem, bool checkVisibilityOnly ) const
 {
     // Is high contrast mode enabled?
     bool highContrast = getView()->GetPainter()->GetSettings()->GetHighContrast();
@@ -1548,13 +1503,13 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem, bool checkVisibilityOn
 
         for( auto item : module->GraphicalItems() )
         {
-            if( selectable( item, true ) )
+            if( Selectable( item, true ) )
                 return true;
         }
 
         for( auto pad : module->Pads() )
         {
-            if( selectable( pad, true ) )
+            if( Selectable( pad, true ) )
                 return true;
         }
 
@@ -1683,14 +1638,14 @@ void SELECTION_TOOL::select( BOARD_ITEM* aItem )
             return;
     }
 
-    highlight( aItem, SELECTED, m_selection );
+    highlight( aItem, SELECTED, &m_selection );
     view()->Update( &m_selection );
 }
 
 
 void SELECTION_TOOL::unselect( BOARD_ITEM* aItem )
 {
-    unhighlight( aItem, SELECTED, m_selection );
+    unhighlight( aItem, SELECTED, &m_selection );
     view()->Update( &m_selection );
 
     if( m_selection.Empty() )
@@ -1698,17 +1653,20 @@ void SELECTION_TOOL::unselect( BOARD_ITEM* aItem )
 }
 
 
-void SELECTION_TOOL::highlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION& aGroup )
+void SELECTION_TOOL::highlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION* aGroup )
 {
     if( aMode == SELECTED )
         aItem->SetSelected();
     else if( aMode == BRIGHTENED )
         aItem->SetBrightened();
 
-    // Hide the original item, so it is shown only on overlay
-    view()->Hide( aItem, true );
+    if( aGroup )
+    {
+        // Hide the original item, so it is shown only on overlay
+        view()->Hide( aItem, true );
 
-    aGroup.Add( aItem );
+        aGroup->Add( aItem );
+    }
 
     // Modules are treated in a special way - when they are highlighted, we have to
     // highlight all the parts that make the module, not the module itself
@@ -1721,11 +1679,17 @@ void SELECTION_TOOL::highlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION& 
             else if( aMode == BRIGHTENED )
             {
                 item->SetBrightened();
-                aGroup.Add( item );
+
+                if( aGroup )
+                    aGroup->Add( item );
             }
-            view()->Hide( item, true );
+
+            if( aGroup )
+                view()->Hide( item, true );
         });
     }
+
+    view()->Update( aItem );
 
     // Many selections are very temporal and updating the display each time just
     // creates noise.
@@ -1734,18 +1698,20 @@ void SELECTION_TOOL::highlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION& 
 }
 
 
-void SELECTION_TOOL::unhighlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION& aGroup )
+void SELECTION_TOOL::unhighlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION* aGroup )
 {
     if( aMode == SELECTED )
         aItem->ClearSelected();
     else if( aMode == BRIGHTENED )
         aItem->ClearBrightened();
 
-    aGroup.Remove( aItem );
+    if( aGroup )
+    {
+        aGroup->Remove( aItem );
 
-    // Restore original item visibility
-    view()->Hide( aItem, false );
-    view()->Update( aItem );
+        // Restore original item visibility
+        view()->Hide( aItem, false );
+    }
 
     // Modules are treated in a special way - when they are highlighted, we have to
     // highlight all the parts that make the module, not the module itself
@@ -1760,11 +1726,17 @@ void SELECTION_TOOL::unhighlight( BOARD_ITEM* aItem, int aMode, PCBNEW_SELECTION
 
             // N.B. if we clear the selection flag for sub-elements, we need to also
             // remove the element from the selection group (if it exists)
-            aGroup.Remove( item );
-            view()->Hide( item, false );
-            view()->Update( item );
+            if( aGroup )
+            {
+                aGroup->Remove( item );
+
+                view()->Hide( item, false );
+                view()->Update( item );
+            }
         });
     }
+
+    view()->Update( aItem );
 
     // Many selections are very temporal and updating the display each time just
     // creates noise.
@@ -1880,8 +1852,8 @@ double calcRatio( double a, double b )
 // We currently check for pads and text mostly covering a footprint, but we don’t check for
 // smaller footprints mostly covering a larger footprint.
 //
-void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
-        const VECTOR2I& aWhere ) const
+void SELECTION_TOOL::GuessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
+                                               const VECTOR2I& aWhere ) const
 {
     std::set<BOARD_ITEM*> preferred;
     std::set<BOARD_ITEM*> rejected;
@@ -2205,7 +2177,6 @@ void SELECTION_TOOL::setTransitions()
     Go( &SELECTION_TOOL::SelectionMenu,       PCB_ACTIONS::selectionMenu.MakeEvent() );
 
     Go( &SELECTION_TOOL::find,                ACTIONS::find.MakeEvent() );
-    Go( &SELECTION_TOOL::findMove,            PCB_ACTIONS::findMove.MakeEvent() );
 
     Go( &SELECTION_TOOL::filterSelection,     PCB_ACTIONS::filterSelection.MakeEvent() );
     Go( &SELECTION_TOOL::selectConnection,    PCB_ACTIONS::selectConnection.MakeEvent() );

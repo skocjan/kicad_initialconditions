@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -22,8 +23,8 @@
  */
 
 #include <tool/tool_manager.h>
+#include <tool/picker_tool.h>
 #include <tools/ee_selection_tool.h>
-#include <tools/ee_picker_tool.h>
 #include <tools/lib_pin_tool.h>
 #include <tools/lib_drawing_tools.h>
 #include <tools/lib_move_tool.h>
@@ -39,6 +40,7 @@
 #include <dialogs/dialog_edit_component_in_lib.h>
 #include <dialogs/dialog_lib_edit_pin_table.h>
 #include <sch_legacy_plugin.h>
+#include <lib_text.h>
 #include "lib_edit_tool.h"
 
 
@@ -68,7 +70,7 @@ bool LIB_EDIT_TOOL::Init()
         moveMenu.AddItem( EE_ACTIONS::rotateCW,        EE_CONDITIONS::NotEmpty, 200 );
         moveMenu.AddItem( EE_ACTIONS::mirrorX,         EE_CONDITIONS::NotEmpty, 200 );
         moveMenu.AddItem( EE_ACTIONS::mirrorY,         EE_CONDITIONS::NotEmpty, 200 );
-        moveMenu.AddItem( EE_ACTIONS::doDelete,        EE_CONDITIONS::NotEmpty, 200 );
+        moveMenu.AddItem( ACTIONS::doDelete,           EE_CONDITIONS::NotEmpty, 200 );
 
         moveMenu.AddItem( EE_ACTIONS::properties,      EE_CONDITIONS::Count( 1 ), 200 );
 
@@ -98,7 +100,7 @@ bool LIB_EDIT_TOOL::Init()
     selToolMenu.AddItem( EE_ACTIONS::rotateCW,         EE_CONDITIONS::NotEmpty, 200 );
     selToolMenu.AddItem( EE_ACTIONS::mirrorX,          EE_CONDITIONS::NotEmpty, 200 );
     selToolMenu.AddItem( EE_ACTIONS::mirrorY,          EE_CONDITIONS::NotEmpty, 200 );
-    selToolMenu.AddItem( EE_ACTIONS::doDelete,         EE_CONDITIONS::NotEmpty, 200 );
+    selToolMenu.AddItem( ACTIONS::doDelete,            EE_CONDITIONS::NotEmpty, 200 );
 
     selToolMenu.AddItem( EE_ACTIONS::properties,       EE_CONDITIONS::Count( 1 ), 200 );
 
@@ -138,10 +140,12 @@ int LIB_EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
         m_frame->RefreshItem( item );
     }
 
-    m_toolMgr->PostEvent( EVENTS::SelectedItemsModified );
-
-    if( !item->IsMoving() )
+    if( item->IsMoving() )
+        m_toolMgr->RunAction( ACTIONS::refreshPreview, true );
+    else
     {
+        m_toolMgr->PostEvent( EVENTS::SelectedItemsModified );
+
         if( selection.IsHover() )
             m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
 
@@ -185,7 +189,9 @@ int LIB_EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
 
     m_toolMgr->PostEvent( EVENTS::SelectedItemsModified );
 
-    if( !item->IsMoving() )
+    if( item->IsMoving() )
+        m_toolMgr->RunAction( ACTIONS::refreshPreview, true );
+    else
     {
         if( selection.IsHover() )
             m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
@@ -275,35 +281,79 @@ int LIB_EDIT_TOOL::DoDelete( const TOOL_EVENT& aEvent )
 }
 
 
-static bool deleteItem( SCH_BASE_FRAME* aFrame, const VECTOR2D& aPosition )
-{
-    EE_SELECTION_TOOL* selectionTool = aFrame->GetToolManager()->GetTool<EE_SELECTION_TOOL>();
-    wxCHECK( selectionTool, false );
-
-    aFrame->GetToolManager()->RunAction( EE_ACTIONS::clearSelection, true );
-
-    EDA_ITEM* item = selectionTool->SelectPoint( aPosition );
-
-    if( item )
-        aFrame->GetToolManager()->RunAction( EE_ACTIONS::doDelete, true );
-
-    return true;
-}
+#define HITTEST_THRESHOLD_PIXELS 5
 
 
 int LIB_EDIT_TOOL::DeleteItemCursor( const TOOL_EVENT& aEvent )
 {
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    std::string  tool = aEvent.GetCommandStr().get();
+    PICKER_TOOL* picker = m_toolMgr->GetTool<PICKER_TOOL>();
+
+    m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
+    m_pickerItem = nullptr;
+
+    // Deactivate other tools; particularly important if another PICKER is currently running
     Activate();
 
-    EE_PICKER_TOOL* picker = m_toolMgr->GetTool<EE_PICKER_TOOL>();
-    wxCHECK( picker, 0 );
+    picker->SetCursor( wxStockCursor( wxCURSOR_BULLSEYE ) );
 
-    picker->SetClickHandler( std::bind( deleteItem, m_frame, std::placeholders::_1 ) );
-    picker->Activate();
-    Wait();
+    picker->SetClickHandler(
+        [this] ( const VECTOR2D& aPosition ) -> bool
+        {
+            if( m_pickerItem )
+            {
+                EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+                selectionTool->UnbrightenItem( m_pickerItem );
+                selectionTool->AddItemToSel( m_pickerItem, true );
+                m_toolMgr->RunAction( ACTIONS::doDelete, true );
+                m_pickerItem = nullptr;
+            }
 
-    m_frame->PopTool();
+            return true;
+        } );
+
+    picker->SetMotionHandler(
+        [this] ( const VECTOR2D& aPos )
+        {
+            EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+            EE_COLLECTOR collector;
+            collector.m_Threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
+            collector.Collect( m_frame->GetCurPart(), nonFields, (wxPoint) aPos,
+                               m_frame->GetUnit(), m_frame->GetConvert() );
+
+            // Remove unselectable items
+            for( int i = collector.GetCount() - 1; i >= 0; --i )
+            {
+                if( !selectionTool->Selectable( collector[ i ] ) )
+                    collector.Remove( i );
+            }
+
+            if( collector.GetCount() > 1 )
+                selectionTool->GuessSelectionCandidates( collector, aPos );
+
+            EDA_ITEM* item = collector.GetCount() == 1 ? collector[ 0 ] : nullptr;
+
+            if( m_pickerItem != item )
+            {
+                if( m_pickerItem )
+                    selectionTool->UnbrightenItem( m_pickerItem );
+
+                m_pickerItem = item;
+
+                if( m_pickerItem )
+                    selectionTool->BrightenItem( m_pickerItem );
+            }
+        } );
+
+    picker->SetFinalizeHandler(
+        [this] ( const int& aFinalState )
+        {
+            if( m_pickerItem )
+                m_toolMgr->GetTool<EE_SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
+        } );
+
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
+
     return 0;
 }
 
@@ -322,7 +372,7 @@ int LIB_EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
         LIB_ITEM* item = (LIB_ITEM*) selection.Front();
 
         // Save copy for undo if not in edit (edit command already handle the save copy)
-        if( !item->InEditMode() )
+        if( item->GetEditFlags() == 0 )
             saveCopyInUndoList( item->GetParent(), UR_LIBEDIT );
 
         switch( item->Type() )
@@ -377,6 +427,16 @@ void LIB_EDIT_TOOL::editGraphicProperties( LIB_ITEM* aItem )
         aItem->SetFillMode( (FILL_T) dialog.GetFillStyle() );
 
     aItem->SetWidth( dialog.GetWidth() );
+
+    if( dialog.GetApplyToAllConversions() )
+        aItem->SetConvert( 0 );
+    else
+        aItem->SetConvert( m_frame->GetConvert() );
+
+    if( dialog.GetApplyToAllUnits() )
+        aItem->SetUnit( 0 );
+    else
+        aItem->SetUnit( m_frame->GetUnit() );
 
     updateView( aItem );
     m_frame->GetCanvas()->Refresh();
@@ -517,6 +577,10 @@ int LIB_EDIT_TOOL::PinTable( const TOOL_EVENT& aEvent )
 int LIB_EDIT_TOOL::Undo( const TOOL_EVENT& aEvent )
 {
     m_frame->GetComponentFromUndoList();
+
+    EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+    selTool->RebuildSelection();
+
     return 0;
 }
 
@@ -524,6 +588,10 @@ int LIB_EDIT_TOOL::Undo( const TOOL_EVENT& aEvent )
 int LIB_EDIT_TOOL::Redo( const TOOL_EVENT& aEvent )
 {
     m_frame->GetComponentFromRedoList();
+
+    EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+    selTool->RebuildSelection();
+
     return 0;
 }
 
@@ -594,8 +662,11 @@ int LIB_EDIT_TOOL::Paste( const TOOL_EVENT& aEvent )
     }
     catch( IO_ERROR& e )
     {
-        wxLogError( wxString::Format( "Malformed clipboard: %s" ), GetChars( e.What() ) );
-        return -1;
+        // If it's not a part then paste as text
+        newPart = new LIB_PART( "dummy_part" );
+        LIB_TEXT* newText = new LIB_TEXT( newPart );
+        newText->SetText( text );
+        newPart->AddDrawItem( newText );
     }
 
     if( !newPart )
@@ -612,6 +683,9 @@ int LIB_EDIT_TOOL::Paste( const TOOL_EVENT& aEvent )
         LIB_ITEM* newItem = (LIB_ITEM*) item.Clone();
         newItem->SetParent( part );
         newItem->SetFlags( IS_NEW | IS_PASTED | SELECTED );
+
+        newItem->SetUnit( m_frame->m_DrawSpecificUnit ? m_frame->GetUnit() : 0 );
+        newItem->SetConvert( m_frame->m_DrawSpecificConvert ? m_frame->GetConvert() : 0 );
 
         part->GetDrawItems().push_back( newItem );
         getView()->Add( newItem );
@@ -647,15 +721,13 @@ int LIB_EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
     if( !selection.Front()->IsMoving() )
         saveCopyInUndoList( m_frame->GetCurPart(), UR_LIBEDIT );
 
-    EDA_ITEMS newItems;
-
     for( unsigned ii = 0; ii < selection.GetSize(); ++ii )
     {
         LIB_ITEM* oldItem = static_cast<LIB_ITEM*>( selection.GetItem( ii ) );
         LIB_ITEM* newItem = (LIB_ITEM*) oldItem->Clone();
         oldItem->ClearFlags( SELECTED );
         newItem->SetFlags( IS_NEW | IS_PASTED | SELECTED );
-        newItems.push_back( newItem );
+        newItem->SetParent( part );
 
         part->GetDrawItems().push_back( newItem );
         getView()->Add( newItem );
@@ -686,8 +758,8 @@ void LIB_EDIT_TOOL::setTransitions()
     Go( &LIB_EDIT_TOOL::Rotate,             EE_ACTIONS::rotateCCW.MakeEvent() );
     Go( &LIB_EDIT_TOOL::Mirror,             EE_ACTIONS::mirrorX.MakeEvent() );
     Go( &LIB_EDIT_TOOL::Mirror,             EE_ACTIONS::mirrorY.MakeEvent() );
-    Go( &LIB_EDIT_TOOL::DoDelete,           EE_ACTIONS::doDelete.MakeEvent() );
-    Go( &LIB_EDIT_TOOL::DeleteItemCursor,   EE_ACTIONS::deleteItemCursor.MakeEvent() );
+    Go( &LIB_EDIT_TOOL::DoDelete,           ACTIONS::doDelete.MakeEvent() );
+    Go( &LIB_EDIT_TOOL::DeleteItemCursor,   ACTIONS::deleteTool.MakeEvent() );
 
     Go( &LIB_EDIT_TOOL::Properties,         EE_ACTIONS::properties.MakeEvent() );
     Go( &LIB_EDIT_TOOL::Properties,         EE_ACTIONS::symbolProperties.MakeEvent() );

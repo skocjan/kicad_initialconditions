@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -36,7 +37,7 @@
 #include <ws_draw_item.h>
 #include <ws_data_item.h>
 #include <invoke_pl_editor_dialog.h>
-
+#include "pl_point_editor.h"
 
 PL_DRAWING_TOOLS::PL_DRAWING_TOOLS() :
         TOOL_INTERACTIVE( "plEditor.InteractiveDrawing" ),
@@ -80,7 +81,8 @@ int PL_DRAWING_TOOLS::PlaceItem( const TOOL_EVENT& aEvent )
     m_toolMgr->RunAction( PL_ACTIONS::clearSelection, true );
     getViewControls()->ShowCursor( true );
 
-    m_frame->SetTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     // Prime the pump
@@ -90,30 +92,43 @@ int PL_DRAWING_TOOLS::PlaceItem( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
+        m_frame->GetCanvas()->SetCurrentCursor( item ? wxCURSOR_ARROW : wxCURSOR_PENCIL );
         cursorPos = getViewControls()->GetCursorPosition( !evt->Modifier( MD_ALT ) );
 
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        auto cleanup = [&] () {
+            m_toolMgr->RunAction( PL_ACTIONS::clearSelection, true );
+            delete item;
+            item = nullptr;
+
+            // There's nothing to roll-back, but we still need to pop the undo stack
+            m_frame->RollbackFromUndo();
+        };
+
+        if( evt->IsCancelInteractive() )
         {
             if( item )
+                cleanup();
+            else
             {
-                m_toolMgr->RunAction( PL_ACTIONS::clearSelection, true );
-                delete item;
-                item = nullptr;
+                m_frame->PopTool( tool );
+                break;
+            }
+        }
+        else if( evt->IsActivate() )
+        {
+            if( item )
+                cleanup();
 
-                // There's nothing to roll-back, but we still need to pop the undo stack
-                m_frame->RollbackFromUndo();
+            if( evt->IsMoveTool() )
+            {
+                // leave ourselves on the stack so we come back after the move
+                break;
             }
             else
             {
-                if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                {
-                    m_frame->ClearToolStack();
-                    break;
-                }
-            }
-
-            if( evt->IsActivate() )
+                m_frame->PopTool( tool );
                 break;
+            }
         }
         else if( evt->IsClick( BUT_LEFT ) )
         {
@@ -154,12 +169,14 @@ int PL_DRAWING_TOOLS::PlaceItem( const TOOL_EVENT& aEvent )
 
             m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
         }
-        else if( item && ( evt->IsAction( &PL_ACTIONS::refreshPreview ) || evt->IsMotion() ) )
+        else if( item && ( evt->IsAction( &ACTIONS::refreshPreview ) || evt->IsMotion() ) )
         {
             item->GetPeer()->MoveStartPointToUi( (wxPoint) cursorPos );
             item->SetPosition( item->GetPeer()->GetStartPosUi( 0 ) );
             getView()->Update( item );
         }
+        else
+            evt->SetPassEvent();
 
         // Enable autopanning and cursor capture only when there is an item to be placed
         getViewControls()->SetAutoPan( item != nullptr );
@@ -172,6 +189,7 @@ int PL_DRAWING_TOOLS::PlaceItem( const TOOL_EVENT& aEvent )
 
 int PL_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
 {
+    PL_POINT_EDITOR*           pointEditor = m_toolMgr->GetTool<PL_POINT_EDITOR>();
     WS_DATA_ITEM::WS_ITEM_TYPE type = aEvent.Parameter<WS_DATA_ITEM::WS_ITEM_TYPE>();
     WS_DRAW_ITEM_BASE*         item = nullptr;
 
@@ -182,7 +200,8 @@ int PL_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
     m_toolMgr->RunAction( PL_ACTIONS::clearSelection, true );
     getViewControls()->ShowCursor( true );
 
-    m_frame->SetTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     // Prime the pump
@@ -192,9 +211,12 @@ int PL_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
+        if( !pointEditor->HasPoint() )
+            m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_PENCIL );
+
         VECTOR2I cursorPos = getViewControls()->GetCursorPosition( !evt->Modifier( MD_ALT ) );
 
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             m_toolMgr->RunAction( PL_ACTIONS::clearSelection, true );
 
@@ -203,16 +225,12 @@ int PL_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
                 item = nullptr;
                 m_frame->RollbackFromUndo();
             }
-            else
+            else if( evt->IsCancelInteractive() )
             {
-                if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                {
-                    m_frame->ClearToolStack();
-                    break;
-                }
+                break;
             }
 
-            if( evt->IsActivate() )
+            if( evt->IsActivate() && !evt->IsPointEditor() && !evt->IsMoveTool() )
                 break;
         }
 
@@ -240,7 +258,7 @@ int PL_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
             }
         }
 
-        else if( evt->IsAction( &PL_ACTIONS::refreshPreview ) || evt->IsMotion() )
+        else if( evt->IsAction( &ACTIONS::refreshPreview ) || evt->IsMotion() )
         {
             if( item )
             {
@@ -259,11 +277,15 @@ int PL_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
             m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
         }
 
+        else
+            evt->SetPassEvent();
+
         // Enable autopanning and cursor capture only when there is a shape being drawn
         getViewControls()->SetAutoPan( item != nullptr );
         getViewControls()->CaptureCursor( item != nullptr );
     }
 
+    m_frame->PopTool( tool );
     return 0;
 }
 

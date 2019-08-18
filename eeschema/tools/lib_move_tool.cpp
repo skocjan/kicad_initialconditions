@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -24,11 +25,9 @@
 #include <tool/tool_manager.h>
 #include <tools/ee_selection_tool.h>
 #include <ee_actions.h>
-#include <view/view.h>
 #include <bitmaps.h>
 #include <base_struct.h>
 #include <lib_edit_frame.h>
-#include <eeschema_id.h>
 #include "lib_move_tool.h"
 #include "lib_pin_tool.h"
 
@@ -44,7 +43,7 @@ LIB_MOVE_TOOL::LIB_MOVE_TOOL() :
 bool LIB_MOVE_TOOL::Init()
 {
     EE_TOOL_BASE::Init();
-    
+
     //
     // Add move actions to the selection tool menu
     //
@@ -71,19 +70,20 @@ void LIB_MOVE_TOOL::Reset( RESET_REASON aReason )
 int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
 {
     KIGFX::VIEW_CONTROLS* controls = getViewControls();
-
     controls->SetSnapping( true );
-    VECTOR2I originalCursorPos = controls->GetCursorPosition();
+
+    m_anchorPos = { 0, 0 };
 
     // Be sure that there is at least one item that we can move. If there's no selection try
     // looking for the stuff under mouse cursor (i.e. Kicad old-style hover selection).
     EE_SELECTION& selection = m_selectionTool->RequestSelection();
     bool          unselect = selection.IsHover();
 
-    if( selection.Empty() )
+    if( selection.Empty() || m_moveInProgress )
         return 0;
 
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     controls->ShowCursor( true );
@@ -97,22 +97,30 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
     if( !selection.Front()->IsNew() )
         saveCopyInUndoList( m_frame->GetCurPart(), UR_LIBEDIT );
 
+    m_cursor = controls->GetCursorPosition();
+
     // Main loop: keep receiving events
     do
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         controls->SetSnapping( !evt->Modifier( MD_ALT ) );
 
         if( evt->IsAction( &EE_ACTIONS::move ) || evt->IsMotion() || evt->IsDrag( BUT_LEFT )
-                || evt->IsAction( &EE_ACTIONS::refreshPreview ) )
+                || evt->IsAction( &ACTIONS::refreshPreview ) )
         {
             if( !m_moveInProgress )    // Prepare to start moving/dragging
             {
+                LIB_ITEM* lib_item = (LIB_ITEM*) selection.Front();
+
                 // Pick up any synchronized pins
                 //
-                if( selection.GetSize() == 1 && selection.Front()->Type() == LIB_PIN_T
-                        && m_frame->SynchronizePins() )
+                // Careful when pasting.  The pasted pin will be at the same location as it
+                // was copied from, leading us to believe it's a synchronized pin.  It's not.
+                if( selection.GetSize() == 1 && lib_item->Type() == LIB_PIN_T
+                        && m_frame->SynchronizePins()
+                        && ( lib_item->GetEditFlags() & IS_PASTED ) == 0 )
                 {
-                    LIB_PIN*  cur_pin = (LIB_PIN*) selection.Front();
+                    LIB_PIN*  cur_pin = (LIB_PIN*) lib_item;
                     LIB_PART* part = m_frame->GetCurPart();
 
                     for( LIB_PIN* pin = part->GetNextPin(); pin; pin = part->GetNextPin( pin ) )
@@ -135,36 +143,36 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
                 //
                 m_cursor = controls->GetCursorPosition();
 
-                if( selection.HasReferencePoint() )
+                if( ( lib_item->GetFlags() & IS_NEW ) != 0 )
                 {
-                    VECTOR2I delta = m_cursor - mapCoords( selection.GetReferencePoint() );
+                    m_anchorPos = selection.GetReferencePoint();
+                    VECTOR2I delta = m_cursor - mapCoords( m_anchorPos );
 
                     // Drag items to the current cursor position
                     for( EDA_ITEM* item : selection )
                     {
-                        // Don't double move pins, fields, etc.
-                        if( item->GetParent() && item->GetParent()->IsSelected() )
-                            continue;
-
                         moveItem( item, delta );
                         updateView( item );
                     }
 
-                    selection.SetReferencePoint( m_cursor );
+                    m_anchorPos = m_cursor;
                 }
-                else if( selection.Size() == 1 )
+                else if( selection.Size() == 1 && m_frame->GetMoveWarpsCursor() )
                 {
-                    // Set the current cursor position to the first dragged item origin,
-                    // so the movement vector can be computed later
-                    updateModificationPoint( selection );
-                    m_cursor = originalCursorPos;
+                    wxPoint itemPos = lib_item->GetPosition();
+                    m_anchorPos = wxPoint( itemPos.x, -itemPos.y );
+
+                    getViewControls()->WarpCursor( m_anchorPos, true, true );
+                    m_cursor = m_anchorPos;
                 }
                 else
                 {
-                    updateModificationPoint( selection );
+                    m_cursor = getViewControls()->GetCursorPosition( true );
+                    m_anchorPos = m_cursor;
                 }
 
                 controls->SetCursorPosition( m_cursor, false );
+                m_toolMgr->PostEvent( EVENTS::SelectedItemsModified );
 
                 prevPos = m_cursor;
                 controls->SetAutoPan( true );
@@ -176,7 +184,7 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
             //
             m_cursor = controls->GetCursorPosition();
             VECTOR2I delta( m_cursor - prevPos );
-            selection.SetReferencePoint( m_cursor );
+            m_anchorPos = m_cursor;
 
             m_moveOffset += delta;
             prevPos = m_cursor;
@@ -193,7 +201,7 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
         //------------------------------------------------------------------------
         // Handle cancel
         //
-        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        else if( evt->IsCancelInteractive() || evt->IsActivate() )
         {
             if( m_moveInProgress )
                 restore_state = true;
@@ -210,7 +218,7 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
         }
         else if( evt->Category() == TC_COMMAND )
         {
-            if( evt->IsAction( &EE_ACTIONS::doDelete ) )
+            if( evt->IsAction( &ACTIONS::doDelete ) )
             {
                 // Exit on a remove operation; there is no further processing for removed items.
                 break;
@@ -253,6 +261,8 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
 
             break; // Finish
         }
+        else
+            evt->SetPassEvent();
 
     } while( ( evt = Wait() ) );  // Assignment intentional; not equality test
 
@@ -264,21 +274,30 @@ int LIB_MOVE_TOOL::Main( const TOOL_EVENT& aEvent )
     if( !chain_commands )
         m_moveOffset = { 0, 0 };
 
+    m_anchorPos = { 0, 0 };
+
     for( auto item : selection )
         item->ClearEditFlags();
 
-    if( unselect )
-        m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
-    else
-        selection.ClearReferencePoint();
-
     if( restore_state )
+    {
         m_frame->RollbackPartFromUndo();
+
+        if( unselect )
+            m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
+        else
+            m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
+    }
     else
+    {
+        if( unselect )
+            m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
+
         m_frame->OnModify();
+    }
 
     m_moveInProgress = false;
-    m_frame->PopTool();
+    m_frame->PopTool( tool );
     return 0;
 }
 

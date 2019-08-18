@@ -1,7 +1,3 @@
-/**
- * @file cvpcb/readwrite_dlgs.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -26,100 +22,18 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#include <fctsys.h>
-#include <kiway.h>
-#include <common.h>
+
 #include <confirm.h>
-#include <build_version.h>
-#include <macros.h>
-#include <lib_id.h>
+#include <fctsys.h>
 #include <fp_lib_table.h>
 #include <html_messagebox.h>
+#include <kiway.h>
+#include <lib_id.h>
+#include <macros.h>
 
-#include <cvpcb.h>
 #include <cvpcb_mainframe.h>
 #include <listboxes.h>
 #include <fp_conflict_assignment_selector.h>
-
-
-void CVPCB_MAINFRAME::SetNewPkg( const wxString& aFootprintName )
-{
-    COMPONENT* component;
-    int        componentIndex;
-
-    if( m_netlist.IsEmpty() )
-        return;
-
-    // If no component is selected, select the first one
-    if( m_compListBox->GetFirstSelected() < 0 )
-    {
-        componentIndex = 0;
-        m_compListBox->SetSelection( componentIndex, true );
-    }
-
-    // iterate over the selection
-    while( m_compListBox->GetFirstSelected() != -1 )
-    {
-        // Get the component for the current iteration
-        componentIndex = m_compListBox->GetFirstSelected();
-        component = m_netlist.GetComponent( componentIndex );
-
-        if( component == NULL )
-            return;
-
-        SetNewPkg( aFootprintName, componentIndex );
-
-        m_compListBox->SetSelection( componentIndex, false );
-    }
-
-    // select the next component, if there is one
-    if( componentIndex < (m_compListBox->GetCount() - 1) )
-        componentIndex++;
-
-    m_compListBox->SetSelection( componentIndex, true );
-
-    // update the statusbar
-    DisplayStatus();
-}
-
-
-void CVPCB_MAINFRAME::SetNewPkg( const wxString& aFootprintName, int aIndex )
-{
-    COMPONENT* component;
-
-    if( m_netlist.IsEmpty() )
-        return;
-
-    component = m_netlist.GetComponent( aIndex );
-
-    if( component == NULL )
-        return;
-
-    LIB_ID fpid;
-
-    if( !aFootprintName.IsEmpty() )
-    {
-        wxCHECK_RET( fpid.Parse( aFootprintName, LIB_ID::ID_PCB ) < 0,
-                     wxString::Format( _( "\"%s\" is not a valid LIB_ID." ), aFootprintName ) );
-    }
-
-    component->SetFPID( fpid );
-
-    // create the new component description
-    wxString   description = wxString::Format( CMP_FORMAT, aIndex + 1,
-                        GetChars( component->GetReference() ),
-                        GetChars( component->GetValue() ),
-                        GetChars( FROM_UTF8( component->GetFPID().Format().c_str() ) ) );
-
-    // Set the new description and deselect the processed component
-    m_compListBox->SetString( aIndex, description );
-
-    // Mark this "session" as modified
-    m_modified = true;
-
-    // update the statusbar
-    DisplayStatus();
-}
 
 
 /// Return true if the resultant LIB_ID has a certain nickname.  The guess
@@ -389,6 +303,9 @@ bool CVPCB_MAINFRAME::SaveFootprintAssociation( bool doSaveSchematic )
         if( payload == "success" )
             SetStatusText( _( "Schematic saved" ), 1 );
     }
+
+    // Changes are saved, so reset the flag
+    m_modified = false;
 
     return true;
 }

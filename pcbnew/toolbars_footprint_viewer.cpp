@@ -50,11 +50,6 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateHToolbar()
                                             KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT  );
 
     // Set up toolbar
-    m_mainToolBar->AddTool( ID_MODVIEW_SELECT_PART, wxEmptyString,
-                            KiScaledBitmap( load_module_lib_xpm, this ),
-                            _( "Select footprint to browse" ) );
-
-    KiScaledSeparator( m_mainToolBar, this );
     m_mainToolBar->AddTool( ID_MODVIEW_OPTIONS, wxEmptyString,
                             KiScaledBitmap( config_xpm, this ),
                             _( "Display options" ) );
@@ -123,9 +118,8 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateMenuBar()
     //
     CONDITIONAL_MENU* fileMenu = new CONDITIONAL_MENU( false, selTool );
 
-    fileMenu->AddItem( wxID_EXIT, _( "Close" ), _( "Close footprint viewer" ), 
-                       exit_xpm,                  SELECTION_CONDITIONS::ShowAlways );
-    
+    fileMenu->AddClose( _( "Footprint Viewer" ) );
+
     fileMenu->Resolve();
 
     //----- View menu -----------------------------------------------------------

@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -21,16 +22,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <tool/tool_manager.h>
+#include <tool/picker_tool.h>
 #include <tools/sch_edit_tool.h>
 #include <tools/ee_selection_tool.h>
 #include <tools/sch_line_wire_bus_tool.h>
-#include <tools/ee_picker_tool.h>
 #include <tools/sch_move_tool.h>
 #include <ee_actions.h>
 #include <bitmaps.h>
 #include <confirm.h>
-#include <eda_doc.h>
 #include <base_struct.h>
 #include <sch_item.h>
 #include <sch_component.h>
@@ -39,7 +38,6 @@
 #include <sch_bitmap.h>
 #include <sch_view.h>
 #include <sch_line.h>
-#include <sch_item.h>
 #include <sch_bus_entry.h>
 #include <sch_edit_frame.h>
 #include <eeschema_id.h>
@@ -136,14 +134,14 @@ bool SCH_EDIT_TOOL::Init()
     wxASSERT_MSG( drawingTools, "eeshema.InteractiveDrawing tool is not available" );
 
     auto sheetTool = [ this ] ( const SELECTION& aSel ) {
-        return ( m_frame->GetCurrentToolName() == EE_ACTIONS::drawSheet.GetName() );
+        return ( m_frame->IsCurrentTool( EE_ACTIONS::drawSheet ) );
     };
 
     auto anyTextTool = [ this ] ( const SELECTION& aSel ) {
-        return ( m_frame->GetCurrentToolName() == EE_ACTIONS::placeLabel.GetName()
-              || m_frame->GetCurrentToolName() == EE_ACTIONS::placeGlobalLabel.GetName()
-              || m_frame->GetCurrentToolName() == EE_ACTIONS::placeHierLabel.GetName()
-              || m_frame->GetCurrentToolName() == EE_ACTIONS::placeSchematicText.GetName() );
+        return ( m_frame->IsCurrentTool( EE_ACTIONS::placeLabel )
+              || m_frame->IsCurrentTool( EE_ACTIONS::placeGlobalLabel )
+              || m_frame->IsCurrentTool( EE_ACTIONS::placeHierLabel )
+              || m_frame->IsCurrentTool( EE_ACTIONS::placeSchematicText ) );
     };
 
     auto duplicateCondition = [] ( const SELECTION& aSel ) {
@@ -230,7 +228,7 @@ bool SCH_EDIT_TOOL::Init()
         moveMenu.AddItem( EE_ACTIONS::rotateCW,        orientCondition );
         moveMenu.AddItem( EE_ACTIONS::mirrorX,         orientCondition );
         moveMenu.AddItem( EE_ACTIONS::mirrorY,         orientCondition );
-        moveMenu.AddItem( EE_ACTIONS::doDelete,        E_C::NotEmpty );
+        moveMenu.AddItem( ACTIONS::doDelete,           E_C::NotEmpty );
 
         moveMenu.AddItem( EE_ACTIONS::properties,      propertiesCondition );
         moveMenu.AddItem( EE_ACTIONS::editReference,   singleComponentCondition );
@@ -290,7 +288,7 @@ bool SCH_EDIT_TOOL::Init()
     selToolMenu.AddItem( EE_ACTIONS::rotateCW,         orientCondition, 200 );
     selToolMenu.AddItem( EE_ACTIONS::mirrorX,          orientCondition, 200 );
     selToolMenu.AddItem( EE_ACTIONS::mirrorY,          orientCondition, 200 );
-    selToolMenu.AddItem( EE_ACTIONS::doDelete,         E_C::NotEmpty, 200 );
+    selToolMenu.AddItem( ACTIONS::doDelete,            E_C::NotEmpty, 200 );
 
     selToolMenu.AddItem( EE_ACTIONS::properties,       propertiesCondition, 200 );
     selToolMenu.AddItem( EE_ACTIONS::editReference,    E_C::SingleSymbol, 200 );
@@ -444,7 +442,7 @@ int SCH_EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
     }
     else if( selection.GetSize() > 1 )
     {
-        rotPoint = (wxPoint)selection.GetReferencePoint();
+        rotPoint = m_frame->GetNearestGridPosition( (wxPoint)selection.GetCenter() );
 
         for( unsigned ii = 0; ii < selection.GetSize(); ii++ )
         {
@@ -495,7 +493,7 @@ int SCH_EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
 
     if( item->IsMoving() )
     {
-        m_toolMgr->RunAction( EE_ACTIONS::refreshPreview );
+        m_toolMgr->RunAction( ACTIONS::refreshPreview );
     }
     else
     {
@@ -677,7 +675,7 @@ int SCH_EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
 
     if( item->IsMoving() )
     {
-        m_toolMgr->RunAction( EE_ACTIONS::refreshPreview );
+        m_toolMgr->RunAction( ACTIONS::refreshPreview );
     }
     else
     {
@@ -874,6 +872,7 @@ static KICAD_T deletableItems[] =
     SCH_SHEET_T,
     SCH_SHEET_PIN_T,
     SCH_COMPONENT_T,
+    SCH_BITMAP_T,
     EOT
 };
 
@@ -941,65 +940,76 @@ int SCH_EDIT_TOOL::DoDelete( const TOOL_EVENT& aEvent )
 
 int SCH_EDIT_TOOL::DeleteItemCursor( const TOOL_EVENT& aEvent )
 {
+    std::string  tool = aEvent.GetCommandStr().get();
+    PICKER_TOOL* picker = m_toolMgr->GetTool<PICKER_TOOL>();
+
     m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
-
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
-    Activate();
-
-    EE_PICKER_TOOL* picker = m_toolMgr->GetTool<EE_PICKER_TOOL>();
-    wxCHECK( picker, 0 );
     m_pickerItem = nullptr;
 
-    picker->SetClickHandler( [this] ( const VECTOR2D& aPosition ) -> bool {
-        if( m_pickerItem )
-        {
-            SCH_ITEM* sch_item = dynamic_cast<SCH_ITEM*>( m_pickerItem );
+    // Deactivate other tools; particularly important if another PICKER is currently running
+    Activate();
 
-            if( sch_item && sch_item->IsLocked() )
+    picker->SetCursor( wxStockCursor( wxCURSOR_BULLSEYE ) );
+
+    picker->SetClickHandler(
+        [this] ( const VECTOR2D& aPosition ) -> bool
+        {
+            if( m_pickerItem )
             {
-                STATUS_TEXT_POPUP statusPopup( m_frame );
-                statusPopup.SetText( _( "Item locked." ) );
-                statusPopup.PopupFor( 2000 );
-                statusPopup.Move( wxGetMousePosition() + wxPoint( 20, 20 ) );
-                return true;
+                SCH_ITEM* sch_item = dynamic_cast<SCH_ITEM*>( m_pickerItem );
+
+                if( sch_item && sch_item->IsLocked() )
+                {
+                    STATUS_TEXT_POPUP statusPopup( m_frame );
+                    statusPopup.SetText( _( "Item locked." ) );
+                    statusPopup.PopupFor( 2000 );
+                    statusPopup.Move( wxGetMousePosition() + wxPoint( 20, 20 ) );
+                    return true;
+                }
+
+                EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+                selectionTool->UnbrightenItem( m_pickerItem );
+                selectionTool->AddItemToSel( m_pickerItem, true );
+                m_toolMgr->RunAction( ACTIONS::doDelete, true );
+                m_pickerItem = nullptr;
             }
 
-            EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
-            selectionTool->AddItemToSel( m_pickerItem, true );
-            m_toolMgr->RunAction( EE_ACTIONS::doDelete, true );
-            m_pickerItem = nullptr;
-        }
+            return true;
+        } );
 
-        return true;
-    } );
-
-    picker->SetMotionHandler( [this] ( const VECTOR2D& aPos ) {
-        EE_COLLECTOR collector;
-        collector.m_Threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
-        collector.Collect( m_frame->GetScreen()->GetDrawItems(), deletableItems, (wxPoint) aPos );
-        EDA_ITEM* item = collector.GetCount() == 1 ? collector[ 0 ] : nullptr;
-
-        if( m_pickerItem != item )
+    picker->SetMotionHandler(
+        [this] ( const VECTOR2D& aPos )
         {
+            EE_COLLECTOR collector;
+            collector.m_Threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
+            collector.Collect( m_frame->GetScreen()->GetDrawItems(), deletableItems, (wxPoint) aPos );
+
             EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+            selectionTool->GuessSelectionCandidates( collector, aPos );
 
+            EDA_ITEM* item = collector.GetCount() == 1 ? collector[ 0 ] : nullptr;
+
+            if( m_pickerItem != item )
+            {
+                if( m_pickerItem )
+                    selectionTool->UnbrightenItem( m_pickerItem );
+
+                m_pickerItem = item;
+
+                if( m_pickerItem )
+                    selectionTool->BrightenItem( m_pickerItem );
+            }
+        } );
+
+    picker->SetFinalizeHandler(
+        [this] ( const int& aFinalState )
+        {
             if( m_pickerItem )
-                selectionTool->UnbrightenItem( m_pickerItem );
+                m_toolMgr->GetTool<EE_SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
+        } );
 
-            m_pickerItem = item;
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
 
-            if( m_pickerItem )
-                selectionTool->BrightenItem( m_pickerItem );
-        }
-    } );
-
-    picker->Activate();
-    Wait();
-
-    if( m_pickerItem )
-        m_toolMgr->GetTool<EE_SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
-
-    m_frame->PopTool();
     return 0;
 }
 
@@ -1012,13 +1022,11 @@ void SCH_EDIT_TOOL::editComponentFieldText( SCH_FIELD* aField )
     if( aField->GetEditFlags() == 0 )    // i.e. not edited, or moved
         m_frame->SaveCopyInUndoList( component, UR_CHANGED );
 
-    wxString title;
-    title.Printf( _( "Edit %s Field" ), GetChars( aField->GetName() ) );
+    wxString title = wxString::Format( _( "Edit %s Field" ), aField->GetName() );
 
     DIALOG_SCH_EDIT_ONE_FIELD dlg( m_frame, title, aField );
 
-    // The dialog may invoke a kiway player for footprint fields
-    // so we must use a quasimodal
+    // The footprint field dialog can invoke a KIWAY_PLAYER so we must use a quasi-modal
     if( dlg.ShowQuasiModal() != wxID_OK )
         return;
 
@@ -1137,7 +1145,7 @@ int SCH_EDIT_TOOL::ConvertDeMorgan( const TOOL_EVENT& aEvent )
     m_frame->ConvertPart( component );
 
     if( component->IsNew() )
-        m_toolMgr->RunAction( EE_ACTIONS::refreshPreview );
+        m_toolMgr->RunAction( ACTIONS::refreshPreview );
 
     return 0;
 }
@@ -1234,7 +1242,6 @@ int SCH_EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
 
     case SCH_BITMAP_T:
     {
-        // JEY TODO: selected image doesn't have any highlighting....
         SCH_BITMAP*         bitmap = (SCH_BITMAP*) item;
         DIALOG_IMAGE_EDITOR dlg( m_frame, bitmap->GetImage() );
 
@@ -1390,8 +1397,8 @@ void SCH_EDIT_TOOL::setTransitions()
     Go( &SCH_EDIT_TOOL::Rotate,             EE_ACTIONS::rotateCCW.MakeEvent() );
     Go( &SCH_EDIT_TOOL::Mirror,             EE_ACTIONS::mirrorX.MakeEvent() );
     Go( &SCH_EDIT_TOOL::Mirror,             EE_ACTIONS::mirrorY.MakeEvent() );
-    Go( &SCH_EDIT_TOOL::DoDelete,           EE_ACTIONS::doDelete.MakeEvent() );
-    Go( &SCH_EDIT_TOOL::DeleteItemCursor,   EE_ACTIONS::deleteItemCursor.MakeEvent() );
+    Go( &SCH_EDIT_TOOL::DoDelete,           ACTIONS::doDelete.MakeEvent() );
+    Go( &SCH_EDIT_TOOL::DeleteItemCursor,   ACTIONS::deleteTool.MakeEvent() );
 
     Go( &SCH_EDIT_TOOL::Properties,         EE_ACTIONS::properties.MakeEvent() );
     Go( &SCH_EDIT_TOOL::EditField,          EE_ACTIONS::editReference.MakeEvent() );
@@ -1414,4 +1421,5 @@ void SCH_EDIT_TOOL::setTransitions()
     Go( &SCH_EDIT_TOOL::BreakWire,          EE_ACTIONS::breakBus.MakeEvent() );
 
     Go( &SCH_EDIT_TOOL::CleanupSheetPins,   EE_ACTIONS::cleanupSheetPins.MakeEvent() );
+    Go( &SCH_EDIT_TOOL::GlobalEdit,         EE_ACTIONS::editTextAndGraphics.MakeEvent() );
 }

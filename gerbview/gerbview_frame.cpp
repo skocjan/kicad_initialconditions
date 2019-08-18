@@ -215,6 +215,9 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
 
     m_LayersManager->ReFill();
     m_LayersManager->ReFillRender();    // Update colors in Render after the config is read
+
+    // Update the checked state of tools
+    SyncToolbars();
 }
 
 
@@ -401,6 +404,8 @@ void GERBVIEW_FRAME::ReFillLayerWidget()
     m_LayersManager->ReFill();
     m_SelLayerBox->Resync();
     ReCreateAuxiliaryToolbar();
+    // Update the checked state of tools
+    SyncToolbars();
 
     wxAuiPaneInfo&  lyrs = m_auimgr.GetPane( m_LayersManager );
     wxSize          bestz = m_LayersManager->GetBestSize();
@@ -438,10 +443,10 @@ void GERBVIEW_FRAME::SetElementVisibility( int aLayerID, bool aNewState )
 
         view->UpdateAllItemsConditionally( KIGFX::REPAINT, []( KIGFX::VIEW_ITEM* aItem )
         {
-            auto item = static_cast<GERBER_DRAW_ITEM*>( aItem );
+            auto item = dynamic_cast<GERBER_DRAW_ITEM*>( aItem );
 
             // GetLayerPolarity() returns true for negative items
-            return item->GetLayerPolarity();
+            return ( item && item->GetLayerPolarity() );
         } );
         break;
     }
@@ -1043,7 +1048,7 @@ void GERBVIEW_FRAME::UpdateStatusBar()
         case INCHES:         formatter = wxT( "r %.6f  theta %.1f" ); break;
         case MILLIMETRES:    formatter = wxT( "r %.5f  theta %.1f" ); break;
         case UNSCALED_UNITS: formatter = wxT( "r %f  theta %f" );     break;
-        case DEGREES:        wxASSERT( false );                       break;
+        default:             wxASSERT( false );                       break;
         }
 
         line.Printf( formatter, To_User_Unit( GetUserUnits(), ro ), theta );
@@ -1075,7 +1080,7 @@ void GERBVIEW_FRAME::UpdateStatusBar()
         relformatter = wxT( "dx %f  dy %f  dist %f" );
         break;
 
-    case DEGREES:
+    default:
         wxASSERT( false );
         break;
     }
@@ -1151,6 +1156,9 @@ void GERBVIEW_FRAME::ActivateGalCanvas()
 
     ReCreateOptToolbar();
     ReCreateMenuBar();
+
+    // Update the checked state of tools
+    SyncToolbars();
 }
 
 
@@ -1250,13 +1258,12 @@ void GERBVIEW_FRAME::OnUpdateSelectZoom( wxUpdateUIEvent& aEvent )
 }
 
 
-void GERBVIEW_FRAME::CommonSettingsChanged()
+void GERBVIEW_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    EDA_DRAW_FRAME::CommonSettingsChanged();
+    EDA_DRAW_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
-    ReCreateHToolbar();
-    ReCreateOptToolbar();
-    ReCreateAuxiliaryToolbar();
+    RecreateToolbars();
     Layout();
     SendSizeEvent();
 }
+

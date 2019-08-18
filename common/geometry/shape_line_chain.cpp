@@ -349,12 +349,16 @@ int SHAPE_LINE_CHAIN::PathLength( const VECTOR2I& aP ) const
 }
 
 
-bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aPt, int aAccuracy ) const
+bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aPt, int aAccuracy, bool aUseBBoxCache ) const
 {
-    BOX2I bbox = BBox();
-    bbox.Inflate( aAccuracy );
+    /*
+     * Don't check the bounding box unless it's cached.  Building it is about the same speed as
+     * the rigorous test below and so just slows things down by doing potentially two tests.
+     */
+    if( aUseBBoxCache && !m_bbox.Contains( aPt ) )
+        return false;
 
-    if( !m_closed || PointCount() < 3 || !BBox().Contains( aPt ) )
+    if( !m_closed || PointCount() < 3 )
         return false;
 
     bool inside = false;
@@ -366,11 +370,17 @@ bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aPt, int aAccuracy ) const
      *
      * Note: slope might be denormal here in the case of a horizontal line but we require our
      * y to move from above to below the point (or vice versa)
+     *
+     * Note: we open-code CPoint() here so that we don't end up calculating the size of the
+     * vector number-of-points times.  This has a non-trivial impact on zone fill times.
      */
-    for( int i = 0; i < PointCount(); i++ )
+    const std::vector<VECTOR2I>& points = CPoints();
+    int pointCount = points.size();
+
+    for( int i = 0; i < pointCount; )
     {
-        const auto p1 = CPoint( i );
-        const auto p2 = CPoint( i + 1 ); // CPoint wraps, so ignore counts
+        const auto p1 = points[ i++ ];
+        const auto p2 = points[ i == pointCount ? 0 : i ];
         const auto diff = p2 - p1;
 
         if( diff.y != 0 )
@@ -381,7 +391,17 @@ bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aPt, int aAccuracy ) const
                 inside = !inside;
         }
     }
-    return inside && !PointOnEdge( aPt, aAccuracy );
+
+    // If accuracy is 0 then we need to make sure the point isn't actually on the edge.
+    // If accuracy is 1 then we don't really care whether or not the point is *exactly* on the
+    // edge, so we skip edge processing for performance.
+    // If accuracy is > 1, then we use "OnEdge(accuracy-1)" as a proxy for "Inside(accuracy)".
+    if( aAccuracy == 0 )
+        return inside && !PointOnEdge( aPt );
+    else if( aAccuracy == 1 )
+        return inside;
+    else
+        return inside || PointOnEdge( aPt, aAccuracy - 1 );
 }
 
 

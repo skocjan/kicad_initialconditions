@@ -22,7 +22,6 @@
 #include <undo_redo_container.h>
 #include <class_board.h>
 #include <board_connected_item.h>
-#include <class_module.h>
 #include <class_text_mod.h>
 #include <class_edge_mod.h>
 #include <class_track.h>
@@ -46,25 +45,22 @@
 #include <geometry/shape_rect.h>
 #include <geometry/shape_circle.h>
 #include <geometry/shape_arc.h>
-#include <geometry/convex_hull.h>
 
 #include "tools/pcb_tool_base.h"
 
 #include "pns_kicad_iface.h"
-
 #include "../../include/geometry/shape_simple.h"
 #include "pns_routing_settings.h"
-#include "pns_sizes_settings.h"
 #include "pns_item.h"
 #include "pns_solid.h"
 #include "pns_segment.h"
-#include "pns_solid.h"
-#include "pns_itemset.h"
 #include "pns_node.h"
 #include "pns_topology.h"
 #include "pns_router.h"
 #include "pns_debug_decorator.h"
 #include "router_preview_item.h"
+
+typedef VECTOR2I::extended_type ecoord;
 
 class PNS_PCBNEW_RULE_RESOLVER : public PNS::RULE_RESOLVER
 {
@@ -72,11 +68,15 @@ public:
     PNS_PCBNEW_RULE_RESOLVER( BOARD* aBoard, PNS::ROUTER* aRouter );
     virtual ~PNS_PCBNEW_RULE_RESOLVER();
 
+    virtual bool CollideHoles( const PNS::ITEM* aA, const PNS::ITEM* aB,
+                               bool aNeedMTV, VECTOR2I* aMTV ) const override;
+
     virtual int Clearance( const PNS::ITEM* aA, const PNS::ITEM* aB ) const override;
     virtual int Clearance( int aNetCode ) const override;
     virtual int DpCoupledNet( int aNet ) override;
     virtual int DpNetPolarity( int aNet ) override;
     virtual bool DpNetPair( PNS::ITEM* aItem, int& aNetP, int& aNetN ) override;
+
     virtual wxString NetName( int aNet ) override;
 
 private:
@@ -87,8 +87,9 @@ private:
         int clearance;
     };
 
+    int holeRadius( const PNS::ITEM* aItem ) const;
     int localPadClearance( const PNS::ITEM* aItem ) const;
-    int matchDpSuffix( wxString aNetName, wxString& aComplementNet, wxString& aBaseDpName );
+    int matchDpSuffix( const wxString& aNetName, wxString& aComplementNet, wxString& aBaseDpName );
 
     PNS::ROUTER* m_router;
     BOARD*       m_board;
@@ -166,6 +167,65 @@ PNS_PCBNEW_RULE_RESOLVER::~PNS_PCBNEW_RULE_RESOLVER()
 }
 
 
+int PNS_PCBNEW_RULE_RESOLVER::holeRadius( const PNS::ITEM* aItem ) const
+{
+    if( aItem->Kind() == PNS::ITEM::SOLID_T )
+    {
+        const D_PAD* pad = dynamic_cast<const D_PAD*>( aItem->Parent() );
+
+        if( pad && pad->GetDrillShape() == PAD_DRILL_SHAPE_CIRCLE )
+            return pad->GetDrillSize().x / 2;
+    }
+    else if( aItem->Kind() == PNS::ITEM::VIA_T )
+    {
+        const ::VIA* via = dynamic_cast<const ::VIA*>( aItem->Parent() );
+
+        if( via )
+            return via->GetDrillValue() / 2;
+    }
+
+    return 0;
+}
+
+
+bool PNS_PCBNEW_RULE_RESOLVER::CollideHoles( const PNS::ITEM* aA, const PNS::ITEM* aB,
+                                             bool aNeedMTV, VECTOR2I* aMTV ) const
+{
+    VECTOR2I pos_a = aA->Shape()->Centre();
+    VECTOR2I pos_b = aB->Shape()->Centre();
+
+    // Holes with identical locations are allowable
+    if( pos_a == pos_b )
+        return false;
+
+    int radius_a = holeRadius( aA );
+    int radius_b = holeRadius( aB );
+
+    // Do both objects have holes?
+    if( radius_a > 0 && radius_b > 0 )
+    {
+        int holeToHoleMin = m_board->GetDesignSettings().m_HoleToHoleMin;
+
+        ecoord min_dist = holeToHoleMin + radius_a + radius_b;
+        ecoord min_dist_sq = min_dist * min_dist;
+
+        const VECTOR2I delta = pos_b - pos_a;
+
+        ecoord dist_sq = delta.SquaredEuclideanNorm();
+
+        if( dist_sq < min_dist_sq )
+        {
+            if( aNeedMTV )
+                *aMTV = delta.Resize( min_dist - sqrt( dist_sq ) + 3 );  // fixme: apparent rounding error
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
 int PNS_PCBNEW_RULE_RESOLVER::localPadClearance( const PNS::ITEM* aItem ) const
 {
     if( !aItem->Parent() || aItem->Parent()->Type() != PCB_PAD_T )
@@ -212,7 +272,8 @@ int PNS_PCBNEW_RULE_RESOLVER::Clearance( int aNetCode ) const
 }
 
 
-int PNS_PCBNEW_RULE_RESOLVER::matchDpSuffix( wxString aNetName, wxString& aComplementNet, wxString& aBaseDpName )
+int PNS_PCBNEW_RULE_RESOLVER::matchDpSuffix( const wxString& aNetName, wxString& aComplementNet,
+                                             wxString& aBaseDpName )
 {
     int rv = 0;
 
@@ -781,7 +842,13 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
     if( !aZone->GetIsKeepout() || !aZone->GetDoNotAllowTracks() )
         return false;
 
-    aZone->BuildSmoothedPoly( poly );
+    // Some intersecting zones, despite being on the same layer with the same net, cannot be
+    // merged due to other parameters such as fillet radius.  The copper pour will end up
+    // effectively merged though, so we want to keep the corners of such intersections sharp.
+    std::set<VECTOR2I> colinearCorners;
+    aZone->GetColinearCorners( m_board, colinearCorners );
+
+    aZone->BuildSmoothedPoly( poly, &colinearCorners );
     poly.CacheTriangulation();
 
     if( !poly.IsTriangulationUpToDate() )
@@ -822,7 +889,7 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
                 std::unique_ptr< PNS::SOLID > solid( new PNS::SOLID );
 
                 solid->SetLayer( layer );
-                solid->SetNet( 0 );
+                solid->SetNet( -1 );
                 solid->SetParent( aZone );
                 solid->SetShape( triShape );
                 solid->SetRoutable( false );
@@ -981,10 +1048,24 @@ bool PNS_KICAD_IFACE::syncGraphicalItem( PNS::NODE* aWorld, DRAWSEGMENT* aItem )
     return true;
 }
 
+
 void PNS_KICAD_IFACE::SetBoard( BOARD* aBoard )
 {
     m_board = aBoard;
     wxLogTrace( "PNS", "m_board = %p", m_board );
+}
+
+
+bool PNS_KICAD_IFACE::IsAnyLayerVisible( const LAYER_RANGE& aLayer )
+{
+    if( !m_view )
+        return false;
+
+    for( int i = aLayer.Start(); i <= aLayer.End(); i++ )
+        if( m_view->IsLayerVisible( i ) )
+            return true;
+
+    return false;
 }
 
 

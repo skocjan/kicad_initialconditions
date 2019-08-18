@@ -23,10 +23,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file class_libentry.cpp
- */
-
 #include <fctsys.h>
 #include <macros.h>
 #include <kicad_string.h>
@@ -35,9 +31,7 @@
 #include <gr_basic.h>
 #include <sch_screen.h>
 #include <richio.h>
-#include <kicad_string.h>
 #include <trace_helpers.h>
-
 #include <general.h>
 #include <template_fieldnames.h>
 #include <transform.h>
@@ -45,11 +39,6 @@
 #include <class_libentry.h>
 #include <lib_pin.h>
 #include <lib_arc.h>
-#include <lib_bezier.h>
-#include <lib_circle.h>
-#include <lib_polyline.h>
-#include <lib_rectangle.h>
-#include <lib_text.h>
 
 
 // the separator char between the subpart id and the reference
@@ -64,9 +53,7 @@ int LIB_PART::m_subpartFirstId = 'A';
 
 LIB_ALIAS::LIB_ALIAS( const wxString& aName, LIB_PART* aRootPart ) :
     EDA_ITEM( LIB_ALIAS_T ),
-    shared( aRootPart ),
-    tmpUnit( 0 ),
-    tmpConversion( 0 )
+    shared( aRootPart )
 {
     SetName( aName );
 }
@@ -74,9 +61,7 @@ LIB_ALIAS::LIB_ALIAS( const wxString& aName, LIB_PART* aRootPart ) :
 
 LIB_ALIAS::LIB_ALIAS( const LIB_ALIAS& aAlias, LIB_PART* aRootPart ) :
     EDA_ITEM( aAlias ),
-    shared( aRootPart ),
-    tmpUnit( 0 ),
-    tmpConversion( 0 )
+    shared( aRootPart )
 {
     name   = aAlias.name;
 
@@ -205,12 +190,13 @@ void LIB_ALIAS::ViewGetLayers( int aLayers[], int& aCount ) const
     // An alias's fields don't know how to fetch their parent's values so we don't let
     // them draw themselves.  This means the alias always has to draw them, which means
     // it has to "own" their layers as well.
-    aCount      = 5;
+    aCount      = 6;
     aLayers[0]  = LAYER_DEVICE;
     aLayers[1]  = LAYER_DEVICE_BACKGROUND;
     aLayers[2]  = LAYER_REFERENCEPART;
     aLayers[3]  = LAYER_VALUEPART;
     aLayers[4]  = LAYER_FIELDS;
+    aLayers[5]  = LAYER_SELECTION_SHADOWS;
 }
 
 
@@ -419,7 +405,7 @@ void LIB_PART::Print( wxDC* aDc, const wxPoint& aOffset, int aMulti, int aConver
 
         if( drawItem.Type() == LIB_PIN_T )
         {
-            drawItem.Print( aDc, aOffset, (void*) aOpts.show_elec_type, aOpts.transform );
+            drawItem.Print( aDc, aOffset, (void*) &aOpts, aOpts.transform );
         }
         else if( drawItem.Type() == LIB_FIELD_T )
         {
@@ -717,9 +703,10 @@ const EDA_RECT LIB_PART::GetUnitBoundingBox( int aUnit, int aConvert ) const
 
 void LIB_PART::ViewGetLayers( int aLayers[], int& aCount ) const
 {
-    aCount      = 2;
+    aCount      = 3;
     aLayers[0]  = LAYER_DEVICE;
     aLayers[1]  = LAYER_DEVICE_BACKGROUND;
+    aLayers[2]  = LAYER_SELECTION_SHADOWS;
 }
 
 
@@ -852,45 +839,6 @@ LIB_FIELD& LIB_PART::GetFootprintField()
     LIB_FIELD* field = GetField( FOOTPRINT );
     wxASSERT( field != NULL );
     return *field;
-}
-
-
-bool LIB_PART::SaveDateAndTime( OUTPUTFORMATTER& aFormatter )
-{
-    int year, mon, day, hour, min, sec;
-
-    if( m_dateLastEdition == 0 )
-        return true;
-
-    sec  = m_dateLastEdition & 63;
-    min  = ( m_dateLastEdition >> 6 ) & 63;
-    hour = ( m_dateLastEdition >> 12 ) & 31;
-    day  = ( m_dateLastEdition >> 17 ) & 31;
-    mon  = ( m_dateLastEdition >> 22 ) & 15;
-    year = ( m_dateLastEdition >> 26 ) + 1990;
-
-    aFormatter.Print( 0, "Ti %d/%d/%d %d:%d:%d\n", year, mon, day, hour, min, sec );
-
-    return true;
-}
-
-
-bool LIB_PART::LoadDateAndTime( char* aLine )
-{
-    int   year, mon, day, hour, min, sec;
-
-    year = mon = day = hour = min = sec = 0;
-    strtok( aLine, " \r\t\n" );
-    strtok( NULL, " \r\t\n" );
-
-    if( sscanf( aLine, "%d/%d/%d %d:%d:%d", &year, &mon, &day, &hour, &min, &sec ) != 6 )
-        return false;
-
-    m_dateLastEdition = ( sec & 63 ) + ( ( min & 63 ) << 6 ) +
-                     ( ( hour & 31 ) << 12 ) + ( ( day & 31 ) << 17 ) +
-                     ( ( mon & 15 ) << 22 ) + ( ( year - 1990 ) << 26 );
-
-    return true;
 }
 
 

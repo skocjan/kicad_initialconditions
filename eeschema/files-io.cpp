@@ -92,8 +92,8 @@ bool SCH_EDIT_FRAME::SaveEEFile( SCH_SCREEN* aScreen, bool aSaveUnderNewName,
     {
         wxFileName backupFileName = schematicFileName;
 
-        // Rename the old file to a '.bak' one:
-        backupFileName.SetExt( SchematicBackupFileExtension );
+        // Rename the old file to a '-bak' suffixed one:
+        backupFileName.SetExt( schematicFileName.GetExt() + GetBackupSuffix()  );
 
         if( backupFileName.FileExists() )
             wxRemoveFile( backupFileName.GetFullPath() );
@@ -348,6 +348,36 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         }
         else
         {
+            // Double check to ensure no legacy library list entries have been
+            // added to the projec file symbol library list.
+            wxString paths;
+            wxArrayString libNames;
+
+            PART_LIBS::LibNamesAndPaths( &Prj(), false, &paths, &libNames );
+
+            if( !libNames.IsEmpty() )
+            {
+                if( m_showIllegalSymbolLibDialog )
+                {
+                    wxRichMessageDialog invalidLibDlg(
+                            this,
+                            _( "Illegal entry found in project file symbol library list." ),
+                            _( "Project Load Warning" ),
+                            wxOK | wxCENTER | wxICON_EXCLAMATION );
+                    invalidLibDlg.SetExtendedMessage(
+                            _( "Symbol libraries defined in the project file symbol library list "
+                               "are no longer supported and will be\nremoved.  This may cause "
+                               "broken symbol library links under certain conditions." ) );
+                    invalidLibDlg.ShowCheckBox( _( "Do not show this dialog again." ) );
+                    invalidLibDlg.ShowModal();
+                    m_showIllegalSymbolLibDialog = !invalidLibDlg.IsCheckBoxChecked();
+                }
+
+                libNames.Clear();
+                paths.Clear();
+                PART_LIBS::LibNamesAndPaths( &Prj(), true, &paths, &libNames );
+            }
+
             // Check to see whether some old library parts need to be rescued
             // Only do this if RescueNeverShow was not set.
             wxConfigBase *config = Kiface().KifaceSettings();
@@ -384,6 +414,13 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId );
     m_toolManager->RunAction( ACTIONS::zoomFitScreen, true );
     SetSheetNumberAndCount();
+
+    // re-create junctions if needed. Eeschema optimizes wires by merging
+    // colinear segments. If a schematic is saved without a valid
+    // cache library or missing installed libraries, this can cause connectivity errors
+    // unless junctions are added.
+    FixupJunctions();
+
     SyncView();
     GetScreen()->ClearDrawingState();
 
@@ -395,7 +432,6 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
 bool SCH_EDIT_FRAME::AppendSchematic()
 {
-    wxString    msg;
     wxString    fullFileName;
     SCH_SCREEN* screen = GetScreen();
 
@@ -416,232 +452,10 @@ bool SCH_EDIT_FRAME::AppendSchematic()
 
     fullFileName = dlg.GetPath();
 
-    wxFileName fn = fullFileName;
-
-    if( fn.IsRelative() )
-    {
-        fn.MakeAbsolute();
-        fullFileName = fn.GetFullPath();
-    }
-
-    wxString cache_name = PART_LIBS::CacheName( fullFileName );
-
-    if( !!cache_name )
-    {
-        PART_LIBS*  libs = Prj().SchLibs();
-
-        try
-        {
-            if( PART_LIB* lib = libs->AddLibrary( cache_name ) )
-                lib->SetCache();
-        }
-        catch( const IO_ERROR& ioe )
-        {
-            DisplayError( this, ioe.What() );
-        }
-    }
-
-    wxLogDebug( wxT( "Importing schematic " ) + fullFileName );
-
-    // Load the schematic into a temporary sheet.
-    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_LEGACY ) );
-    std::unique_ptr< SCH_SHEET> newSheet( new SCH_SHEET );
-
-    newSheet->SetFileName( fullFileName );
-
-    try
-    {
-        pi->Load( fullFileName, &Kiway(), newSheet.get() );
-
-        if( !pi->GetError().IsEmpty() )
-        {
-            DisplayErrorMessage( this,
-                                 _( "The entire schematic could not be loaded.  Errors "
-                                    "occurred attempting to load hierarchical sheet "
-                                    "schematics." ),
-                                 pi->GetError() );
-        }
-    }
-    catch( const IO_ERROR& ioe )
-    {
-        msg.Printf( _( "Error occurred loading schematic file \"%s\"." ), fullFileName );
-        DisplayErrorMessage( this, msg, ioe.What() );
-
-        msg.Printf( _( "Failed to load schematic \"%s\"" ), fullFileName );
-        AppendMsgPanel( wxEmptyString, msg, CYAN );
-
+    if( !LoadSheetFromFile( GetCurrentSheet().Last(), &GetCurrentSheet(), fullFileName ) )
         return false;
-    }
-
-    // Make sure any new sheet changes do not cause any recursion issues.
-    SCH_SHEET_LIST hierarchy( g_RootSheet );          // This is the schematic sheet hierarchy.
-    SCH_SHEET_LIST sheetHierarchy( newSheet.get() );  // This is the hierarchy of the import.
-
-    wxFileName destFile = screen->GetFileName();
-
-    if( destFile.IsRelative() )
-        destFile.MakeAbsolute( Prj().GetProjectPath() );
-
-    if( hierarchy.TestForRecursion( sheetHierarchy, destFile.GetFullPath( wxPATH_UNIX ) ) )
-    {
-        msg.Printf( _( "The sheet changes cannot be made because the destination sheet already "
-                       "has the sheet \"%s\" or one of it's subsheets as a parent somewhere in "
-                       "the schematic hierarchy." ),
-                    destFile.GetFullPath() );
-        DisplayError( this, msg );
-        return false;
-    }
-
-    wxArrayString names;
-
-    // Make sure the imported schematic has been remapped to the symbol library table.
-    SCH_SCREENS newScreens( newSheet.get() );         // All screens associated with the import.
-
-    if( newScreens.HasNoFullyDefinedLibIds() )
-    {
-        DisplayInfoMessage( this,
-                            "This schematic has not been remapped to the symbol library\n"
-                            "table.  The project this schematic belongs to must first be\n"
-                            "remapped before it can be imported into the current project." );
-        return false;
-    }
-    else
-    {
-        // If there are symbol libraries in the imported schematic that are not in the
-        // symbol library table of this project, there could be a lot of broken symbol
-        // library links.  Attempt to add the missing libraries to the project symbol
-        // library table.
-        newScreens.GetLibNicknames( names );
-        wxArrayString newLibNames;
-
-        for( const auto& name : names )
-        {
-            if( !Prj().SchSymbolLibTable()->HasLibrary( name ) )
-                newLibNames.Add( name );
-        }
-
-        wxFileName symLibTableFn( fn.GetPath(), SYMBOL_LIB_TABLE::GetSymbolLibTableFileName() );
-
-        if( !newLibNames.IsEmpty() && symLibTableFn.Exists() && symLibTableFn.IsFileReadable() )
-        {
-            SYMBOL_LIB_TABLE table;
-
-            try
-            {
-                table.Load( symLibTableFn.GetFullPath() );
-            }
-            catch( const IO_ERROR& ioe )
-            {
-                msg.Printf( _( "An error occurred loading the symbol library table \"%s\"." ),
-                            symLibTableFn.GetFullPath() );
-                DisplayErrorMessage( NULL, msg, ioe.What() );
-            }
-
-            if( !table.IsEmpty() )
-            {
-                for( const auto& libName : newLibNames )
-                {
-                    if( !table.HasLibrary( libName ) )
-                        continue;
-
-                    // Don't expand environment variable because KIPRJMOD will not be correct
-                    // for a different project.
-                    wxString uri = table.GetFullURI( libName, false );
-                    wxFileName newLib;
-
-                    if( uri.Contains( "${KIPRJMOD}" ) )
-                    {
-                        newLib.SetPath( fn.GetPath() );
-                        newLib.SetFullName( uri.AfterLast( '}' ) );
-                        uri = newLib.GetFullPath();
-                    }
-                    else if( uri.Contains( "$(KIPRJMOD)" ) )
-                    {
-                        newLib.SetPath( fn.GetPath() );
-                        newLib.SetFullName( uri.AfterLast( ')' ) );
-                        uri = newLib.GetFullPath();
-                    }
-                    else
-                    {
-                        uri = table.GetFullURI( libName );
-                    }
-
-                    // Add the library from the imported project to the current project
-                    // symbol library table.
-                    const SYMBOL_LIB_TABLE_ROW* row = table.FindRow( libName );
-
-                    wxCHECK2_MSG( row, continue, "Library '" + libName +
-                                  "' missing from symbol library table '" +
-                                  symLibTableFn.GetFullPath() + "'." );
-
-                    wxString newLibName = libName;
-                    int libNameCnt = 1;
-
-                    // Rename the imported symbol library if it already exists.
-                    while( Prj().SchSymbolLibTable()->HasLibrary( newLibName ) )
-                        newLibName = wxString::Format( "%s%d", libName, libNameCnt );
-
-                    auto newRow = new SYMBOL_LIB_TABLE_ROW( newLibName, uri, row->GetType(),
-                                                            row->GetOptions(), row->GetDescr() );
-                    Prj().SchSymbolLibTable()->InsertRow( newRow );
-
-                    if( libName != newLibName )
-                        newScreens.ChangeSymbolLibNickname( libName, newLibName );
-                }
-            }
-        }
-    }
-
-    newScreens.ClearAnnotation();
-
-    // Check for duplicate sheet names in the current page.
-    wxArrayString duplicateSheetNames;
-    EE_TYPE_COLLECTOR sheets;
-
-    sheets.Collect( screen->GetDrawItems(), EE_COLLECTOR::SheetsOnly );
-
-    for( int i = 0;  i < sheets.GetCount();  ++i )
-    {
-        if( newSheet->GetScreen()->GetSheet( ( ( SCH_SHEET* ) sheets[i] )->GetName() ) )
-            duplicateSheetNames.Add( ( ( SCH_SHEET* ) sheets[i] )->GetName() );
-    }
-
-    if( !duplicateSheetNames.IsEmpty() )
-    {
-        msg.Printf( "Duplicate sheet names exist on the current page.  Do you want to "
-                    "automatically rename the duplicate sheet names?" );
-        if( !IsOK( this, msg ) )
-            return false;
-    }
-
-    SCH_SCREEN* newScreen = newSheet->GetScreen();
-    wxCHECK_MSG( newScreen, false, "No screen defined for imported sheet." );
-
-    for( const auto& duplicateName : duplicateSheetNames )
-    {
-        SCH_SHEET* renamedSheet = newScreen->GetSheet( duplicateName );
-
-        wxCHECK2_MSG( renamedSheet, continue,
-                      "Sheet " + duplicateName + " not found in imported schematic." );
-
-        timestamp_t newtimestamp = GetNewTimeStamp();
-        renamedSheet->SetTimeStamp( newtimestamp );
-        renamedSheet->SetName( wxString::Format( "Sheet%8.8lX", (unsigned long) newtimestamp ) );
-    }
-
-    // It is finally safe to add the imported schematic.
-    screen->Append( newScreen );
-
-    SCH_SCREENS allScreens;
-    allScreens.ReplaceDuplicateTimeStamps();
 
     SCH_SCREENS screens( GetCurrentSheet().Last() );
-    screens.UpdateSymbolLinks( true );
-
-    // Clear all annotation in the imported schematic to prevent clashes with existing annotation.
-    // Must be done after updating the symbol links as we need to know about multi-unit parts.
-    // screens.ClearAnnotation();
-
     screens.TestDanglingEnds();
 
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId );

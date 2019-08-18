@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -26,18 +27,17 @@
 #include <sch_view.h>
 #include <sch_edit_frame.h>
 #include <sch_sheet.h>
+#include <sch_line.h>
 #include <connection_graph.h>
 #include <erc.h>
 #include <eeschema_id.h>
 #include <netlist_object.h>
 #include <tool/tool_manager.h>
+#include <tool/picker_tool.h>
 #include <tools/ee_actions.h>
-#include <tools/ee_picker_tool.h>
 #include <tools/sch_editor_control.h>
 #include <tools/ee_selection.h>
 #include <tools/ee_selection_tool.h>
-#include <tools/sch_drawing_tools.h>
-#include <tools/sch_line_wire_bus_tool.h>
 #include <advanced_config.h>
 #include <simulation_cursors.h>
 #include <sim/sim_plot_frame.h>
@@ -99,9 +99,7 @@ int SCH_EDITOR_CONTROL::PageSetup( const TOOL_EVENT& aEvent )
     DIALOG_PAGES_SETTINGS dlg( m_frame, wxSize( MAX_PAGE_SIZE_MILS, MAX_PAGE_SIZE_MILS ) );
     dlg.SetWksFileName( BASE_SCREEN::m_PageLayoutDescrFileName );
 
-    if( dlg.ShowModal() == wxID_OK )
-        m_toolMgr->RunAction( ACTIONS::zoomFitScreen, true );
-    else
+    if( dlg.ShowModal() != wxID_OK )
         m_frame->RollbackSchematicFromUndo();
 
     return 0;
@@ -144,25 +142,17 @@ int SCH_EDITOR_CONTROL::UpdateFind( const TOOL_EVENT& aEvent )
 {
     wxFindReplaceData* data = m_frame->GetFindReplaceData();
 
-    if( aEvent.IsAction( &ACTIONS::find )
-     || aEvent.IsAction( &ACTIONS::findAndReplace )
-     || aEvent.IsAction( &ACTIONS::updateFind ) )
+    if( aEvent.IsAction( &ACTIONS::find ) || aEvent.IsAction( &ACTIONS::findAndReplace )
+        || aEvent.IsAction( &ACTIONS::updateFind ) )
     {
         m_selectionTool->ClearSelection();
 
         INSPECTOR_FUNC inspector = [&] ( EDA_ITEM* item, void* )
         {
             if( data && item->Matches( *data, nullptr ) )
-            {
                 m_selectionTool->BrightenItem( item );
-
-                if( m_selectionTool->GetSelection().GetSize() == 0 )
-                    m_selectionTool->AddItemToSel( item );
-            }
             else if( item->IsBrightened() )
-            {
                 m_selectionTool->UnbrightenItem( item );
-            }
 
             return SEARCH_CONTINUE;
         };
@@ -295,17 +285,13 @@ int SCH_EDITOR_CONTROL::FindNext( const TOOL_EVENT& aEvent )
     if( item )
     {
         m_selectionTool->AddItemToSel( item );
-        getView()->SetCenter( item->GetBoundingBox().GetCenter() );
+        m_frame->FocusOnLocation( item->GetBoundingBox().GetCenter(), true );
         m_frame->GetCanvas()->Refresh();
     }
     else
     {
-        wxString msg;
-
-        if( searchAllSheets )
-            msg = _( "Reached end of schematic." );
-        else
-            msg = _( "Reached end of sheet." );
+        wxString msg = searchAllSheets ? _( "Reached end of schematic." )
+                                       : _( "Reached end of sheet." );
 
         m_frame->ShowFindReplaceStatus( msg + _( "\nFind again to wrap around to the start." ) );
         wrapAroundTimer.StartOnce( 4000 );
@@ -354,8 +340,7 @@ int SCH_EDITOR_CONTROL::ReplaceAll( const TOOL_EVENT& aEvent )
 
     for( SCH_SCREEN* screen = screens.GetFirst(); screen; screen = screens.GetNext() )
     {
-        for( EDA_ITEM* item = nextMatch( screen, nullptr, data );
-             item;
+        for( EDA_ITEM* item = nextMatch( screen, nullptr, data ); item;
              item = nextMatch( screen, item, data ) )
         {
             item->Replace( *data, schematic.FindSheetForScreen( screen ) );
@@ -383,11 +368,8 @@ int SCH_EDITOR_CONTROL::ExplicitCrossProbeToPcb( const TOOL_EVENT& aEvent )
 void SCH_EDITOR_CONTROL::doCrossProbeSchToPcb( const TOOL_EVENT& aEvent, bool aForce )
 {
     // Don't get in an infinite loop SCH -> PCB -> SCH -> PCB -> SCH -> ...
-    if( m_probingSchToPcb )
-    {
-        m_probingSchToPcb = false;
+    if( m_probingPcbToSch )
         return;
-    }
 
     EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
     SCH_ITEM*          item = nullptr;
@@ -447,95 +429,200 @@ void SCH_EDITOR_CONTROL::doCrossProbeSchToPcb( const TOOL_EVENT& aEvent, bool aF
 
 
 #ifdef KICAD_SPICE
-static bool probeSimulation( SCH_EDIT_FRAME* aFrame, const VECTOR2D& aPosition )
-{
-    constexpr KICAD_T wiresAndComponents[] = { SCH_LINE_T, SCH_COMPONENT_T, SCH_SHEET_PIN_T, EOT };
-    EE_SELECTION_TOOL* selTool = aFrame->GetToolManager()->GetTool<EE_SELECTION_TOOL>();
 
-    EDA_ITEM* item = selTool->SelectPoint( aPosition, wiresAndComponents );
+static KICAD_T wires[] = { SCH_LINE_LOCATE_WIRE_T, EOT };
+static KICAD_T wiresAndPins[] = { SCH_LINE_LOCATE_WIRE_T, SCH_PIN_T, SCH_SHEET_PIN_T, EOT };
+static KICAD_T fieldsAndComponents[] = { SCH_COMPONENT_T, SCH_FIELD_T, EOT };
 
-    if( !item )
-        return false;
-
-    std::unique_ptr<NETLIST_OBJECT_LIST> netlist( aFrame->BuildNetListBase() );
-
-    for( NETLIST_OBJECT* obj : *netlist )
-    {
-        if( obj->m_Comp == item )
-        {
-            auto simFrame = (SIM_PLOT_FRAME*) aFrame->Kiway().Player( FRAME_SIMULATOR, false );
-
-            if( simFrame )
-                simFrame->AddVoltagePlot( obj->GetNetName() );
-
-            break;
-        }
-    }
-
-    return true;
-}
+#define HITTEST_THRESHOLD_PIXELS 5
 
 
 int SCH_EDITOR_CONTROL::SimProbe( const TOOL_EVENT& aEvent )
 {
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    auto picker = m_toolMgr->GetTool<PICKER_TOOL>();
+    auto simFrame = (SIM_PLOT_FRAME*) m_frame->Kiway().Player( FRAME_SIMULATOR, false );
+
+    if( !simFrame )     // Defensive coding; shouldn't happen.
+        return 0;
+
+    // Deactivate other tools; particularly important if another PICKER is currently running
     Activate();
 
-    EE_PICKER_TOOL* picker = m_toolMgr->GetTool<EE_PICKER_TOOL>();
-    assert( picker );
+    picker->SetCursor( SIM_CURSORS::GetCursor( SIM_CURSORS::VOLTAGE_PROBE ) );
 
-    m_frame->GetCanvas()->SetCursor( SIMULATION_CURSORS::GetCursor( SIMULATION_CURSORS::CURSOR::PROBE ) );
+    picker->SetClickHandler(
+        [this, simFrame] ( const VECTOR2D& aPosition )
+        {
+            EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+            EDA_ITEM*          item = selTool->SelectPoint( aPosition, wiresAndPins );
 
-    picker->SetClickHandler( std::bind( probeSimulation, m_frame, std::placeholders::_1 ) );
-    picker->Activate();
-    Wait();
+            if( !item )
+                return false;
 
-    m_frame->PopTool();
+            if( item->IsType( wires ) )
+            {
+                std::unique_ptr<NETLIST_OBJECT_LIST> netlist( m_frame->BuildNetListBase() );
+
+                for( NETLIST_OBJECT* obj : *netlist )
+                {
+                    if( obj->m_Comp == item )
+                    {
+                        simFrame->AddVoltagePlot( UnescapeString( obj->GetNetName() ) );
+                        break;
+                    }
+                }
+            }
+            else if( item->Type() == SCH_PIN_T )
+            {
+                SCH_PIN*       pin = (SCH_PIN*) item;
+                SCH_COMPONENT* comp = (SCH_COMPONENT*) item->GetParent();
+                wxString       param = wxString::Format( _T( "I%s" ), pin->GetName().Lower() );
+
+                simFrame->AddCurrentPlot( comp->GetRef( g_CurrentSheet ), param );
+            }
+
+            return true;
+        } );
+
+    picker->SetMotionHandler(
+        [this, picker] ( const VECTOR2D& aPos )
+        {
+            EE_COLLECTOR collector;
+            collector.m_Threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
+            collector.Collect( m_frame->GetScreen()->GetDrawItems(), wiresAndPins, (wxPoint) aPos );
+
+            EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+            selectionTool->GuessSelectionCandidates( collector, aPos );
+
+            EDA_ITEM* item = collector.GetCount() == 1 ? collector[ 0 ] : nullptr;
+            SCH_LINE* wire = dynamic_cast<SCH_LINE*>( item );
+            wxString  netName;
+
+            if( wire )
+            {
+                item = nullptr;
+
+                if( wire->Connection( *g_CurrentSheet ) )
+                    netName = wire->Connection( *g_CurrentSheet )->Name();
+            }
+
+            if( item && item->Type() == SCH_PIN_T )
+                picker->SetCursor( SIM_CURSORS::GetCursor( SIM_CURSORS::CURRENT_PROBE ) );
+            else
+                picker->SetCursor( SIM_CURSORS::GetCursor( SIM_CURSORS::VOLTAGE_PROBE ) );
+
+            if( m_pickerItem != item )
+            {
+
+                if( m_pickerItem )
+                    selectionTool->UnbrightenItem( m_pickerItem );
+
+                m_pickerItem = item;
+
+                if( m_pickerItem )
+                    selectionTool->BrightenItem( m_pickerItem );
+            }
+
+            if( m_frame->GetSelectedNetName() != netName )
+            {
+                m_frame->SetSelectedNetName( netName );
+
+                TOOL_EVENT dummyEvent;
+                UpdateNetHighlighting( dummyEvent );
+            }
+        } );
+
+    picker->SetFinalizeHandler(
+        [this] ( const int& aFinalState )
+        {
+            if( m_pickerItem )
+                m_toolMgr->GetTool<EE_SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
+
+            if( !m_frame->GetSelectedNetName().IsEmpty() )
+            {
+                m_frame->SetSelectedNetName( wxEmptyString );
+
+                TOOL_EVENT dummyEvent;
+                UpdateNetHighlighting( dummyEvent );
+            }
+        } );
+
+    std::string tool = aEvent.GetCommandStr().get();
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
+
     return 0;
-}
-
-
-static bool tuneSimulation( SCH_EDIT_FRAME* aFrame, const VECTOR2D& aPosition )
-{
-    constexpr KICAD_T fieldsAndComponents[] = { SCH_COMPONENT_T, SCH_FIELD_T, EOT };
-    EE_SELECTION_TOOL* selTool = aFrame->GetToolManager()->GetTool<EE_SELECTION_TOOL>();
-    EDA_ITEM*          item = selTool->SelectPoint( aPosition, fieldsAndComponents );
-
-    if( !item )
-        return false;
-
-    if( item->Type() != SCH_COMPONENT_T )
-    {
-        item = item->GetParent();
-
-        if( item->Type() != SCH_COMPONENT_T )
-            return false;
-    }
-
-    auto simFrame = (SIM_PLOT_FRAME*) aFrame->Kiway().Player( FRAME_SIMULATOR, false );
-
-    if( simFrame )
-        simFrame->AddTuner( static_cast<SCH_COMPONENT*>( item ) );
-
-    return true;
 }
 
 
 int SCH_EDITOR_CONTROL::SimTune( const TOOL_EVENT& aEvent )
 {
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    PICKER_TOOL* picker = m_toolMgr->GetTool<PICKER_TOOL>();
+
+    // Deactivate other tools; particularly important if another PICKER is currently running
     Activate();
 
-    EE_PICKER_TOOL* picker = m_toolMgr->GetTool<EE_PICKER_TOOL>();
-    assert( picker );
+    picker->SetCursor( SIM_CURSORS::GetCursor( SIM_CURSORS::CURSOR::TUNE ) );
 
-    m_frame->GetCanvas()->SetCursor( SIMULATION_CURSORS::GetCursor( SIMULATION_CURSORS::CURSOR::TUNE ) );
+    picker->SetClickHandler(
+        [this] ( const VECTOR2D& aPosition )
+        {
+            EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+            EDA_ITEM*          item = selTool->SelectPoint( aPosition, fieldsAndComponents );
 
-    picker->SetClickHandler( std::bind( tuneSimulation, m_frame, std::placeholders::_1 ) );
-    picker->Activate();
-    Wait();
+            if( !item )
+                return false;
 
-    m_frame->PopTool();
+            if( item->Type() != SCH_COMPONENT_T )
+            {
+                item = item->GetParent();
+
+                if( item->Type() != SCH_COMPONENT_T )
+                    return false;
+            }
+
+            SIM_PLOT_FRAME* simFrame =
+                    (SIM_PLOT_FRAME*) m_frame->Kiway().Player( FRAME_SIMULATOR, false );
+
+            if( simFrame )
+                simFrame->AddTuner( static_cast<SCH_COMPONENT*>( item ) );
+
+            return true;
+        } );
+
+    picker->SetMotionHandler(
+        [this] ( const VECTOR2D& aPos )
+        {
+            EE_COLLECTOR collector;
+            collector.m_Threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
+            collector.Collect( m_frame->GetScreen()->GetDrawItems(), fieldsAndComponents, (wxPoint) aPos );
+
+            EE_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+            selectionTool->GuessSelectionCandidates( collector, aPos );
+
+            EDA_ITEM* item = collector.GetCount() == 1 ? collector[ 0 ] : nullptr;
+
+            if( m_pickerItem != item )
+            {
+                if( m_pickerItem )
+                    selectionTool->UnbrightenItem( m_pickerItem );
+
+                m_pickerItem = item;
+
+                if( m_pickerItem )
+                    selectionTool->BrightenItem( m_pickerItem );
+            }
+        } );
+
+    picker->SetFinalizeHandler(
+        [this] ( const int& aFinalState )
+        {
+            if( m_pickerItem )
+                m_toolMgr->GetTool<EE_SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
+        } );
+
+    std::string tool = aEvent.GetCommandStr().get();
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
+
     return 0;
 }
 #endif /* KICAD_SPICE */
@@ -692,17 +779,22 @@ int SCH_EDITOR_CONTROL::HighlightNetCursor( const TOOL_EVENT& aEvent )
     if( !ADVANCED_CFG::GetCfg().m_realTimeConnectivity || !CONNECTION_GRAPH::m_allowRealTime )
         m_frame->RecalculateConnections();
 
-    m_frame->PushTool( aEvent.GetCommandStr().get() );
+    std::string  tool = aEvent.GetCommandStr().get();
+    PICKER_TOOL* picker = m_toolMgr->GetTool<PICKER_TOOL>();
+
+    // Deactivate other tools; particularly important if another PICKER is currently running
     Activate();
 
-    EE_PICKER_TOOL* picker = m_toolMgr->GetTool<EE_PICKER_TOOL>();
-    wxCHECK( picker, 0 );
+    picker->SetCursor( wxStockCursor( wxCURSOR_BULLSEYE ) );
 
-    picker->SetClickHandler( std::bind( highlightNet, m_toolMgr, std::placeholders::_1 ) );
-    picker->Activate();
-    Wait();
+    picker->SetClickHandler(
+        [this] ( const VECTOR2D& aPos )
+        {
+            return highlightNet( m_toolMgr, aPos );
+        } );
 
-    m_frame->PopTool();
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
+
     return 0;
 }
 
@@ -724,6 +816,9 @@ int SCH_EDITOR_CONTROL::Undo( const TOOL_EVENT& aEvent )
     /* Put the old list in RedoList */
     List->ReversePickersListOrder();
     m_frame->GetScreen()->PushCommandToRedoList( List );
+
+    EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+    selTool->RebuildSelection();
 
     m_frame->SetSheetNumberAndCount();
     m_frame->TestDanglingEnds();
@@ -754,8 +849,10 @@ int SCH_EDITOR_CONTROL::Redo( const TOOL_EVENT& aEvent )
     List->ReversePickersListOrder();
     m_frame->GetScreen()->PushCommandToUndoList( List );
 
-    m_frame->SetSheetNumberAndCount();
+    EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
+    selTool->RebuildSelection();
 
+    m_frame->SetSheetNumberAndCount();
     m_frame->TestDanglingEnds();
 
     m_frame->SyncView();
@@ -769,7 +866,7 @@ int SCH_EDITOR_CONTROL::Redo( const TOOL_EVENT& aEvent )
 bool SCH_EDITOR_CONTROL::doCopy()
 {
     EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
-    EE_SELECTION&      selection = selTool->GetSelection();
+    EE_SELECTION&      selection = selTool->RequestSelection();
 
     if( !selection.GetSize() )
         return false;
@@ -785,8 +882,16 @@ bool SCH_EDITOR_CONTROL::doCopy()
 
 int SCH_EDITOR_CONTROL::Cut( const TOOL_EVENT& aEvent )
 {
+    wxTextEntry* textEntry = dynamic_cast<wxTextEntry*>( wxWindow::FindFocus() );
+
+    if( textEntry )
+    {
+        textEntry->Cut();
+        return 0;
+    }
+
     if( doCopy() )
-        m_toolMgr->RunAction( EE_ACTIONS::doDelete, true );
+        m_toolMgr->RunAction( ACTIONS::doDelete, true );
 
     return 0;
 }
@@ -794,6 +899,14 @@ int SCH_EDITOR_CONTROL::Cut( const TOOL_EVENT& aEvent )
 
 int SCH_EDITOR_CONTROL::Copy( const TOOL_EVENT& aEvent )
 {
+    wxTextEntry* textEntry = dynamic_cast<wxTextEntry*>( wxWindow::FindFocus() );
+
+    if( textEntry )
+    {
+        textEntry->Copy();
+        return 0;
+    }
+
     doCopy();
 
     return 0;
@@ -802,12 +915,24 @@ int SCH_EDITOR_CONTROL::Copy( const TOOL_EVENT& aEvent )
 
 int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
 {
+    wxTextEntry* textEntry = dynamic_cast<wxTextEntry*>( wxWindow::FindFocus() );
+
+    if( textEntry )
+    {
+        textEntry->Paste();
+        return 0;
+    }
+
     EE_SELECTION_TOOL* selTool = m_toolMgr->GetTool<EE_SELECTION_TOOL>();
 
     DLIST<SCH_ITEM>&   dlist = m_frame->GetScreen()->GetDrawList();
     SCH_ITEM*          last = dlist.GetLast();
 
     std::string        text = m_toolMgr->GetClipboard();
+
+    if( text.empty() )
+        return 0;
+
     STRING_LINE_READER reader( text, "Clipboard" );
     SCH_LEGACY_PLUGIN  plugin;
 
@@ -817,8 +942,8 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
     }
     catch( IO_ERROR& e )
     {
-        wxLogError( wxString::Format( "Malformed clipboard: %s" ), GetChars( e.What() ) );
-        return 0;
+        // If it wasn't content, then paste as text
+        dlist.Append( new SCH_TEXT( wxPoint( 0, 0 ), text ) );
     }
 
     // SCH_LEGACY_PLUGIN added the items to the DLIST, but not to the view or anything
@@ -833,8 +958,6 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
     //
     bool           sheetsPasted = false;
     SCH_SHEET_LIST hierarchy( g_RootSheet );
-    SCH_SHEET_LIST initialHierarchy( g_RootSheet );
-
     wxFileName     destFn = g_CurrentSheet->Last()->GetFileName();
 
     if( destFn.IsRelative() )
@@ -905,16 +1028,38 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
         {
             SCH_COMPONENT* component = (SCH_COMPONENT*) item;
             component->Resolve( *symLibTable, partLib );
+            component->UpdatePins();
         }
         else if( item->Type() == SCH_SHEET_T )
         {
             SCH_SHEET*  sheet = (SCH_SHEET*) item;
+            wxFileName  fn = sheet->GetFileName();
             SCH_SCREEN* existingScreen = nullptr;
 
-            if( g_RootSheet->SearchHierarchy( sheet->GetFileName(), &existingScreen ) )
+            if( !fn.IsAbsolute() )
+            {
+                wxFileName currentSheetFileName = g_CurrentSheet->LastScreen()->GetFileName();
+                fn.Normalize( wxPATH_NORM_ALL, currentSheetFileName.GetPath() );
+            }
+
+            if( g_RootSheet->SearchHierarchy( fn.GetFullPath( wxPATH_UNIX ), &existingScreen ) )
+            {
                 sheet->SetScreen( existingScreen );
+
+                SCH_SHEET_PATH sheetpath = *g_CurrentSheet;
+                sheetpath.push_back( sheet );
+
+                // Clear annotation and create the AR for this path, if not exists,
+                // when the screen is shared by sheet paths.
+                // Otherwise ClearAnnotation do nothing, because the F1 field is used as
+                // reference default value and takes the latest displayed value
+                existingScreen->EnsureAlternateReferencesExist();
+                existingScreen->ClearAnnotation( &sheetpath );
+            }
             else
+            {
                 m_frame->LoadSheetFromFile( sheet, g_CurrentSheet, sheet->GetFileName() );
+            }
         }
 
         item->SetFlags( IS_NEW | IS_PASTED | IS_MOVED );
@@ -925,12 +1070,7 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
     }
 
     if( sheetsPasted )
-    {
-        // We clear annotation of new sheet paths.
-        SCH_SCREENS screensList( g_RootSheet );
-        screensList.ClearAnnotationOfNewSheetPaths( initialHierarchy );
         m_frame->SetSheetNumberAndCount();
-    }
 
     // Now clear the previous selection, select the pasted items, and fire up the "move"
     // tool.
@@ -1001,8 +1141,9 @@ int SCH_EDITOR_CONTROL::EditSymbolFields( const TOOL_EVENT& aEvent )
 
 int SCH_EDITOR_CONTROL::EditSymbolLibraryLinks( const TOOL_EVENT& aEvent )
 {
-    InvokeDialogEditComponentsLibId( m_frame );
-    m_frame->GetCanvas()->Refresh( true );
+    if( InvokeDialogEditComponentsLibId( m_frame ) )
+        m_frame->HardRedraw();
+
     return 0;
 }
 
@@ -1113,7 +1254,6 @@ int SCH_EDITOR_CONTROL::ToggleForceHV( const TOOL_EVENT& aEvent )
 }
 
 
-
 void SCH_EDITOR_CONTROL::setTransitions()
 {
     Go( &SCH_EDITOR_CONTROL::New,                   ACTIONS::doNew.MakeEvent() );
@@ -1135,12 +1275,6 @@ void SCH_EDITOR_CONTROL::setTransitions()
     Go( &SCH_EDITOR_CONTROL::UpdateFind,            ACTIONS::updateFind.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::UpdateFind,            EVENTS::SelectedItemsModified );
 
-    /*
-    Go( &SCH_EDITOR_CONTROL::ToggleLockSelected,    EE_ACTIONS::toggleLock.MakeEvent() );
-    Go( &SCH_EDITOR_CONTROL::LockSelected,          EE_ACTIONS::lock.MakeEvent() );
-    Go( &SCH_EDITOR_CONTROL::UnlockSelected,        EE_ACTIONS::unlock.MakeEvent() );
-     */
-
     Go( &SCH_EDITOR_CONTROL::CrossProbeToPcb,       EVENTS::SelectedEvent );
     Go( &SCH_EDITOR_CONTROL::CrossProbeToPcb,       EVENTS::UnselectedEvent );
     Go( &SCH_EDITOR_CONTROL::CrossProbeToPcb,       EVENTS::ClearedEvent );
@@ -1153,9 +1287,10 @@ void SCH_EDITOR_CONTROL::setTransitions()
 
     Go( &SCH_EDITOR_CONTROL::HighlightNet,          EE_ACTIONS::highlightNet.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ClearHighlight,        EE_ACTIONS::clearHighlight.MakeEvent() );
-    Go( &SCH_EDITOR_CONTROL::HighlightNetCursor,    EE_ACTIONS::highlightNetCursor.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::HighlightNetCursor,    EE_ACTIONS::highlightNetTool.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::UpdateNetHighlighting, EVENTS::SelectedItemsModified );
     Go( &SCH_EDITOR_CONTROL::UpdateNetHighlighting, EE_ACTIONS::updateNetHighlighting.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::ClearHighlight,        ACTIONS::cancelInteractive.MakeEvent() );
 
     Go( &SCH_EDITOR_CONTROL::Undo,                  ACTIONS::undo.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::Redo,                  ACTIONS::redo.MakeEvent() );

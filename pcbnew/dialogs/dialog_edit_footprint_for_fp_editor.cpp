@@ -4,7 +4,7 @@
  * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2015 Dick Hollenbeck, dick@softplc.com
  * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2004-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,8 +25,6 @@
  */
 
 #include <fctsys.h>
-#include <base_units.h>
-#include <view/view.h>
 #include <confirm.h>
 #include <dialog_text_entry.h>
 #include <pcbnew.h>
@@ -261,6 +259,15 @@ bool DIALOG_FOOTPRINT_FP_EDITOR::TransferDataToWindow()
     else
         m_SolderPasteMarginRatioCtrl->SetValue( msg );
 
+    switch( m_footprint->GetZoneConnection() )
+    {
+    default:
+    case PAD_ZONE_CONN_INHERITED: m_ZoneConnectionChoice->SetSelection( 0 ); break;
+    case PAD_ZONE_CONN_FULL:      m_ZoneConnectionChoice->SetSelection( 1 ); break;
+    case PAD_ZONE_CONN_THERMAL:   m_ZoneConnectionChoice->SetSelection( 2 ); break;
+    case PAD_ZONE_CONN_NONE:      m_ZoneConnectionChoice->SetSelection( 3 ); break;
+    }
+
     // 3D Settings
 
     wxString default_path;
@@ -349,6 +356,10 @@ void DIALOG_FOOTPRINT_FP_EDITOR::On3DModelCellChanged( wxGridEvent& aEvent )
         FILENAME_RESOLVER* res = Prj().Get3DCacheManager()->GetResolver();
         wxString           filename = m_modelsGrid->GetCellValue( aEvent.GetRow(), 0 );
 
+        filename.Replace( "\n", "" );
+        filename.Replace( "\r", "" );
+        filename.Replace( "\t", "" );
+
         if( filename.empty() || !res->ValidateFileName( filename, hasAlias ) )
         {
             m_delayedErrorMessage = wxString::Format( _( "Invalid filename: %s" ), filename );
@@ -369,6 +380,7 @@ void DIALOG_FOOTPRINT_FP_EDITOR::On3DModelCellChanged( wxGridEvent& aEvent )
 #endif
 
         m_shapes3D_list[ aEvent.GetRow() ].m_Filename = filename;
+        m_modelsGrid->SetCellValue( aEvent.GetRow(), 0, filename );
     }
     else if( aEvent.GetCol() == 1 )
     {
@@ -487,14 +499,15 @@ void DIALOG_FOOTPRINT_FP_EDITOR::OnAdd3DRow( wxCommandEvent&  )
 
 bool DIALOG_FOOTPRINT_FP_EDITOR::checkFootprintName( const wxString& aFootprintName )
 {
-    if( aFootprintName.IsEmpty() || !MODULE::IsLibNameValid( aFootprintName ) )
+    if( aFootprintName.IsEmpty() )
     {
-        if( aFootprintName.IsEmpty() )
-            m_delayedErrorMessage = _( "Footprint must have a name." );
-        else
-            m_delayedErrorMessage.Printf( _( "Footprint name may not contain \"%s\"." ),
-                                          MODULE::StringLibNameInvalidChars( true ) );
-
+        m_delayedErrorMessage = _( "Footprint must have a name." );
+        return false;
+    }
+    else if( !MODULE::IsLibNameValid( aFootprintName ) )
+    {
+        m_delayedErrorMessage.Printf( _( "Footprint name may not contain \"%s\"." ),
+                                      MODULE::StringLibNameInvalidChars( true ) );
         return false;
     }
 
@@ -634,6 +647,15 @@ bool DIALOG_FOOTPRINT_FP_EDITOR::TransferDataFromWindow()
 
     m_footprint->SetLocalSolderPasteMarginRatio( dtmp / 100 );
 
+    switch( m_ZoneConnectionChoice->GetSelection() )
+    {
+    default:
+    case 0: m_footprint->SetZoneConnection( PAD_ZONE_CONN_INHERITED ); break;
+    case 1: m_footprint->SetZoneConnection( PAD_ZONE_CONN_FULL );      break;
+    case 2: m_footprint->SetZoneConnection( PAD_ZONE_CONN_THERMAL );   break;
+    case 3: m_footprint->SetZoneConnection( PAD_ZONE_CONN_NONE );      break;
+    }
+
     std::list<MODULE_3D_SETTINGS>* draw3D  = &m_footprint->Models();
     draw3D->clear();
     draw3D->insert( draw3D->end(), m_shapes3D_list.begin(), m_shapes3D_list.end() );
@@ -684,18 +706,6 @@ void DIALOG_FOOTPRINT_FP_EDITOR::OnFootprintNameText( wxCommandEvent& event )
         // Keep Name and Value of footprints in library in sync
         m_itemsGrid->SetCellValue( 1, TMC_TEXT, m_FootprintNameCtrl->GetValue() );
     }
-}
-
-
-void DIALOG_FOOTPRINT_FP_EDITOR::OnFootprintNameKillFocus( wxFocusEvent& event )
-{
-    if( !m_delayedFocusCtrl && !checkFootprintName( m_FootprintNameCtrl->GetValue() ) )
-    {
-        m_delayedFocusCtrl = m_FootprintNameCtrl;
-        m_delayedFocusPage = 0;
-    }
-
-    event.Skip();
 }
 
 

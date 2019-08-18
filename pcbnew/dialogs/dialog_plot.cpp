@@ -30,13 +30,15 @@
 #include <gerber_jobfile_writer.h>
 #include <reporter.h>
 #include <wildcards_and_files_ext.h>
-#include <tool/tool_manager.h>
+#include <layers_id_colors_and_visibility.h>
 #include <bitmaps.h>
 #include <class_board.h>
 #include <dialog_plot.h>
 #include <dialog_gendrill.h>
 #include <wx_html_report_panel.h>
+#include <tool/tool_manager.h>
 #include <tools/drc.h>
+#include <tools/zone_filler_tool.h>
 
 
 DIALOG_PLOT::DIALOG_PLOT( PCB_EDIT_FRAME* aParent ) :
@@ -158,7 +160,11 @@ void DIALOG_PLOT::init_Dialog()
     // Option to exclude pads from silkscreen layers
     m_excludePadsFromSilkscreen->SetValue( !m_plotOpts.GetPlotPadsOnSilkLayer() );
 
+    // Option to tent vias
     m_subtractMaskFromSilk->SetValue( m_plotOpts.GetSubtractMaskFromSilk() );
+
+    // Option to use aux origin
+    m_useAuxOriginCheckBox->SetValue( m_plotOpts.GetUseAuxOrigin() );
 
     // Option to plot page references:
     m_plotSheetRef->SetValue( m_plotOpts.GetPlotFrameRef() );
@@ -177,11 +183,14 @@ void DIALOG_PLOT::init_Dialog()
     // Plot mode
     setPlotModeChoiceSelection( m_plotOpts.GetPlotMode() );
 
-    // Plot outline mode
+    // DXF outline mode
     m_DXF_plotModeOpt->SetValue( m_plotOpts.GetDXFPlotPolygonMode() );
 
-    // Plot text mode
+    // DXF text mode
     m_DXF_plotTextStrokeFontOpt->SetValue( m_plotOpts.GetTextMode() == PLOTTEXTMODE_DEFAULT );
+
+    // DXF units selection
+    m_DXF_plotUnits->SetSelection( static_cast<int>( m_plotOpts.GetDXFPlotUnits() ) );
 
     // Plot mirror option
     m_plotMirrorOpt->SetValue( m_plotOpts.GetMirror() );
@@ -221,7 +230,6 @@ void DIALOG_PLOT::OnRightClick( wxMouseEvent& event )
 
 
 // Select or deselect groups of layers in the layers list:
-#include <layers_id_colors_and_visibility.h>
 void DIALOG_PLOT::OnPopUpLayers( wxCommandEvent& event )
 {
     // Build a list of layers for usual fabrication:
@@ -555,8 +563,8 @@ static bool setInt( int* aResult, int aValue, int aMin, int aMax )
 
 void DIALOG_PLOT::applyPlotSettings()
 {
-    REPORTER&   reporter = m_messagesPanel->Reporter();
-
+    REPORTER&       reporter = m_messagesPanel->Reporter();
+    int             sel;
     PCB_PLOT_PARAMS tempOptions;
 
     tempOptions.SetExcludeEdgeLayer( m_excludeEdgeLayerOpt->GetValue() );
@@ -568,13 +576,17 @@ void DIALOG_PLOT::applyPlotSettings()
     tempOptions.SetPlotReference( m_plotModuleRefOpt->GetValue() );
     tempOptions.SetPlotInvisibleText( m_plotInvisibleText->GetValue() );
     tempOptions.SetScaleSelection( m_scaleOpt->GetSelection() );
-    tempOptions.SetDrillMarksType( static_cast<PCB_PLOT_PARAMS::DrillMarksType>
-                                   ( m_drillShapeOpt->GetSelection() ) );
+
+    sel = m_drillShapeOpt->GetSelection();
+    tempOptions.SetDrillMarksType( static_cast<PCB_PLOT_PARAMS::DrillMarksType>( sel ) );
+
     tempOptions.SetMirror( m_plotMirrorOpt->GetValue() );
     tempOptions.SetPlotMode( m_plotModeOpt->GetSelection() == 1 ? SKETCH : FILLED );
     tempOptions.SetDXFPlotPolygonMode( m_DXF_plotModeOpt->GetValue() );
-    tempOptions.SetDXFPlotUnits(
-            static_cast<PCB_PLOT_PARAMS::Units>( m_DXF_plotUnits->GetSelection() ) );
+
+    sel = m_DXF_plotUnits->GetSelection();
+    tempOptions.SetDXFPlotUnits( static_cast<DXF_PLOTTER::DXF_UNITS>( sel ) );
+
     tempOptions.SetPlotViaOnMaskLayer( m_plotNoViaOnMaskOpt->GetValue() );
 
     if( !m_DXF_plotTextStrokeFontOpt->IsEnabled() )     // Currently, only DXF supports this option
@@ -740,7 +752,7 @@ void DIALOG_PLOT::Plot( wxCommandEvent& event )
     }
 
     if( m_zoneFillCheck->GetValue() )
-        m_parent->Check_All_Zones( this );
+        m_parent->GetToolManager()->GetTool<ZONE_FILLER_TOOL>()->CheckAllZones( this );
 
     m_plotOpts.SetAutoScale( false );
     m_plotOpts.SetScale( 1 );

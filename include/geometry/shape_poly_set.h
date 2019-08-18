@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015-2017 CERN
+ * Copyright (C) 2015-2019 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Alejandro García Montoro <alejandro.garciamontoro@gmail.com>
  *
@@ -165,11 +165,16 @@ class SHAPE_POLY_SET : public SHAPE
 
             operator bool() const
             {
-                return ( ( m_currentPolygon < m_lastPolygon ) || ( m_currentPolygon == m_poly->OutlineCount() - 1 &&
-                            ( m_currentContour < static_cast<int>( m_poly->CPolygon( m_currentPolygon ).size() ) - 1  ||
-                            ( m_currentVertex < m_poly->CPolygon( m_currentPolygon )[m_currentContour].PointCount() )
-                            )
-                        ) );
+                if( m_currentPolygon < m_lastPolygon )
+                    return true;
+
+                if( m_currentPolygon != m_poly->OutlineCount() - 1 )
+                    return false;
+
+                auto currentPolygon = m_poly->CPolygon( m_currentPolygon );
+
+                return m_currentContour < (int) currentPolygon.size() - 1
+                           || m_currentVertex < currentPolygon[m_currentContour].PointCount();
             }
 
             /**
@@ -542,14 +547,14 @@ class SHAPE_POLY_SET : public SHAPE
          * @return bool - true if the aPolygonIndex-th polygon is self intersecting, false
          *              otherwise.
          */
-        bool IsPolygonSelfIntersecting( int aPolygonIndex );
+        bool IsPolygonSelfIntersecting( int aPolygonIndex ) const;
 
         /**
          * Function IsSelfIntersecting
          * Checks whether any of the polygons in the set is self intersecting.
          * @return bool - true if any of the polygons is self intersecting, false otherwise.
          */
-        bool IsSelfIntersecting();
+        bool IsSelfIntersecting() const;
 
         ///> Returns the number of triangulated polygons
         unsigned int TriangulatedPolyCount() const { return m_triangulatedPolys.size(); }
@@ -766,10 +771,33 @@ class SHAPE_POLY_SET : public SHAPE
             return iter;
         }
 
+        ///> Returns an iterator object, for iterating between aFirst and aLast outline, with or
+        /// without holes (default: without)
+        CONST_SEGMENT_ITERATOR CIterateSegments( int aFirst, int aLast,
+                                                 bool aIterateHoles = false ) const
+        {
+            CONST_SEGMENT_ITERATOR iter;
+
+            iter.m_poly = const_cast<SHAPE_POLY_SET*>( this );
+            iter.m_currentPolygon = aFirst;
+            iter.m_lastPolygon = aLast < 0 ? OutlineCount() - 1 : aLast;
+            iter.m_currentContour = 0;
+            iter.m_currentSegment = 0;
+            iter.m_iterateHoles = aIterateHoles;
+
+            return iter;
+        }
+
         ///> Returns an iterator object, for iterating aPolygonIdx-th polygon edges
         SEGMENT_ITERATOR IterateSegments( int aPolygonIdx )
         {
             return IterateSegments( aPolygonIdx, aPolygonIdx );
+        }
+
+        ///> Returns an iterator object, for iterating aPolygonIdx-th polygon edges
+        CONST_SEGMENT_ITERATOR CIterateSegments( int aPolygonIdx ) const
+        {
+            return CIterateSegments( aPolygonIdx, aPolygonIdx );
         }
 
         ///> Returns an iterator object, for all outlines in the set (no holes)
@@ -788,6 +816,12 @@ class SHAPE_POLY_SET : public SHAPE
         SEGMENT_ITERATOR IterateSegmentsWithHoles( int aOutline )
         {
             return IterateSegments( aOutline, aOutline, true );
+        }
+
+        ///> Returns an iterator object, for the aOutline-th outline in the set (with holes)
+        CONST_SEGMENT_ITERATOR CIterateSegmentsWithHoles( int aOutline ) const
+        {
+            return CIterateSegments( aOutline, aOutline, true );
         }
 
         /** operations on polygons use a aFastMode param
@@ -830,29 +864,40 @@ class SHAPE_POLY_SET : public SHAPE
         void BooleanIntersection( const SHAPE_POLY_SET& a, const SHAPE_POLY_SET& b,
                                   POLYGON_MODE aFastMode );
 
-        /**
-         * Performs outline inflation/deflation, using (optionally) round corners.
-         * Polygons can have holes, but not linked holes with main outlines,
-         * if aFactor < 0.
-         * When aFactor is < 0 a bad shape can result from these extra-segments used to
-         * link holes to main outlines
-         * Use InflateWithLinkedHoles for these polygons, especially if aFactor < 0
-         *
-         * @param aFactor - number of units to offset edges
-         * @param aCircleSegmentsCount - number of segments per 360° to use in curve approx
-         * @param aPreseveCorners - If true, use square joints to keep angles preserved
-         */
-        void Inflate( int aFactor, int aCircleSegmentsCount, bool aPreseveCorners = false );
-
-        void Inflate( int aFactor, bool aPreseveCorners )
+        enum CORNER_STRATEGY
         {
-            Inflate( aFactor, 32, aPreseveCorners );
+            ALLOW_ACUTE_CORNERS,
+            CHOP_ACUTE_CORNERS,
+            ROUND_ACUTE_CORNERS,
+            ROUND_ALL_CORNERS
+        };
+
+        /**
+         * Performs outline inflation/deflation.  Polygons can have holes, but not linked holes
+         * with main outlines, if aFactor < 0.  For those use InflateWithLinkedHoles() to avoid
+         * odd corners where the link segments meet the outline.
+         *
+         * @param aAmount - number of units to offset edges
+         * @param aCircleSegmentsCount - number of segments per 360° to use in curve approx
+         * @param aCornerStrategy - ALLOW_ACUTE_CORNERS to preserve all angles,
+         *                          CHOP_ACUTE_CORNERS to chop angles less than 90°,
+         *                          ROUND_ACUTE_CORNERS to round off angles less than 90°,
+         *                          ROUND_ALL_CORNERS to round regardless of angles
+         */
+        void Inflate( int aAmount, int aCircleSegmentsCount,
+                      CORNER_STRATEGY aCornerStrategy = ROUND_ALL_CORNERS );
+
+        void Deflate( int aAmount, int aCircleSegmentsCount,
+                      CORNER_STRATEGY aCornerStrategy = ROUND_ALL_CORNERS )
+        {
+            Inflate( -aAmount, aCircleSegmentsCount, aCornerStrategy );
         }
 
-        ///> Performs outline inflation/deflation, using round corners.
-        ///> Polygons can have holes, and/or linked holes with main outlines.
-        ///> The resulting polygons are laso polygons with linked holes to main outlines
-        ///> For aFastMode meaning, see function booleanOp
+        /**
+         * Performs outline inflation/deflation, using round corners.  Polygons can have holes,
+         * and/or linked holes with main outlines.  The resulting polygons are laso polygons with
+         * linked holes to main outlines.  For aFastMode meaning, see function booleanOp  .
+         */
         void InflateWithLinkedHoles( int aFactor, int aCircleSegmentsCount, POLYGON_MODE aFastMode );
 
         ///> Converts a set of polygons with holes to a singe outline with "slits"/"fractures"
@@ -956,7 +1001,7 @@ class SHAPE_POLY_SET : public SHAPE
          * @return bool - true if there is a collision, false in any other case.
          */
         bool CollideVertex( const VECTOR2I& aPoint, VERTEX_INDEX& aClosestVertex,
-                int aClearance = 0 );
+                            int aClearance = 0 );
 
         /**
          * Function CollideEdge
@@ -969,17 +1014,26 @@ class SHAPE_POLY_SET : public SHAPE
          * @return bool - true if there is a collision, false in any other case.
          */
         bool CollideEdge( const VECTOR2I& aPoint, VERTEX_INDEX& aClosestVertex,
-                int aClearance = 0 );
+                          int aClearance = 0 );
+
+        /**
+         * Constructs BBoxCaches for Contains(), below.  These caches MUST be built before a
+         * group of calls to Contains().  They are NOT kept up-to-date by editing actions.
+         */
+        void BuildBBoxCaches();
 
         /**
          * Returns true if a given subpolygon contains the point aP
          *
          * @param aP is the point to check
          * @param aSubpolyIndex is the subpolygon to check, or -1 to check all
-         * @param aIgnoreHoles controls whether or not internal holes are considered
+         * @param aUseBBoxCaches gives faster performance when multiple calls are made with no
+         *                       editing in between, but the caller MUST cache the bbox caches
+         *                       before calling (via BuildBBoxCaches(), above)
          * @return true if the polygon contains the point
          */
-        bool Contains( const VECTOR2I& aP, int aSubpolyIndex = -1, bool aIgnoreHoles = false ) const;
+        bool Contains( const VECTOR2I& aP, int aSubpolyIndex = -1, int aAccuracy = 0,
+                       bool aUseBBoxCaches = false ) const;
 
         ///> Returns true if the set is empty (no polygons at all)
         bool IsEmpty() const
@@ -1032,9 +1086,11 @@ class SHAPE_POLY_SET : public SHAPE
          * returns a chamfered version of the aIndex-th polygon.
          * @param aDistance is the chamfering distance.
          * @param aIndex is the index of the polygon to be chamfered.
+         * @param aPreserveCorners an optional set of corners which should not be chamfered.
          * @return POLYGON - A polygon containing the chamfered version of the aIndex-th polygon.
          */
-        POLYGON ChamferPolygon( unsigned int aDistance, int aIndex = 0 );
+        POLYGON ChamferPolygon( unsigned int aDistance, int aIndex,
+                                std::set<VECTOR2I>* aPreserveCorners );
 
         /**
          * Function Fillet
@@ -1042,26 +1098,32 @@ class SHAPE_POLY_SET : public SHAPE
          * @param aRadius is the fillet radius.
          * @param aErrorMax is the maximum allowable deviation of the polygon from the circle
          * @param aIndex is the index of the polygon to be filleted
+         * @param aPreserveCorners an optional set of corners which should not be filleted.
          * @return POLYGON - A polygon containing the filleted version of the aIndex-th polygon.
          */
-        POLYGON FilletPolygon( unsigned int aRadius, int aErrorMax, int aIndex = 0 );
+        POLYGON FilletPolygon( unsigned int aRadius, int aErrorMax, int aIndex,
+                               std::set<VECTOR2I>* aPreserveCorners = nullptr );
 
         /**
          * Function Chamfer
          * returns a chamfered version of the polygon set.
          * @param aDistance is the chamfering distance.
+         * @param aPreserveCorners an optional set of corners which should not be chamfered.
          * @return SHAPE_POLY_SET - A set containing the chamfered version of this set.
          */
-        SHAPE_POLY_SET Chamfer(  int aDistance );
+        SHAPE_POLY_SET Chamfer( int aDistance,
+                                std::set<VECTOR2I>* aPreserveCorners = nullptr );
 
         /**
          * Function Fillet
          * returns a filleted version of the polygon set.
          * @param aRadius is the fillet radius.
          * @param aErrorMax is the maximum allowable deviation of the polygon from the circle
+         * @param aPreserveCorners an optional set of corners which should not be filleted.
          * @return SHAPE_POLY_SET - A set containing the filleted version of this set.
          */
-        SHAPE_POLY_SET Fillet(  int aRadius, int aErrorMax );
+        SHAPE_POLY_SET Fillet( int aRadius, int aErrorMax,
+                               std::set<VECTOR2I>* aPreserveCorners = nullptr );
 
         /**
          * Function DistanceToPolygon
@@ -1085,7 +1147,7 @@ class SHAPE_POLY_SET : public SHAPE
          *                  aIndex-th polygon. If the point is contained in the polygon, the
          *                  distance is zero.
          */
-        int DistanceToPolygon( SEG aSegment, int aIndex, int aSegmentWidth = 0 );
+        int DistanceToPolygon( const SEG& aSegment, int aIndex, int aSegmentWidth = 0 );
 
         /**
          * Function DistanceToPolygon
@@ -1115,12 +1177,6 @@ class SHAPE_POLY_SET : public SHAPE
         bool IsVertexInHole( int aGlobalIdx );
 
     private:
-
-        SHAPE_LINE_CHAIN& getContourForCorner( int aCornerId, int& aIndexWithinContour );
-        VECTOR2I& vertex( int aCornerId );
-        const VECTOR2I& cvertex( int aCornerId ) const;
-
-
         void fractureSingle( POLYGON& paths );
         void unfractureSingle ( POLYGON& path );
         void importTree( ClipperLib::PolyTree* tree );
@@ -1136,14 +1192,14 @@ class SHAPE_POLY_SET : public SHAPE
          * if aFastMode is PM_STRICTLY_SIMPLE (default) the result is (theorically) a strictly
          * simple polygon, but calculations can be really significantly time consuming
          */
-        void booleanOp( ClipperLib::ClipType aType,
+        void booleanOp( ClipperLib::ClipType aType, const SHAPE_POLY_SET& aOtherShape,
+                        POLYGON_MODE aFastMode );
+
+        void booleanOp( ClipperLib::ClipType aType, const SHAPE_POLY_SET& aShape,
                         const SHAPE_POLY_SET& aOtherShape, POLYGON_MODE aFastMode );
 
-        void booleanOp( ClipperLib::ClipType aType,
-                        const SHAPE_POLY_SET& aShape,
-                        const SHAPE_POLY_SET& aOtherShape, POLYGON_MODE aFastMode );
-
-        bool pointInPolygon( const VECTOR2I& aP, const SHAPE_LINE_CHAIN& aPath ) const;
+        bool pointInPolygon( const VECTOR2I& aP, const SHAPE_LINE_CHAIN& aPath,
+                             bool aIgnoreEdges, bool aUseBBoxCaches = false ) const;
 
         /**
          * containsSingle function
@@ -1153,11 +1209,15 @@ class SHAPE_POLY_SET : public SHAPE
          *                       the aSubpolyIndex-th polygon will be tested.
          * @param  aSubpolyIndex is an integer specifying which polygon in the set has to be
          *                       checked.
-         * @param  aIgnoreHoles  can be set to true to ignore internal holes in the polygon
+         * @param  aAccuracy     accuracy in internal units
+         * @param aUseBBoxCaches gives faster performance when multiple calls are made with no
+         *                       editing in between, but the caller MUST cache the bbox caches
+         *                       before calling (via BuildBBoxCaches(), above)
          * @return bool - true if aP is inside aSubpolyIndex-th polygon; false in any other
          *         case.
          */
-        bool containsSingle( const VECTOR2I& aP, int aSubpolyIndex, bool aIgnoreHoles = false ) const;
+        bool containsSingle( const VECTOR2I& aP, int aSubpolyIndex, int aAccuracy,
+                             bool aUseBBoxCaches = false ) const;
 
         /**
          * Operations ChamferPolygon and FilletPolygon are computed under the private chamferFillet
@@ -1169,8 +1229,6 @@ class SHAPE_POLY_SET : public SHAPE
             CHAMFERED,
             FILLETED
         };
-
-
 
         /**
          * Function chamferFilletPolygon
@@ -1184,10 +1242,12 @@ class SHAPE_POLY_SET : public SHAPE
          * @param  aIndex    is the index of the polygon that will be chamfered/filleted.
          * @param  aErrorMax is the maximum allowable deviation of the polygon from the circle
          *                   if aMode = FILLETED. If aMode = CHAMFERED, it is unused.
+         * @param aPreserveCorners an optional set of corners which should be skipped.
          * @return POLYGON - the chamfered/filleted version of the polygon.
          */
         POLYGON chamferFilletPolygon( CORNER_MODE aMode, unsigned int aDistance,
-                                      int aIndex, int aErrorMax );
+                                      int aIndex, int aErrorMax,
+                                      std::set<VECTOR2I>* aPreserveCorners );
 
         ///> Returns true if the polygon set has any holes that touch share a vertex.
         bool hasTouchingHoles( const POLYGON& aPoly ) const;

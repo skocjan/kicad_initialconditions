@@ -28,7 +28,7 @@
 #include <sch_line.h>
 #include <sch_io_mgr.h>
 #include <eagle_parser.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 #include <geometry/seg.h>
 #include <dlist.h>
 
@@ -102,9 +102,6 @@ public:
 
     //void Save( const wxString& aFileName, SCH_SCREEN* aSchematic, KIWAY* aKiway,
     //           const PROPERTIES* aProperties = NULL ) override;
-
-    //size_t GetSymbolLibCount( const wxString& aLibraryPath,
-    //                          const PROPERTIES* aProperties = NULL ) override;
 
     //void EnumerateSymbolLib( wxArrayString& aAliasNameList, const wxString& aLibraryPath,
     //                         const PROPERTIES* aProperties = NULL ) override;

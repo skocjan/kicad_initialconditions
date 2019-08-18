@@ -40,7 +40,7 @@
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
 #include <tools/ee_actions.h>
-
+#include <tools/ee_selection_tool.h>
 
 LIB_ALIAS* SchGetLibAlias( const LIB_ID& aLibId, SYMBOL_LIB_TABLE* aLibTable, PART_LIB* aCacheLib,
                            wxWindow* aParent, bool aShowErrorMsg )
@@ -217,7 +217,7 @@ void SCH_BASE_FRAME::UpdateStatusBar()
         locformatter = "dx %f  dy %f  dist %f";
         break;
 
-    case DEGREES:
+    default:
         wxASSERT( false );
         break;
     }
@@ -399,6 +399,20 @@ void SCH_BASE_FRAME::RefreshItem( EDA_ITEM* aItem, bool isAddOrDelete )
 }
 
 
+void SCH_BASE_FRAME::RefreshSelection()
+{
+    if( m_toolManager )
+    {
+        EE_SELECTION_TOOL* selectionTool = m_toolManager->GetTool<EE_SELECTION_TOOL>();
+        SELECTION&         selection = selectionTool->GetSelection();
+        KIGFX::SCH_VIEW*   view = GetCanvas()->GetView();
+
+        for( EDA_ITEM* item : selection )
+            view->Update( item, KIGFX::REPAINT );
+    }
+}
+
+
 void SCH_BASE_FRAME::AddToScreen( EDA_ITEM* aItem, SCH_SCREEN* aScreen )
 {
     auto screen = aScreen;
@@ -438,15 +452,6 @@ void SCH_BASE_FRAME::SyncView()
     auto gs = GetScreen()->GetGridSize();
     GetCanvas()->GetGAL()->SetGridSize( VECTOR2D( gs.x, gs.y ));
     GetCanvas()->GetView()->UpdateAllItems( KIGFX::ALL );
-}
-
-
-std::string SCH_BASE_FRAME::GetCurrentToolName()
-{
-    if( m_toolStack.empty() )
-        return EE_ACTIONS::selectionTool.GetName();
-    else
-        return m_toolStack.back();
 }
 
 

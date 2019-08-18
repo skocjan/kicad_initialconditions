@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015 CERN
+ * Copyright (C) 2015-2019 CERN
  * Copyright (C) 2015-2019 KiCad Developers, see CHANGELOG.txt for contributors.
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -26,6 +26,7 @@
 #include <tool/conditional_menu.h>
 #include <tool/action_menu.h>
 #include <menus_helpers.h>
+#include <kiface_i.h>
 
 
 CONDITIONAL_MENU::CONDITIONAL_MENU( bool isContextMenu, TOOL_INTERACTIVE* aTool ) :
@@ -95,6 +96,29 @@ void CONDITIONAL_MENU::AddMenu( ACTION_MENU* aMenu, const SELECTION_CONDITION& a
 void CONDITIONAL_MENU::AddSeparator( int aOrder )
 {
     addEntry( ENTRY( SELECTION_CONDITIONS::ShowAlways, aOrder ) );
+}
+
+
+void CONDITIONAL_MENU::AddClose( wxString aAppname )
+{
+    AddItem( wxID_CLOSE, _( "Close\tCTRL+W" ), wxString::Format( "Close %s", aAppname ), exit_xpm,
+            SELECTION_CONDITIONS::ShowAlways );
+}
+
+
+void CONDITIONAL_MENU::AddQuitOrClose( KIFACE_I* aKiface, wxString aAppname )
+{
+    if( !aKiface || aKiface->IsSingle() ) // not when under a project mgr
+    {
+        // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via
+        // wxID_EXIT
+        AddItem( wxID_EXIT, _( "Quit" ), wxString::Format( "Quit %s", aAppname ), exit_xpm,
+                SELECTION_CONDITIONS::ShowAlways );
+    }
+    else
+    {
+        AddClose( aAppname );
+    }
 }
 
 
@@ -197,6 +221,18 @@ void CONDITIONAL_MENU::Evaluate( SELECTION& aSelection )
                 menuItem->Enable( result );
         }
     }
+
+    // Recursively call Evaluate on all the submenus that are CONDITIONAL_MENUs to ensure
+    // they are updated. This is also required on GTK to make sure the menus have the proper
+    // size when created.
+    runOnSubmenus(
+        [&aSelection]( ACTION_MENU* aMenu )
+        {
+            CONDITIONAL_MENU* conditionalMenu = dynamic_cast<CONDITIONAL_MENU*>( aMenu );
+
+            if( conditionalMenu )
+                conditionalMenu->Evaluate( aSelection );
+        } );
 }
 
 

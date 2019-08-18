@@ -34,9 +34,7 @@
 #include <tool/selection.h>
 #include <erc_settings.h>
 #include <sch_draw_panel.h>
-
-// enum PINSHEETLABEL_SHAPE
-#include <sch_text.h>
+#include <sch_text.h>               // enum PINSHEETLABEL_SHAPE
 #include <tool/selection.h>
 #include <status_popup.h>
 
@@ -91,11 +89,8 @@ enum ANNOTATE_OPTION_T {
 
 /// Schematic search type used by the socket link with Pcbnew
 enum SCH_SEARCH_T {
-    FIND_COMPONENT_ONLY,    ///< Find a component in the schematic.
-    FIND_PIN,               ///< Find a component pin in the schematic.
-    FIND_REFERENCE,         ///< Find an item by it's reference designator.
-    FIND_VALUE,             ///< Find an item by it's value field.
-    FIND_FIELD              ///< Find a component field.
+    HIGHLIGHT_PIN,
+    HIGHLIGHT_COMPONENT
 };
 
 
@@ -112,13 +107,11 @@ private:
     PARAM_CFG_ARRAY         m_configSettings;
     ERC_SETTINGS            m_ercSettings;
     wxPageSetupDialogData   m_pageSetupData;
-    bool                    m_printMonochrome;     ///< Print monochrome instead of grey scale.
+    bool                    m_printMonochrome;    ///< Print monochrome instead of grey scale.
     bool                    m_printSheetReference;
     SCH_ITEM*               m_item_to_repeat;     ///< Last item to insert by the repeat command.
     int                     m_repeatLabelDelta;   ///< Repeat label number increment step.
     SCH_ITEM*               m_undoItem;           ///< Copy of the current item being edited.
-    wxString                m_simulatorCommand;   ///< Command line used to call the circuit
-                                                  ///< simulator (gnucap, spice, ...)
     wxString                m_netListerCommand;   ///< Command line to call a custom net list
                                                   ///< generator.
     int                     m_exec_flags;         ///< Flags of the wxExecute() function
@@ -130,12 +123,10 @@ private:
     bool                    m_autoplaceJustify;   ///< allow autoplace to change justification
     bool                    m_autoplaceAlign;     ///< align autoplaced fields to the grid
     bool                    m_footprintPreview;   ///< whether to show footprint previews
+    bool                    m_showIllegalSymbolLibDialog;
 
-    wxFindReplaceData*      m_findReplaceData;
     DIALOG_SCH_FIND*        m_findReplaceDialog;
     STATUS_TEXT_POPUP*      m_findReplaceStatusPopup;
-    wxArrayString           m_findStringHistoryList;
-    wxArrayString           m_replaceStringHistoryList;
 
     /// Flag to indicate show hidden pins.
     bool        m_showAllPins;
@@ -171,12 +162,12 @@ protected:
      *
      * @return true if the auto save was successful otherwise false.
      */
-    virtual bool doAutoSave() override;
+    bool doAutoSave() override;
 
     /**
      * Returns true if the schematic has been modified.
      */
-    virtual bool isAutoSaveRequired() const override;
+    bool isAutoSaveRequired() const override;
 
     /**
      * Verify that annotation is complete so that a proper netlist is even
@@ -193,7 +184,7 @@ protected:
 
 public:
     SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent );
-    ~SCH_EDIT_FRAME();
+    ~SCH_EDIT_FRAME() override;
 
     SCH_SCREEN* GetScreen() const override;
 
@@ -217,11 +208,11 @@ public:
     bool GetAutoplaceJustify() const { return m_autoplaceJustify; }
     void SetAutoplaceJustify( bool aEnable ) { m_autoplaceJustify = aEnable; }
 
-    const wxString GetNetListFormatName() const { return m_netListFormat; }
+    const wxString& GetNetListFormatName() const { return m_netListFormat; }
     void SetNetListFormatName( const wxString& aFormat ) { m_netListFormat = aFormat; }
 
     bool GetSpiceAjustPassiveValues() const { return m_spiceAjustPassiveValues; }
-    void SetSpiceAjustPassiveValues( bool aEnable ) { m_spiceAjustPassiveValues = aEnable; }
+    void SetSpiceAdjustPassiveValues( bool aEnable ) { m_spiceAjustPassiveValues = aEnable; }
 
     /// accessor to the destination directory to use when generating plot files.
     const wxString& GetPlotDirectoryName() const { return m_plotDirectoryName; }
@@ -230,10 +221,8 @@ public:
     /**
      * Return the project file parameter list for Eeschema.
      *
-     *<p>
      * Populate the project file parameter array specific to Eeschema if it hasn't
      * already been populated and return a reference to the array to the caller.
-     * </p>
      */
     PARAM_CFG_ARRAY& GetProjectFileParameters();
 
@@ -298,7 +287,7 @@ public:
     void CreateScreens();
     void ReCreateHToolbar() override;
     void ReCreateVToolbar() override;
-    void ReCreateOptToolbar();
+    void ReCreateOptToolbar() override;
     void ReCreateMenuBar() override;
 
     /**
@@ -307,6 +296,9 @@ public:
      */
     void OnModify() override;
 
+    /**
+     * Return a human-readable description of the current screen.
+     */
     wxString GetScreenDesc() const override;
 
     /**
@@ -326,20 +318,6 @@ public:
      * @param aUndoAppend True if the action should be appended to the current undo record.
      */
     void AddItemToScreenAndUndoList( SCH_ITEM* aItem, bool aUndoAppend = false );
-
-    /**
-     * Finds a component in the schematic and an item in this component.
-     *
-     * @param aReference The component reference designator to find.
-     * @param aSearchHierarchy If false, search the current sheet only.  Otherwise,
-     *                         the entire hierarchy
-     * @param aSearchType A #SCH_SEARCH_T value used to determine what to search for.
-     * @param aSearchText The text to search for, either in value, reference or elsewhere.
-     */
-    SCH_ITEM* FindComponentAndItem( const wxString& aReference,
-                                    bool            aSearchHierarchy,
-                                    SCH_SEARCH_T    aSearchType,
-                                    const wxString& aSearchText );
 
     /**
      * Run the Find or Find & Replace dialog.
@@ -607,7 +585,6 @@ public:
     void NewProject();
     void LoadProject();
 
-    // read and save files
     void Save_File( bool doSaveAs = false );
 
     bool SaveProject();
@@ -615,33 +592,9 @@ public:
     bool OpenProjectFiles( const std::vector<wxString>& aFileSet, int aCtl = 0 ) override;
 
     /**
-     * Import a KiCad schematic into the current page.
+     * Import a KiCad schematic into the current sheet.
      *
-     * In order to import a schematic a lot of things have to happen to before the contents
-     * of the imported schematic can be appended to the current page.  The following list
-     * describes this process:
-     *
-     * - Load the schematic into a temporary SCH_SHEET object.
-     * - Make sure the imported schematic does not cause any hierarchy recursion issues.
-     * - Verify the imported schematic uses fully qualified #LIB_ID objects (symbol library table).
-     * - Check to see if any symbol libraries need to be added to the current project's symbol
-     *   library table.  This includes:
-     *   - Check if the symbol library already exists in the project or global symbol library
-     *     table.
-     *   - Convert symbol library URLS that use the ${KIPRJMOD} environment variable to absolute
-     *     paths.  ${KIPRJMOD} will not be the same for this project.
-     *   - Check for duplicate symbol library nicknames and change the new symbol library nickname
-     *     to prevent library name clashes.
-     *   - Update all schematic symbol LIB_ID object library nicknames when the library nickname
-     *     was changed to prevent clashes.
-     * - Check for duplicate sheet names which is illegal and automatically rename any duplicate
-     *   sheets in the imported schematic.
-     * - Clear all of the annotation in the imported schematic to prevent clashes.
-     * - Append the objects from the temporary sheet to the current page.
-     * - Replace any duplicate time stamps.
-     * - Refresh the symbol library links.
-     *
-     * @return True if the project was imported properly.
+     * @return True if the schematic was imported properly.
      */
     bool AppendSchematic();
 
@@ -667,8 +620,8 @@ public:
      * Checks if any of the screens has unsaved changes and asks the user whether to save or
      * drop them.
      *
-     * @return True if user decided to save or drop changes, false if the
-     * operation should be canceled.
+     * @return True if user decided to save or drop changes, false if the operation should be
+     *         canceled.
      */
     bool AskToSaveChanges();
 
@@ -684,8 +637,8 @@ public:
     SCH_TEXT* CreateNewText( int aType );
 
     /**
-     * Performs routine schematic cleaning including breaking wire and buses and
-     * deleting identical objects superimposed on top of each other.
+     * Performs routine schematic cleaning including breaking wire and buses and deleting
+     * identical objects superimposed on top of each other.
      *
      * NOTE: always appends to the existing undo state.
      *
@@ -735,23 +688,44 @@ private:
      *
      * If file name defined by SCH_SCREEN::m_FileName is not set, the title is set to the
      * application name appended with no file.
-     * Otherwise, the title is set to the hierarchical sheet path and the full file name,
-     * and read only is appended to the title if the user does not have write
-     * access to the file.
+     * Otherwise, the title is set to the hierarchical sheet path and the full file name, and
+     * read only is appended to the title if the user does not have write access to the file.
      */
     void UpdateTitle();
-
-    /**
-     * Checks all wires and adds any junctions that are missing
-     * (Intended to be called only on file load)
-     */
-    bool AddMissingJunctions( SCH_SCREEN* aScreen );
 
     /**
      * Perform all cleanup and normalization steps so that the whole schematic
      * is in a good state.  This should only be called when loading a file.
      */
     void NormalizeSchematicOnFirstLoad( bool recalculateConnections );
+
+    /**
+     * Verify that \a aSheet will not cause a recursion error in \a aHierarchy.
+     *
+     * @param aSheet is the #SCH_SHEET object to test.
+     * @param aHierarchy is the #SCH_SHEET_PATH where \a aSheet is going to reside.
+     *
+     * @return true if \a aSheet will cause a resursion error in \a aHierarchy.
+     */
+    bool checkSheetForRecursion( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy );
+
+    /**
+     * Verify that the symbol library links \a aSheet and all of it's child sheets have
+     * been remapped to the symbol library table.
+     *
+     * @param aSheet is the #SCH_SHEET object to test.
+     *
+     * @return true if \a aSheet and it's child sheets have not been remapped.
+     */
+    bool checkForNoFullyDefinedLibIds( SCH_SHEET* aSheet );
+
+    /**
+     *  Load the given filename but sets the path to the current project path.
+     *
+     *  @param full filepath of file to be imported.
+     *  @param aFileType SCH_FILE_T value for file type
+     */
+    bool importFile( const wxString& aFileName, int aFileType );
 
 public:
     /**
@@ -798,21 +772,53 @@ public:
 
     void InitSheet( SCH_SHEET* aSheet, const wxString& aNewFilename );
 
-    void LoadSheetFromFile( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy,
-                            const wxString& aExistingFilename );
-
-    wxPoint GetLastSheetPinPosition() const { return m_lastSheetPinPosition; }
-
-private:
     /**
-     *  Load the given filename but sets the path to the current project path.
+     * Load a the KiCad schematic file \a aFileName into the sheet \a aSheet.
      *
-     *  @param full filepath of file to be imported.
-     *  @param aFileType SCH_FILE_T value for file type
+     * If \a aSheet does not have a valid #SCH_SCREEN object, the schematic is loaded into
+     * \a Sheet.  Otherwise, it is appended to the current #SCH_SCREEN object.
+     *
+     * In order to import a schematic a lot of things have to happen to before the contents
+     * of the imported schematic can be appended to the current page.  The following list
+     * describes this process:
+     *
+     * - Load the schematic into a temporary #SCH_SHEET object.
+     * - Make sure the imported schematic does not cause any hierarchy recursion issues.
+     * - Verify the imported schematic uses fully qualified #LIB_ID objects (symbol library table).
+     * - Check all of the possible combinations that could cause broken symbol library links
+     *   and give the user the option to cancel the append process.  The following conditions
+     *   are check but they still do not guarantee that there will not be any broken symbol
+     *   library links:
+     *   - The source schematic is in the current project path and contains symbol library
+     *     nicknames not found in the project symbol library table.  This can happen if the
+     *     schematic is copied to the current project path from another project.
+     *   - The source schematic is in a different path and there are symbol library link nicknames
+     *     that do not exist in either the current symbol library table or the source project
+     *     symbol library table if it exists in the source path.
+     *   - The source schematic is in a different path and contains duplicate symbol library
+     *     nicknames that point to different libraries.
+     * - Check to see if any symbol libraries need to be added to the current project's symbol
+     *   library table.  This includes:
+     *   - Check if the symbol library already exists in the project or global symbol library
+     *     table.
+     *   - Convert symbol library URLS that use the ${KIPRJMOD} environment variable to absolute
+     *     paths.  ${KIPRJMOD} will not be the same for this project.
+     * - Clear all of the annotation in the imported schematic to prevent clashes.
+     * - Append the objects from the temporary sheet to the current page.
+     * - Replace any duplicate time stamps.
+     * - Refresh the symbol library links.
+     *
+     * @param aSheet is the sheet to either append or load the schematic.
+     * @param aHierarchy is the current position in the schematic hierarchy used to test for
+     *                   possible file recursion issues.
+     * @param aFileName is the file name to load.  The file name is expected to have an absolute
+     *                  path.
+     *
+     * @return True if the schematic was imported properly.
      */
-    bool importFile( const wxString& aFileName, int aFileType );
+    bool LoadSheetFromFile( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy,
+                            const wxString& aFileName );
 
-public:
     /**
      * Create a new SCH_SHEET_PIN object and add it to \a aSheet at the current cursor position.
      *
@@ -838,13 +844,11 @@ public:
 
     int GetLabelIncrement() const { return m_repeatLabelDelta; }
 
-public:
     void ConvertPart( SCH_COMPONENT* aComponent );
 
     void SelectUnit( SCH_COMPONENT* aComponent, int aUnit );
 
     /* Undo - redo */
-public:
 
     /**
      * Create a copy of the current schematic item, and put it in the undo list.
@@ -975,10 +979,6 @@ public:
      */
     virtual void PrintPage( wxDC* aDC ) override;
 
-    void SetSimulatorCommand( const wxString& aCommand ) { m_simulatorCommand = aCommand; }
-
-    wxString GetSimulatorCommand() const { return m_simulatorCommand; }
-
     void SetNetListerCommand( const wxString& aCommand ) { m_netListerCommand = aCommand; }
 
     /**
@@ -1016,7 +1016,7 @@ public:
     /**
      * Called after the preferences dialog is run.
      */
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     void ShowChangedLanguage() override;
 
@@ -1025,6 +1025,8 @@ public:
     void SetScreen( BASE_SCREEN* aScreen ) override;
 
     const BOX2I GetDocumentExtents() const override;
+
+    void FixupJunctions();
 
     DECLARE_EVENT_TABLE()
 };

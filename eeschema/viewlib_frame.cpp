@@ -77,7 +77,7 @@ BEGIN_EVENT_TABLE( LIB_VIEW_FRAME, EDA_DRAW_FRAME )
     EVT_LISTBOX_DCLICK( ID_LIBVIEW_CMP_LIST, LIB_VIEW_FRAME::DClickOnCmpList )
 
     // Menu (and/or hotkey) events
-    EVT_MENU( wxID_EXIT, LIB_VIEW_FRAME::CloseLibraryViewer )
+    EVT_MENU( wxID_CLOSE, LIB_VIEW_FRAME::CloseLibraryViewer )
     EVT_MENU( ID_GRID_SETTINGS, SCH_BASE_FRAME::OnGridSettings )
 
     EVT_UPDATE_UI( ID_LIBVIEW_SELECT_PART_NUMBER, LIB_VIEW_FRAME::onUpdateUnitChoice )
@@ -183,7 +183,6 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
     m_auimgr.Update();
 
     GetToolManager()->RunAction( ACTIONS::gridPreset, true, m_LastGridSizeId );
-    GetToolManager()->RunAction( ACTIONS::zoomFitScreen, false );
 
     if( !IsModal() )        // For modal mode, calling ShowModal() will show this frame
     {
@@ -202,6 +201,7 @@ LIB_VIEW_FRAME::LIB_VIEW_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
     bbox.SetOrigin( -max_size_x /2, -max_size_y/2 );
     bbox.SetSize( max_size_x, max_size_y );
     GetCanvas()->GetView()->SetBoundary( bbox );
+    GetToolManager()->RunAction( ACTIONS::zoomFitScreen, true );
 }
 
 
@@ -689,6 +689,15 @@ void LIB_VIEW_FRAME::SaveSettings( wxConfigBase* aCfg )
     aCfg->Write( CMPLIST_WIDTH_KEY, m_cmpListWidth );
 
     aCfg->Write( CMPVIEW_SHOW_PINELECTRICALTYPE_KEY, m_showPinElectricalTypeName );
+}
+
+
+void LIB_VIEW_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
+{
+    SCH_BASE_FRAME::CommonSettingsChanged( aEnvVarsChanged );
+
+    if( aEnvVarsChanged )
+        ReCreateListLib();
 }
 
 

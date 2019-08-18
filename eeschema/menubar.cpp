@@ -4,6 +4,7 @@
  * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2009 Wayne Stambaugh <stambaughw@gmail.com>
  * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2019 CERN
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -115,8 +116,7 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     fileMenu->AddItem( ACTIONS::plot,              EE_CONDITIONS::ShowAlways );
 
     fileMenu->AddSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm, EE_CONDITIONS::ShowAlways );
+    fileMenu->AddQuitOrClose( &Kiface(), _( "Eeschema" ) );
 
     fileMenu->Resolve();
 
@@ -138,16 +138,16 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
     editMenu->AddItem( ACTIONS::cut,                        EE_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::copy,                       EE_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::paste,                      EE_CONDITIONS::Idle );
+    editMenu->AddItem( ACTIONS::doDelete,                   EE_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::duplicate,                  EE_CONDITIONS::NotEmpty );
-
-    editMenu->AddSeparator();
-    editMenu->AddItem( EE_ACTIONS::deleteItemCursor,        EE_CONDITIONS::ShowAlways );
 
     editMenu->AddSeparator();
     editMenu->AddItem( ACTIONS::find,                       EE_CONDITIONS::ShowAlways );
     editMenu->AddItem( ACTIONS::findAndReplace,             EE_CONDITIONS::ShowAlways );
 
     editMenu->AddSeparator();
+    editMenu->AddItem( ACTIONS::deleteTool,                 EE_CONDITIONS::ShowAlways );
+    editMenu->AddItem( EE_ACTIONS::editTextAndGraphics,     EE_CONDITIONS::ShowAlways );
     editMenu->AddItem( EE_ACTIONS::updateFieldsFromLibrary, EE_CONDITIONS::ShowAlways );
 
     editMenu->Resolve();

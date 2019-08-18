@@ -19,27 +19,37 @@ DIALOG_UPDATE_PCB_BASE::DIALOG_UPDATE_PCB_BASE( wxWindow* parent, wxWindowID id,
 	bMainSizer = new wxBoxSizer( wxVERTICAL );
 	
 	wxBoxSizer* bUpperSizer;
-	bUpperSizer = new wxBoxSizer( wxHORIZONTAL );
+	bUpperSizer = new wxBoxSizer( wxVERTICAL );
 	
-	wxString m_matchByTimestampChoices[] = { _("Keep existing symbol to footprint associations"), _("Re-associate footprints by reference") };
+	wxString m_matchByTimestampChoices[] = { _("Update footprint references to match any changed symbol references"), _("Update footprint associations by existing references") };
 	int m_matchByTimestampNChoices = sizeof( m_matchByTimestampChoices ) / sizeof( wxString );
 	m_matchByTimestamp = new wxRadioBox( this, wxID_ANY, _("Match Method"), wxDefaultPosition, wxDefaultSize, m_matchByTimestampNChoices, m_matchByTimestampChoices, 1, wxRA_SPECIFY_COLS );
 	m_matchByTimestamp->SetSelection( 0 );
-	m_matchByTimestamp->SetToolTip( _("Select how footprints are recognized:\nby their reference (U1, R3...) (normal setting)\nor their time stamp (special setting after a full schematic reannotation)") );
+	m_matchByTimestamp->SetToolTip( _("The first option uses the existing links between symbols and their footprints to update the footprints based on changes made to their symbols.  \n\nThe second option uses the symbol and footprint references to establish a new set of links between symbols and footprints, and then updates the footprints accordingly.") );
 	
-	bUpperSizer->Add( m_matchByTimestamp, 1, wxALIGN_TOP|wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 );
+	bUpperSizer->Add( m_matchByTimestamp, 0, wxALIGN_TOP|wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	wxStaticBoxSizer* sbSizer1;
 	sbSizer1 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Options") ), wxVERTICAL );
 	
-	m_cbUpdateFootprints = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _("Update footprints"), wxDefaultPosition, wxDefaultSize, 0 );
-	sbSizer1->Add( m_cbUpdateFootprints, 0, wxBOTTOM, 5 );
+	wxGridBagSizer* gbSizer1;
+	gbSizer1 = new wxGridBagSizer( 2, 0 );
+	gbSizer1->SetFlexibleDirection( wxBOTH );
+	gbSizer1->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_cbDeleteExtraFootprints = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _("Delete extra footprints"), wxDefaultPosition, wxDefaultSize, 0 );
-	sbSizer1->Add( m_cbDeleteExtraFootprints, 0, wxBOTTOM, 5 );
+	m_cbUpdateFootprints = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _("Replace footprints of symbols whose footprint assignments have changed"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbUpdateFootprints->SetToolTip( _("Normally footprints on the board should be changed to match footprint assignment changes made in the schematic. Uncheck this only if you don't want to change existing footprints on the board.") );
 	
-	m_cbDeleteSinglePadNets = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _("Delete single-pad nets"), wxDefaultPosition, wxDefaultSize, 0 );
-	sbSizer1->Add( m_cbDeleteSinglePadNets, 0, wxBOTTOM, 5 );
+	gbSizer1->Add( m_cbUpdateFootprints, wxGBPosition( 0, 0 ), wxGBSpan( 1, 2 ), wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	
+	m_cbDeleteExtraFootprints = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _("Delete footprints with no associated symbol"), wxDefaultPosition, wxDefaultSize, 0 );
+	gbSizer1->Add( m_cbDeleteExtraFootprints, wxGBPosition( 1, 0 ), wxGBSpan( 1, 1 ), wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	
+	m_cbDeleteSinglePadNets = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _("Delete nets containing only a single pad"), wxDefaultPosition, wxDefaultSize, 0 );
+	gbSizer1->Add( m_cbDeleteSinglePadNets, wxGBPosition( 1, 1 ), wxGBSpan( 1, 1 ), wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	
+	
+	sbSizer1->Add( gbSizer1, 1, wxEXPAND, 5 );
 	
 	
 	bUpperSizer->Add( sbSizer1, 1, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 );

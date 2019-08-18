@@ -29,7 +29,7 @@
 #include <macros.h>
 #include <dlist.h>
 #include <sch_item.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 #include <base_screen.h>
 #include <title_block.h>
 #include <page_info.h>
@@ -583,6 +583,17 @@ public:
      * @return the number of symbol library nicknames that were changed.
      */
     int ChangeSymbolLibNickname( const wxString& aFrom, const wxString& aTo );
+
+    /**
+     * Check if one of the schematics in the list of screens is \a aSchematicFileName.
+     *
+     * Schematic file names in SCH_SCREEN object are stored with the absolute path to
+     * the schematic file.
+     *
+     * @param aSchematicFileName is the schematic file name to search.
+     * @return true if the a schematic matching the file name has been found.
+     */
+    bool HasSchematic( const wxString& aSchematicFileName );
 
     /**
      * built the list of sheet paths sharing a screen for each screen in use

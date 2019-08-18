@@ -645,12 +645,22 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
                 DRAWSEGMENT* dseg = new DRAWSEGMENT( m_board );
                 m_board->Add( dseg, ADD_APPEND );
 
+                int width = c.width.ToPcbUnits();
+                int radius = c.radius.ToPcbUnits();
+
+                // with == 0 means filled circle
+                if( width <= 0 )
+                {
+                    width = radius;
+                    radius = radius / 2;
+                }
+
                 dseg->SetShape( S_CIRCLE );
                 dseg->SetTimeStamp( EagleTimeStamp( gr ) );
                 dseg->SetLayer( layer );
                 dseg->SetStart( wxPoint( kicad_x( c.x ), kicad_y( c.y ) ) );
-                dseg->SetEnd( wxPoint( kicad_x( c.x + c.radius ), kicad_y( c.y ) ) );
-                dseg->SetWidth( c.width.ToPcbUnits() );
+                dseg->SetEnd( wxPoint( kicad_x( c.x ) + radius, kicad_y( c.y ) ) );
+                dseg->SetWidth( width );
             }
             m_xpath->pop();
         }
@@ -1186,7 +1196,7 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
     // We trace the zone such that the copper is completely inside.
     if( p.width.ToPcbUnits() > 0 )
     {
-        polygon.Inflate( p.width.ToPcbUnits() / 2, true );
+        polygon.Inflate( p.width.ToPcbUnits() / 2, 32, SHAPE_POLY_SET::ALLOW_ACUTE_CORNERS );
         polygon.Fracture( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
     }
 
@@ -1199,12 +1209,15 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
         zone->SetDoNotAllowCopperPour( true );
         zone->SetHatchStyle( ZONE_CONTAINER::NO_HATCH );
     }
+    else if( p.pour == EPOLYGON::HATCH )
+    {
+        int spacing = p.spacing ? p.spacing->ToPcbUnits() : 50 * IU_PER_MILS;
 
-    // if spacing is set the zone should be hatched
-    // However, use the default hatch step, p.spacing value has no meaning for KiCad
-    // TODO: see if this parameter is related to a grid fill option.
-    if( p.spacing )
-        zone->SetHatch( ZONE_CONTAINER::DIAGONAL_EDGE, zone->GetDefaultHatchPitch(), true );
+        zone->SetFillMode( ZFM_HATCH_PATTERN );
+        zone->SetHatchFillTypeThickness( p.width.ToPcbUnits() );
+        zone->SetHatchFillTypeGap( spacing - p.width.ToPcbUnits() );
+        zone->SetHatchFillTypeOrientation( 0 );
+    }
 
     // We divide the thickness by half because we are tracing _inside_ the zone outline
     // This means the radius of curvature will be twice the size for an equivalent EAGLE zone
@@ -1237,8 +1250,8 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
 }
 
 
-void EAGLE_PLUGIN::orientModuleAndText( MODULE* m, const EELEMENT& e,
-                    const EATTR* nameAttr, const EATTR* valueAttr )
+void EAGLE_PLUGIN::orientModuleAndText( MODULE* m, const EELEMENT& e, const EATTR* nameAttr,
+                                        const EATTR* valueAttr )
 {
     if( e.rot )
     {
@@ -1246,7 +1259,7 @@ void EAGLE_PLUGIN::orientModuleAndText( MODULE* m, const EELEMENT& e,
         {
             double orientation = e.rot->degrees + 180.0;
             m->SetOrientation( orientation * 10 );
-            m->Flip( m->GetPosition() );
+            m->Flip( m->GetPosition(), false );
         }
         else
             m->SetOrientation( e.rot->degrees * 10 );
@@ -1526,7 +1539,11 @@ void EAGLE_PLUGIN::packagePad( MODULE* aModule, wxXmlNode* aTree ) const
         shape = m_rules->psBottom;
 
     pad->SetDrillSize( wxSize( e.drill.ToPcbUnits(), e.drill.ToPcbUnits() ) );
-    pad->SetLayerSet( LSET::AllCuMask().set( B_Mask ).set( F_Mask ) );
+    pad->SetLayerSet( LSET::AllCuMask() );
+
+    // Solder mask
+    if( !e.stop || *e.stop == true )         // enabled by default
+        pad->SetLayerSet( pad->GetLayerSet().set( B_Mask ).set( F_Mask ) );
 
     if( shape == EPAD::ROUND || shape == EPAD::SQUARE || shape == EPAD::OCTAGON )
         e.shape = shape;
@@ -1970,6 +1987,15 @@ void EAGLE_PLUGIN::packageSMD( MODULE* aModule, wxXmlNode* aTree ) const
                 (int) ( m_rules->mvCreamFrame * minPadSize ),
                 m_rules->mlMaxCreamFrame ) );
 
+    // Solder mask
+    if( e.stop && *e.stop == false )         // enabled by default
+    {
+        if( layer == F_Cu )
+            pad->SetLayerSet( pad->GetLayerSet().set( F_Mask, false ) );
+        else if( layer == B_Cu )
+            pad->SetLayerSet( pad->GetLayerSet().set( B_Mask, false ) );
+    }
+
     // Solder paste (only for SMD pads)
     if( e.cream && *e.cream == false )         // enabled by default
     {
@@ -1993,12 +2019,9 @@ void EAGLE_PLUGIN::transferPad( const EPAD_COMMON& aEaglePad, D_PAD* aPad ) cons
     // Solder mask
     const wxSize& padSize( aPad->GetSize() );
 
-    if( !aEaglePad.stop || !*aEaglePad.stop )     // enabled by default
-    {
-        aPad->SetLocalSolderMaskMargin( eagleClamp( m_rules->mlMinStopFrame,
-                    (int)( m_rules->mvStopFrame * std::min( padSize.x, padSize.y ) ),
-                    m_rules->mlMaxStopFrame ) );
-    }
+    aPad->SetLocalSolderMaskMargin( eagleClamp( m_rules->mlMinStopFrame,
+                (int)( m_rules->mvStopFrame * std::min( padSize.x, padSize.y ) ),
+                m_rules->mlMaxStopFrame ) );
 
     // Solid connection to copper zones
     if( aEaglePad.thermals && !*aEaglePad.thermals )

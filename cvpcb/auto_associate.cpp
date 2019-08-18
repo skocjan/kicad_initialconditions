@@ -31,19 +31,14 @@
 // 'FT232BL'		'QFP:LQFP-32_7x7mm_Pitch0.8mm'
 
 
-#include <fctsys.h>
-#include <common.h>
 #include <kiface_i.h>
-#include <project.h>
-#include <gestfich.h>
-#include <pgm_base.h>
 #include <kicad_string.h>
 #include <macros.h>
 
-#include <cvpcb.h>
+#include <auto_associate.h>
+#include <cvpcb_association.h>
 #include <cvpcb_mainframe.h>
 #include <listboxes.h>
-#include <auto_associate.h>
 
 #define QUOTE   '\''
 
@@ -167,7 +162,7 @@ int CVPCB_MAINFRAME::buildEquivalenceList( FOOTPRINT_EQUIVALENCE_LIST& aList, wx
 }
 
 
-void CVPCB_MAINFRAME::AutomaticFootprintMatching( wxCommandEvent& event )
+void CVPCB_MAINFRAME::AutomaticFootprintMatching()
 {
     FOOTPRINT_EQUIVALENCE_LIST equiv_List;
     wxString             msg, error_msg;
@@ -192,6 +187,7 @@ void CVPCB_MAINFRAME::AutomaticFootprintMatching( wxCommandEvent& event )
     m_skipComponentSelect = true;
     error_msg.Empty();
 
+    bool firstAssoc = true;
     for( unsigned kk = 0;  kk < m_netlist.GetCount();  kk++ )
     {
         COMPONENT* component = m_netlist.GetComponent( kk );
@@ -231,7 +227,9 @@ void CVPCB_MAINFRAME::AutomaticFootprintMatching( wxCommandEvent& event )
             // If the equivalence is unique, no ambiguity: use the association
             if( module && equ_is_unique )
             {
-                SetNewPkg( equivItem.m_FootprintFPID, kk );
+                AssociateFootprint( CVPCB_ASSOCIATION( kk, equivItem.m_FootprintFPID ),
+                        firstAssoc );
+                firstAssoc = false;
                 found = true;
                 break;
             }
@@ -269,7 +267,8 @@ void CVPCB_MAINFRAME::AutomaticFootprintMatching( wxCommandEvent& event )
 
             if( found )
             {
-                SetNewPkg( equivItem.m_FootprintFPID, kk );
+                AssociateFootprint( CVPCB_ASSOCIATION( kk, equivItem.m_FootprintFPID ), firstAssoc );
+                firstAssoc = false;
                 break;
             }
         }
@@ -278,7 +277,8 @@ void CVPCB_MAINFRAME::AutomaticFootprintMatching( wxCommandEvent& event )
             continue;
         else if( !fpid_candidate.IsEmpty() )
         {
-            SetNewPkg( fpid_candidate, kk );
+            AssociateFootprint( CVPCB_ASSOCIATION( kk, fpid_candidate ), firstAssoc );
+            firstAssoc = false;
             continue;
         }
 
@@ -291,7 +291,9 @@ void CVPCB_MAINFRAME::AutomaticFootprintMatching( wxCommandEvent& event )
 
             if( module )
             {
-                SetNewPkg( component->GetFootprintFilters()[0], kk );
+                AssociateFootprint( CVPCB_ASSOCIATION( kk, component->GetFootprintFilters()[0] ),
+                        firstAssoc );
+                firstAssoc = false;
             }
         }
     }

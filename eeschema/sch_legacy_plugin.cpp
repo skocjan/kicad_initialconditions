@@ -787,6 +787,8 @@ void SCH_LEGACY_PLUGIN::LoadContent( LINE_READER& aReader, SCH_SCREEN* aScreen, 
             aScreen->AddBusAlias( loadBusAlias( aReader, aScreen ) );
         else if( strCompare( "$EndSCHEMATC", line ) )
             return;
+        else
+            SCH_PARSE_ERROR( "unrecognized token", aReader, line );
     }
 }
 
@@ -2444,14 +2446,8 @@ void SCH_LEGACY_PLUGIN_CACHE::Load()
 {
     if( !m_libFileName.FileExists() )
     {
-        wxString msg = wxString::Format( _( "Library file \"%s\" not found.\n\n"
-                                            "Use the Manage Symbol Libraries dialog to fix the "
-                                            "path (or remove the library)." ),
-                                         m_libFileName.GetFullPath() );
-        KIDIALOG dlg( Pgm().App().GetTopWindow(), msg, KIDIALOG::KD_ERROR );
-        dlg.DoNotShowCheckbox( __FILE__, __LINE__ );
-        dlg.ShowModal();
-        return;
+        THROW_IO_ERROR( wxString::Format( _( "Library file \"%s\" not found." ),
+                                          m_libFileName.GetFullPath() ) );
     }
 
     wxCHECK_RET( m_libFileName.IsAbsolute(),
@@ -2705,7 +2701,8 @@ LIB_PART* SCH_LEGACY_PLUGIN_CACHE::LoadPart( LINE_READER& aReader, int aMajorVer
     while( *line == '#' )
         aReader.ReadLine();
 
-    wxCHECK( strCompare( "DEF", line, &line ), NULL );
+    if( !strCompare( "DEF", line, &line ) )
+        SCH_PARSE_ERROR( "invalid symbol definition", aReader, line );
 
     long num;
     size_t pos = 4;                               // "DEF" plus the first space.
@@ -2929,6 +2926,7 @@ void SCH_LEGACY_PLUGIN_CACHE::loadField( std::unique_ptr<LIB_PART>& aPart,
 
     wxCHECK_RET( *line == 'F', "Invalid field line" );
 
+    wxString    text;
     int         id;
 
     if( sscanf( line + 1, "%d", &id ) != 1 || id < 0 )
@@ -2958,12 +2956,16 @@ void SCH_LEGACY_PLUGIN_CACHE::loadField( std::unique_ptr<LIB_PART>& aPart,
     if( *line == 0 )
         SCH_PARSE_ERROR( _( "unexpected end of line" ), aReader, line );
 
-    parseQuotedString( field->m_Text, aReader, line, &line, true );
+    parseQuotedString( text, aReader, line, &line, true );
+
+    field->SetText( text );
 
     // Doctor the *.lib file field which has a "~" in blank fields.  New saves will
     // not save like this.
-    if( field->m_Text.size() == 1 && field->m_Text[0] == '~' )
-        field->m_Text.clear();
+    if( text.size() == 1 && text[0] == '~' )
+        field->SetText( wxEmptyString );
+    else
+        field->SetText( text );
 
     wxPoint pos;
 
@@ -3056,7 +3058,7 @@ void SCH_LEGACY_PLUGIN_CACHE::loadField( std::unique_ptr<LIB_PART>& aPart,
         // Ensure the VALUE field = the part name (can be not the case
         // with malformed libraries: edited by hand, or converted from other tools)
         if( id == VALUE )
-            field->m_Text = aPart->GetName();
+            field->SetText( aPart->GetName() );
     }
     else
     {
@@ -3879,7 +3881,7 @@ void SCH_LEGACY_PLUGIN_CACHE::saveField( LIB_FIELD* aField,
 
     int      hjustify, vjustify;
     int      id = aField->GetId();
-    wxString text = aField->m_Text;
+    wxString text = aField->GetText();
 
     hjustify = 'C';
 
@@ -4244,19 +4246,6 @@ int SCH_LEGACY_PLUGIN::GetModifyHash() const
 
     // If the cache hasn't been loaded, it hasn't been modified.
     return 0;
-}
-
-
-size_t SCH_LEGACY_PLUGIN::GetSymbolLibCount( const wxString&   aLibraryPath,
-                                             const PROPERTIES* aProperties )
-{
-    LOCALE_IO toggle;
-
-    m_props = aProperties;
-
-    cacheLib( aLibraryPath );
-
-    return m_cache->m_aliases.size();
 }
 
 

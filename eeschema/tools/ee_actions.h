@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -93,7 +94,6 @@ public:
     static TOOL_ACTION placeSchematicText;
     static TOOL_ACTION drawLines;
     static TOOL_ACTION placeImage;
-    static TOOL_ACTION deleteItemCursor;
     static TOOL_ACTION finishLineWireOrBus;
     static TOOL_ACTION finishWire;
     static TOOL_ACTION finishBus;
@@ -179,9 +179,9 @@ public:
 
     // Miscellaneous
     static TOOL_ACTION cleanupSheetPins;
+    static TOOL_ACTION editTextAndGraphics;
     static TOOL_ACTION toggleHiddenPins;
     static TOOL_ACTION toggleSyncedPinsMode;
-    static TOOL_ACTION refreshPreview;
     static TOOL_ACTION restartMove;
     static TOOL_ACTION explicitCrossProbe;
     static TOOL_ACTION pushPinLength;
@@ -202,7 +202,7 @@ public:
     static TOOL_ACTION highlightNet;
     static TOOL_ACTION clearHighlight;
     static TOOL_ACTION updateNetHighlighting;
-    static TOOL_ACTION highlightNetCursor;
+    static TOOL_ACTION highlightNetTool;
 
     ///> @copydoc COMMON_ACTIONS::TranslateLegacyId()
     virtual OPT<TOOL_EVENT> TranslateLegacyId( int aId ) override 

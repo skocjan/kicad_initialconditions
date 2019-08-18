@@ -94,6 +94,7 @@ VIA* VIA::Clone() const
     v->m_rank = m_rank;
     v->m_marker = m_marker;
     v->m_viaType = m_viaType;
+    v->m_parent = m_parent;
 
     return v;
 }
@@ -109,6 +110,16 @@ OPT_BOX2I VIA::ChangedArea( const VIA* aOther ) const
     }
 
     return OPT_BOX2I();
+}
+
+const VIA_HANDLE VIA::MakeHandle() const
+{
+    VIA_HANDLE h;
+    h.pos = Pos();
+    h.layers = Layers();
+    h.net = Net();
+    h.valid = true;
+    return h;
 }
 
 }

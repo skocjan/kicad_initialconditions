@@ -122,30 +122,35 @@ public:
      * Function RunAction()
      * Runs the specified action.
      *
+     * This function will only return if the action has been handled when the action is run
+     * immediately (aNow = true), otherwise it will always return false.
+     *
      * @param aAction is the action to be invoked.
      * @param aNow decides if the action has to be run immediately or after the current coroutine
      * is preemptied.
      * @param aParam is an optional parameter that might be used by the invoked action. Its meaning
      * depends on the action.
+     *
+     * @return True if the action was handled immediately
      */
-    template<typename T>
-    void RunAction( const TOOL_ACTION& aAction, bool aNow = false, T aParam = NULL )
+    template <typename T>
+    bool RunAction( const TOOL_ACTION& aAction, bool aNow = false, T aParam = NULL )
     {
-        RunAction( aAction, aNow, reinterpret_cast<void*>( aParam ) );
+        return RunAction( aAction, aNow, reinterpret_cast<void*>( aParam ) );
     }
 
-    void RunAction( const TOOL_ACTION& aAction, bool aNow, void* aParam );
+    bool RunAction( const TOOL_ACTION& aAction, bool aNow, void* aParam );
 
-    void RunAction( const TOOL_ACTION& aAction, bool aNow = false )
+    bool RunAction( const TOOL_ACTION& aAction, bool aNow = false )
     {
-        RunAction( aAction, aNow, (void*) NULL );
+        return RunAction( aAction, aNow, (void*) NULL );
     }
 
     const std::map<std::string, TOOL_ACTION*>& GetActions();
-    
+
     ///> @copydoc ACTION_MANAGER::GetHotKey()
     int GetHotKey( const TOOL_ACTION& aAction );
-    
+
     ACTION_MANAGER* GetActionManager() { return m_actionMgr; }
 
     /**
@@ -382,15 +387,15 @@ private:
      * Function dispatchInternal
      * Passes an event at first to the active tools, then to all others.
      */
-    void dispatchInternal( const TOOL_EVENT& aEvent );
+    bool dispatchInternal( const TOOL_EVENT& aEvent );
 
     /**
      * Function dispatchStandardEvents()
      * Handles specific events, that are intended for TOOL_MANAGER rather than tools.
      * @param aEvent is the event to be processed.
-     * @return False if the event was processed and should not go any further.
+     * @return true if the event was processed and should not go any further.
      */
-    bool dispatchStandardEvents( const TOOL_EVENT& aEvent );
+    bool dispatchHotKey( const TOOL_EVENT& aEvent );
 
     /**
      * Function dispatchActivation()

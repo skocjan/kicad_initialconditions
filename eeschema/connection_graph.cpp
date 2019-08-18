@@ -802,13 +802,13 @@ void CONNECTION_GRAPH::buildConnectionGraph()
                 case SCH_HIER_LABEL_T:
                 {
                     auto text = static_cast<SCH_TEXT*>( driver );
-                    connection->ConfigureFromLabel( text->GetShownText() );
+                    connection->ConfigureFromLabel( text->GetText() );
                     break;
                 }
                 case SCH_SHEET_PIN_T:
                 {
                     auto pin = static_cast<SCH_SHEET_PIN*>( driver );
-                    connection->ConfigureFromLabel( pin->GetShownText() );
+                    connection->ConfigureFromLabel( pin->GetText() );
                     break;
                 }
                 case SCH_PIN_T:
@@ -1116,7 +1116,7 @@ void CONNECTION_GRAPH::buildConnectionGraph()
                     {
                         auto text = static_cast<SCH_TEXT*>( possible_driver );
                         auto c = std::make_shared<SCH_CONNECTION>( text, aSubgraph->m_sheet );
-                        c->ConfigureFromLabel( text->GetShownText() );
+                        c->ConfigureFromLabel( text->GetText() );
 
                         if( c->Type() != aSubgraph->m_driver_connection->Type() )
                             continue;
@@ -1183,7 +1183,9 @@ void CONNECTION_GRAPH::buildConnectionGraph()
 
                         if( driver->Type() == SCH_PIN_T )
                         {
-                            if( static_cast<SCH_PIN*>( driver )->GetName() == test_name )
+                            auto pin = static_cast<SCH_PIN*>( driver );
+
+                            if( pin->IsPowerConnection() && pin->GetName() == test_name )
                             {
                                 match = true;
                                 break;
@@ -1346,7 +1348,7 @@ void CONNECTION_GRAPH::buildConnectionGraph()
 
             for( CONNECTION_SUBGRAPH* parent : it.second )
             {
-                if( parent->m_absorbed )
+                while( parent->m_absorbed )
                     parent = parent->m_absorbed_by;
 
                 SCH_CONNECTION* match = matchBusMember( parent->m_driver_connection, link_member );
@@ -1372,7 +1374,7 @@ void CONNECTION_GRAPH::buildConnectionGraph()
 
                     for( CONNECTION_SUBGRAPH* old_sg : m_net_name_to_subgraphs_map.at( old_name ) )
                     {
-                        if( old_sg->m_absorbed )
+                        while( old_sg->m_absorbed )
                             old_sg = old_sg->m_absorbed_by;
 
                         old_sg->m_driver_connection->Clone( *conn );
@@ -1530,7 +1532,7 @@ void CONNECTION_GRAPH::propagateToNeighbors( CONNECTION_SUBGRAPH* aSubgraph )
             for( CONNECTION_SUBGRAPH* neighbor : kv.second )
             {
                 // May have been absorbed but won't have been deleted
-                if( neighbor->m_absorbed )
+                while( neighbor->m_absorbed )
                     neighbor = neighbor->m_absorbed_by;
 
                 SCH_CONNECTION* parent = aParentGraph->m_driver_connection;
@@ -2104,8 +2106,8 @@ bool CONNECTION_GRAPH::ercCheckNoConnects( const CONNECTION_SUBGRAPH* aSubgraph,
                 wxPoint pos = pin->GetTransformedPosition();
 
                 msg.Printf( _( "Pin %s of component %s has a no-connect marker but is connected" ),
-                        GetChars( pin->GetName() ),
-                        GetChars( pin->GetParentComponent()->GetRef( &aSubgraph->m_sheet ) ) );
+                            pin->GetName(),
+                            pin->GetParentComponent()->GetRef( &aSubgraph->m_sheet ) );
 
                 auto marker = new SCH_MARKER();
                 marker->SetTimeStamp( GetNewTimeStamp() );
@@ -2156,22 +2158,22 @@ bool CONNECTION_GRAPH::ercCheckNoConnects( const CONNECTION_SUBGRAPH* aSubgraph,
                     pin = static_cast<SCH_PIN*>( item );
                 else
                     has_other_connections = true;
+
                 break;
 
             default:
                 if( item->IsConnectable() )
                     has_other_connections = true;
+
                 break;
             }
         }
 
-        // Check if invisible power pins connect to anything else
-        // Note this won't catch if a component has multiple invisible power
-        // pins but these don't connect to any other net; maybe that should be
-        // added as a further optional ERC check.
+        // Check if invisible power pins connect to anything else.
+        // Note this won't catch a component with multiple invisible power pins but these don't
+        // connect to any other net; maybe that should be added as a further optional ERC check?
 
-        if( pin && !has_other_connections &&
-            pin->IsPowerConnection() && !pin->IsVisible() )
+        if( pin && !has_other_connections && pin->IsPowerConnection() && !pin->IsVisible() )
         {
             wxString name = pin->Connection( sheet )->Name();
             wxString local_name = pin->Connection( sheet )->Name( true );
@@ -2190,8 +2192,8 @@ bool CONNECTION_GRAPH::ercCheckNoConnects( const CONNECTION_SUBGRAPH* aSubgraph,
                 wxPoint pos = pin->GetTransformedPosition();
 
                 msg.Printf( _( "Pin %s of component %s is unconnected." ),
-                        GetChars( pin->GetName() ),
-                        GetChars( pin->GetParentComponent()->GetRef( &aSubgraph->m_sheet ) ) );
+                            pin->GetName(),
+                            pin->GetParentComponent()->GetRef( &aSubgraph->m_sheet ) );
 
                 auto marker = new SCH_MARKER();
                 marker->SetTimeStamp( GetNewTimeStamp() );

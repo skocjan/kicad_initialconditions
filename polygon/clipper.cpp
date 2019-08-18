@@ -5369,6 +5369,8 @@ void ClipperOffset::OffsetPoint( int j, int& k, JoinType jointype )
 
             if( r >= m_miterLim )
                 DoMiter( j, k, r );
+            else if( MiterFallback == jtRound )
+                DoRound( j, k );
             else
                 DoSquare( j, k );
 

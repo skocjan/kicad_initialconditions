@@ -42,9 +42,8 @@
 #include <html_messagebox.h>
 #include <reporter.h>
 #include <bom_plugins.h>
-#include <make_unique.h>
 
-#include <dialog_bom_cfg_lexer.h>
+#include <dialogs/dialog_bom_cfg_lexer.h>
 
 static constexpr wxChar BOM_TRACE[] = wxT( "BOM_GENERATORS" );
 
@@ -480,6 +479,9 @@ void DIALOG_BOM::OnRunGenerator( wxCommandEvent& event )
                                 fullfilename, 0, &reporter );
 
     m_Messages->SetValue( reportmsg );
+
+    // Force focus back on the dialog
+    SetFocus();
 }
 
 

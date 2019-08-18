@@ -27,24 +27,13 @@
  * @file cvpcb.cpp
  */
 
-#include <fctsys.h>
-#include <macros.h>
+#include <confirm.h>
 #include <fp_lib_table.h>
 #include <kiface_i.h>
 #include <pgm_base.h>
-#include <confirm.h>
 
-#include <cvpcb.h>
 #include <cvpcb_mainframe.h>
 #include <display_footprints_frame.h>
-#include <cvpcb_id.h>
-
-#include <build_version.h>
-
-#include <wx/snglinst.h>
-
-// Constant string definitions for CvPcb
-const wxString EquFileExtension( wxT( "equ" ) );
 
 
 namespace CV {

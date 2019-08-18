@@ -89,6 +89,7 @@ public:
 
     void OnCloseWindow( wxCloseEvent& Event ) override;
     void CloseModuleEditor( wxCommandEvent& Event );
+    void OnExitKiCad( wxCommandEvent& aEvent );
 
     /**
      * switches currently used canvas (Cairo / OpenGL).
@@ -324,7 +325,7 @@ public:
     /**
      * Called after the preferences dialog is run.
      */
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     /**
      * Synchronize the footprint library tree to the current state of the footprint library

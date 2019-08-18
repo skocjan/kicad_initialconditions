@@ -23,16 +23,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
 #include <base_units.h>
-#include <confirm.h>
-#include <pcb_edit_frame.h>
-#include <board_design_settings.h>
 #include <bitmaps.h>
-#include <widgets/wx_grid.h>
+#include <board_design_settings.h>
+#include <confirm.h>
 #include <grid_tricks.h>
 #include <panel_setup_netclasses.h>
-
+#include <pcb_edit_frame.h>
+#include <tool/tool_manager.h>
+#include <widgets/wx_grid.h>
 
 // Columns of netclasses grid
 enum {
@@ -60,6 +59,14 @@ PANEL_SETUP_NETCLASSES::PANEL_SETUP_NETCLASSES( PAGED_DIALOG* aParent, PCB_EDIT_
     m_ConstraintsPanel = aConstraintsPanel;
 
     m_netclassesDirty = true;
+
+    // Figure out the smallest the netclass membership pane can ever be so that nothing is cutoff
+    // and force it to be that size.
+    m_membershipSize = GetSize();
+    m_membershipSize.y -= m_netclassesPane->GetSize().y;
+    m_membershipSize.x = -1;
+    m_membershipPane->SetMinSize( m_membershipSize );
+    m_membershipPane->SetMaxSize( m_membershipSize );
 
     // Prevent Size events from firing before we are ready
     Freeze();
@@ -268,6 +275,9 @@ bool PANEL_SETUP_NETCLASSES::TransferDataFromWindow()
     m_Pcb->SynchronizeNetsAndNetClasses();
     m_BrdSettings->SetCurrentNetClass( NETCLASS::Default );
 
+    if( auto toolmgr = m_Frame->GetToolManager() )
+        toolmgr->ResetTools( TOOL_BASE::MODEL_RELOAD );
+
     return true;
 }
 
@@ -469,6 +479,17 @@ void PANEL_SETUP_NETCLASSES::OnUpdateUI( wxUpdateUIEvent& event )
         rebuildNetclassDropdowns();
         m_netclassesDirty = false;
     }
+
+    // Recompute the desired size for the two content panes. We cannot leave this sizing to
+    // wxWidgets because it wants to shrink the membership panel to an unusable size when the
+    // netlist panel grows, and also it introduces undesired artifacts when the window is resized
+    // and the panes can grow/shrink.
+    wxSize netclassSize = GetClientSize();
+    netclassSize.y -= m_membershipSize.y;
+
+    m_netclassesPane->SetMinSize( netclassSize );
+    m_netclassesPane->SetMaxSize( netclassSize );
+    Layout();
 }
 
 

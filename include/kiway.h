@@ -365,7 +365,7 @@ public:
      * Calls CommonSettingsChanged() on all KIWAY_PLAYERs.
      * Used after changing suite-wide options such as panning, autosave interval, etc.
      */
-    VTBL_ENTRY void CommonSettingsChanged();
+    VTBL_ENTRY void CommonSettingsChanged( bool aEnvVarsChanged );
 
     KIWAY( PGM_BASE* aProgram, int aCtlBits, wxFrame* aTop = NULL );
 
@@ -378,6 +378,8 @@ public:
      * @param aTop is the top most wxFrame in the entire program.
      */
     void SetTop( wxFrame* aTop );
+
+    void OnKiCadExit();
 
     void OnKiwayEnd();
 

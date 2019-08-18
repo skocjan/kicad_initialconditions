@@ -30,7 +30,6 @@
 #include <wildcards_and_files_ext.h>
 #include <base_units.h>
 #include <trace_helpers.h>
-
 #include <class_board.h>
 #include <class_module.h>
 #include <class_pcb_text.h>
@@ -44,7 +43,6 @@
 #include <zones.h>
 #include <kicad_plugin.h>
 #include <pcb_parser.h>
-
 #include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/wfstream.h>
@@ -52,6 +50,7 @@
 #include <memory.h>
 #include <connectivity/connectivity_data.h>
 #include <convert_basic_shapes_to_polygon.h>    // for enum RECT_CHAMFER_POSITIONS definition
+#include <kiface_i.h>
 
 using namespace PCB_KEYS_T;
 
@@ -477,10 +476,12 @@ void PCB_IO::formatSetup( BOARD* aBoard, int aNestLevel ) const
     m_out->Print( aNestLevel+1, "(last_trace_width %s)\n",
                   FormatInternalUnits( dsnSettings.GetCurrentTrackWidth() ).c_str() );
 
-    // Save custom tracks width list (the first is not saved here: this is the netclass value
+    // Save custom track widths list (the first is not saved here: it's the netclass value)
     for( unsigned ii = 1; ii < dsnSettings.m_TrackWidthList.size(); ii++ )
+    {
         m_out->Print( aNestLevel+1, "(user_trace_width %s)\n",
                       FormatInternalUnits( dsnSettings.m_TrackWidthList[ii] ).c_str() );
+    }
 
     m_out->Print( aNestLevel+1, "(trace_clearance %s)\n",
                   FormatInternalUnits( dsnSettings.GetDefault()->GetClearance() ).c_str() );
@@ -504,12 +505,20 @@ void PCB_IO::formatSetup( BOARD* aBoard, int aNestLevel ) const
     m_out->Print( aNestLevel+1, "(via_min_drill %s)\n",
                   FormatInternalUnits( dsnSettings.m_ViasMinDrill ).c_str() );
 
-    // Save custom vias diameters list (the first is not saved here: this is
-    // the netclass value
+    // Save custom via dimensions list (the first is not saved here: it's the netclass value)
     for( unsigned ii = 1; ii < dsnSettings.m_ViasDimensionsList.size(); ii++ )
         m_out->Print( aNestLevel+1, "(user_via %s %s)\n",
                       FormatInternalUnits( dsnSettings.m_ViasDimensionsList[ii].m_Diameter ).c_str(),
                       FormatInternalUnits( dsnSettings.m_ViasDimensionsList[ii].m_Drill ).c_str() );
+
+    // Save custom diff-pair dimensions (the first is not saved here: it's the netclass value)
+    for( unsigned ii = 1; ii < dsnSettings.m_DiffPairDimensionsList.size(); ii++ )
+    {
+        m_out->Print( aNestLevel+1, "(user_diff_pair %s %s %s)\n",
+                      FormatInternalUnits( dsnSettings.m_DiffPairDimensionsList[ii].m_Width ).c_str(),
+                      FormatInternalUnits( dsnSettings.m_DiffPairDimensionsList[ii].m_Gap ).c_str(),
+                      FormatInternalUnits( dsnSettings.m_DiffPairDimensionsList[ii].m_ViaGap ).c_str() );
+    }
 
     // for old versions compatibility:
     if( dsnSettings.m_BlindBuriedViaAllowed )
@@ -533,28 +542,7 @@ void PCB_IO::formatSetup( BOARD* aBoard, int aNestLevel ) const
     if( dsnSettings.m_ZoneUseNoOutlineInFill )
         m_out->Print( aNestLevel+1, "(filled_areas_thickness no)\n" );
 
-    // 6.0 TODO: are we going to update the tokens we save these under?
-    // 6.0 TODO: need to save the LAYER_CLASS_OTHERS stuff
-    // 6.0 TODO: need to save the TextItalic and TextUpright settings
-
-    m_out->Print( aNestLevel+1, "(edge_width %s)\n",
-                  FormatInternalUnits( dsnSettings.m_LineThickness[ LAYER_CLASS_EDGES ] ).c_str() );
-
-    m_out->Print( aNestLevel+1, "(segment_width %s)\n",
-                  FormatInternalUnits( dsnSettings.m_LineThickness[ LAYER_CLASS_COPPER ] ).c_str() );
-    m_out->Print( aNestLevel+1, "(pcb_text_width %s)\n",
-                  FormatInternalUnits( dsnSettings.m_TextThickness[ LAYER_CLASS_COPPER ] ).c_str() );
-    m_out->Print( aNestLevel+1, "(pcb_text_size %s %s)\n",
-                  FormatInternalUnits( dsnSettings.m_TextSize[ LAYER_CLASS_COPPER ].x ).c_str(),
-                  FormatInternalUnits( dsnSettings.m_TextSize[ LAYER_CLASS_COPPER ].y ).c_str() );
-
-    m_out->Print( aNestLevel+1, "(mod_edge_width %s)\n",
-                  FormatInternalUnits( dsnSettings.m_LineThickness[ LAYER_CLASS_SILK ] ).c_str() );
-    m_out->Print( aNestLevel+1, "(mod_text_size %s %s)\n",
-                  FormatInternalUnits( dsnSettings.m_TextSize[ LAYER_CLASS_SILK ].x ).c_str(),
-                  FormatInternalUnits( dsnSettings.m_TextSize[ LAYER_CLASS_SILK ].y ).c_str() );
-    m_out->Print( aNestLevel+1, "(mod_text_width %s)\n",
-                  FormatInternalUnits( dsnSettings.m_TextThickness[ LAYER_CLASS_SILK ] ).c_str() );
+    formatDefaults( dsnSettings, aNestLevel+1 );
 
     m_out->Print( aNestLevel+1, "(pad_size %s %s)\n",
                   FormatInternalUnits( dsnSettings.m_Pad_Master.GetSize().x ).c_str(),
@@ -592,6 +580,50 @@ void PCB_IO::formatSetup( BOARD* aBoard, int aNestLevel ) const
     aBoard->GetPlotOptions().Format( m_out, aNestLevel+1 );
 
     m_out->Print( aNestLevel, ")\n\n" );
+}
+
+
+void PCB_IO::formatDefaults( const BOARD_DESIGN_SETTINGS& aSettings, int aNestLevel ) const
+{
+    m_out->Print( aNestLevel, "(defaults\n" );
+
+    m_out->Print( aNestLevel+1, "(edge_clearance %s)\n",
+                  FormatInternalUnits( aSettings.m_CopperEdgeClearance ).c_str() );
+
+    m_out->Print( aNestLevel+1, "(edge_cuts_line_width %s)\n",
+                  FormatInternalUnits( aSettings.m_LineThickness[ LAYER_CLASS_EDGES ] ).c_str() );
+
+    m_out->Print( aNestLevel+1, "(courtyard_line_width %s)\n",
+                  FormatInternalUnits( aSettings.m_LineThickness[ LAYER_CLASS_COURTYARD ] ).c_str() );
+
+    m_out->Print( aNestLevel+1, "(copper_line_width %s)\n",
+                  FormatInternalUnits( aSettings.m_LineThickness[ LAYER_CLASS_COPPER ] ).c_str() );
+    m_out->Print( aNestLevel+1, "(copper_text_dims (size %s %s) (thickness %s)%s%s)\n",
+                  FormatInternalUnits( aSettings.m_TextSize[ LAYER_CLASS_COPPER ].x ).c_str(),
+                  FormatInternalUnits( aSettings.m_TextSize[ LAYER_CLASS_COPPER ].y ).c_str(),
+                  FormatInternalUnits( aSettings.m_TextThickness[ LAYER_CLASS_COPPER ] ).c_str(),
+                  aSettings.m_TextItalic[ LAYER_CLASS_COPPER ] ? " italic" : "",
+                  aSettings.m_TextUpright[ LAYER_CLASS_COPPER ] ? " keep_upright" : "" );
+
+    m_out->Print( aNestLevel+1, "(silk_line_width %s)\n",
+                  FormatInternalUnits( aSettings.m_LineThickness[ LAYER_CLASS_SILK ] ).c_str() );
+    m_out->Print( aNestLevel+1, "(silk_text_dims (size %s %s) (thickness %s)%s%s)\n",
+                  FormatInternalUnits( aSettings.m_TextSize[ LAYER_CLASS_SILK ].x ).c_str(),
+                  FormatInternalUnits( aSettings.m_TextSize[ LAYER_CLASS_SILK ].y ).c_str(),
+                  FormatInternalUnits( aSettings.m_TextThickness[ LAYER_CLASS_SILK ] ).c_str(),
+                  aSettings.m_TextItalic[ LAYER_CLASS_SILK ] ? " italic" : "",
+                  aSettings.m_TextUpright[ LAYER_CLASS_SILK ] ? " keep_upright" : "" );
+
+    m_out->Print( aNestLevel+1, "(other_layers_line_width %s)\n",
+                  FormatInternalUnits( aSettings.m_LineThickness[ LAYER_CLASS_OTHERS ] ).c_str() );
+    m_out->Print( aNestLevel+1, "(other_layers_text_dims (size %s %s) (thickness %s)%s%s)\n",
+                  FormatInternalUnits( aSettings.m_TextSize[ LAYER_CLASS_OTHERS ].x ).c_str(),
+                  FormatInternalUnits( aSettings.m_TextSize[ LAYER_CLASS_OTHERS ].y ).c_str(),
+                  FormatInternalUnits( aSettings.m_TextThickness[ LAYER_CLASS_OTHERS ] ).c_str(),
+                  aSettings.m_TextItalic[ LAYER_CLASS_OTHERS ] ? " italic" : "",
+                  aSettings.m_TextUpright[ LAYER_CLASS_OTHERS ] ? " keep_upright" : "" );
+
+    m_out->Print( aNestLevel, ")\n" );
 }
 
 
@@ -742,9 +774,6 @@ void PCB_IO::format( BOARD* aBoard, int aNestLevel ) const
 
     if( aBoard->Tracks().size() )
         m_out->Print( 0, "\n" );
-
-    /// @todo Add warning here that the old segment filed zones are no longer supported and
-    ///       will not be saved.
 
     // Save the polygon (which are the newer technology) zones.
     for( int i = 0; i < aBoard->GetAreaCount();  ++i )
@@ -2057,9 +2086,7 @@ const MODULE* PCB_IO::getFootprint( const wxString& aLibraryPath,
     MODULE_CITER it = mods.find( aFootprintName );
 
     if( it == mods.end() )
-    {
-        return NULL;
-    }
+        return nullptr;
 
     return it->second->GetModule();
 }
@@ -2070,6 +2097,22 @@ const MODULE* PCB_IO::GetEnumeratedFootprint( const wxString& aLibraryPath,
                                               const PROPERTIES* aProperties )
 {
     return getFootprint( aLibraryPath, aFootprintName, aProperties, false );
+}
+
+
+bool PCB_IO::FootprintExists( const wxString& aLibraryPath, const wxString& aFootprintName,
+                              const PROPERTIES* aProperties )
+{
+    // Note: checking the cache sounds like a good idea, but won't catch files which differ
+    // only in case.
+    //
+    // Since this goes out to the native filesystem, we get platform differences (ie: MSW's
+    // case-insensitive filesystem) handled "for free".
+    // Warning: footprint names frequently contain a point. So be careful when initializing
+    // wxFileName, and use a CTOR with extension specified
+    wxFileName footprintFile( aLibraryPath, aFootprintName, KiCadFootprintFileExtension );
+
+    return footprintFile.Exists();
 }
 
 
@@ -2168,11 +2211,16 @@ void PCB_IO::FootprintSave( const wxString& aLibraryPath, const MODULE* aFootpri
     // and it's time stamp must be 0, it should have no parent, orientation should
     // be zero, and it should be on the front layer.
     module->SetTimeStamp( 0 );
-    module->SetParent( 0 );
+    module->SetParent( nullptr );
     module->SetOrientation( 0 );
 
     if( module->GetLayer() != F_Cu )
-        module->Flip( module->GetPosition() );
+    {
+	if( m_board != nullptr )
+            module->Flip( module->GetPosition(), m_board->GeneralSettings().m_FlipLeftRight );
+	else
+	   module->Flip( module->GetPosition(), false );
+    }
 
     wxLogTrace( traceKicadPcbPlugin, wxT( "Creating s-expr footprint file '%s'." ), fullPath );
     mods.insert( footprintName, new FP_CACHE_ITEM( module, WX_FILENAME( fn.GetPath(), fullName ) ) );

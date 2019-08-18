@@ -167,11 +167,14 @@ public:
     void MirrorY( int aYaxis_position ) override;
     void Rotate( wxPoint aPosition ) override;
 
-    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData ) override;
+    bool Matches( wxFindReplaceData& aSearchData, void* aAuxData ) override
+    {
+        return SCH_ITEM::Matches( GetText(), aSearchData );
+    }
 
     bool Replace( wxFindReplaceData& aSearchData, void* aAuxData = NULL ) override
     {
-        return EDA_ITEM::Replace( aSearchData, m_Text );
+        return EDA_TEXT::Replace( aSearchData );
     }
 
     bool IsReplaceable() const override { return true; }
@@ -418,7 +421,7 @@ public:
     /**
      * Search the existing hierarchy for an instance of screen loaded from \a aFileName.
      *
-     * @param aFilename = the filename to find
+     * @param aFilename = the filename to find (MUST be absolute, and in wxPATH_NATIVE encoding)
      * @param aScreen = a location to return a pointer to the screen (if found)
      * @return bool if found, and a pointer to the screen
      */

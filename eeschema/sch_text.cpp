@@ -138,8 +138,9 @@ EDA_ITEM* SCH_TEXT::Clone() const
 
 void SCH_TEXT::IncrementLabel( int aIncrement )
 {
-    IncrementLabelMember( m_Text, aIncrement );
-    m_shown_text = UnescapeString( m_Text );
+    wxString text = GetText();
+    IncrementLabelMember( text, aIncrement );
+    SetText(text );
 }
 
 
@@ -160,14 +161,6 @@ wxPoint SCH_TEXT::GetSchematicTextOffset() const
     }
 
     return text_offset;
-}
-
-
-bool SCH_TEXT::Matches( wxFindReplaceData& aSearchData, void* aAuxData )
-{
-    wxLogTrace( traceFindItem, wxT( "  item " ) + GetSelectMenuText( MILLIMETRES ) );
-
-    return SCH_ITEM::Matches( m_Text, aSearchData );
 }
 
 
@@ -274,13 +267,13 @@ void SCH_TEXT::SwapData( SCH_ITEM* aItem )
 {
     SCH_TEXT* item = (SCH_TEXT*) aItem;
 
-    std::swap( m_Text, item->m_Text );
     std::swap( m_Layer, item->m_Layer );
 
     std::swap( m_shape, item->m_shape );
     std::swap( m_isDangling, item->m_isDangling );
     std::swap( m_spin_style, item->m_spin_style );
 
+    SwapText( *item );
     SwapEffects( *item );
 }
 
@@ -477,13 +470,13 @@ void SCH_TEXT::GetNetListItem( NETLIST_OBJECT_LIST& aNetListItems,
     else if( GetLayer() == LAYER_HIERLABEL )
         item->m_Type = NET_HIERLABEL;
 
-    item->m_Label = m_Text;
+    item->m_Label = GetText();
     item->m_Start = item->m_End = GetTextPos();
 
     aNetListItems.push_back( item );
 
     // If a bus connects to label
-    if( Connection( *aSheetPath )->IsBusLabel( m_Text ) )
+    if( Connection( *aSheetPath )->IsBusLabel( GetText() ) )
         item->ConvertBusToNetListItems( aNetListItems );
 }
 
@@ -638,7 +631,7 @@ void SCH_TEXT::Show( int nestLevel, std::ostream& os ) const
                                  << " shape=\"" << m_shape << '"'
                                  << " dangling=\"" << m_isDangling << '"'
                                  << '>'
-                                 << TO_UTF8( m_Text )
+                                 << TO_UTF8( GetText() )
                                  << "</" << s.Lower().mb_str() << ">\n";
 }
 
@@ -658,6 +651,38 @@ SCH_LABEL::SCH_LABEL( const wxPoint& pos, const wxString& text ) :
 EDA_ITEM* SCH_LABEL::Clone() const
 {
     return new SCH_LABEL( *this );
+}
+
+
+bool SCH_LABEL::IsType( const KICAD_T aScanTypes[] )
+{
+    static KICAD_T wireTypes[] = { SCH_LINE_LOCATE_WIRE_T, EOT };
+    static KICAD_T busTypes[] = { SCH_LINE_LOCATE_BUS_T, EOT };
+
+    if( SCH_ITEM::IsType( aScanTypes ) )
+        return true;
+
+    for( const KICAD_T* p = aScanTypes; *p != EOT; ++p )
+    {
+        if( *p == SCH_LABEL_LOCATE_WIRE_T )
+        {
+            for( SCH_ITEM* connection : m_connected_items )
+            {
+                if( connection->IsType( wireTypes ) )
+                    return true;
+            }
+        }
+        else if ( *p == SCH_LABEL_LOCATE_BUS_T )
+        {
+            for( SCH_ITEM* connection : m_connected_items )
+            {
+                if( connection->IsType( busTypes ) )
+                    return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 
@@ -824,39 +849,31 @@ void SCH_GLOBALLABEL::CreateGraphicShape( std::vector <wxPoint>& aPoints, const 
 
     // Use negation bar Y position to calculate full vertical size
     // Search for overbar symbol
-    bool hasOverBar = false;
+    wxString test = GetText();
+    test.Replace( "~~", "" );
+    bool hasOverBar = test.find( "~" ) != wxString::npos;
 
-    for( unsigned ii = 1; ii < m_Text.size(); ii++ )
-    {
-        if( m_Text[ii-1] == '~' && m_Text[ii] != '~' )
-        {
-            hasOverBar = true;
-            break;
-        }
-    }
+    #define V_MARGIN 1.40
+    // Note: this factor is due to the fact the Y size of a few letters like '[' are bigger
+    // than the y size value, and we need a margin for the graphic symbol.
+    int y = KiROUND( halfSize * V_MARGIN );
 
-    #define Y_CORRECTION 1.40
-    // Note: this factor is due to the fact the Y size of a few letters like [
-    // are bigger than the y size value, and we need a margin for the graphic symbol.
-    int y = KiROUND( halfSize * Y_CORRECTION );
-
+    #define OVERBAR_V_MARGIN 1.2
     // Note: this factor is due to the fact we need a margin for the graphic symbol.
-    #define Y_OVERBAR_CORRECTION 1.2
     if( hasOverBar )
-        y = KiROUND( KIGFX::STROKE_FONT::GetInterline( halfSize, linewidth )
-                     * Y_OVERBAR_CORRECTION );
+        y = KiROUND( KIGFX::STROKE_FONT::GetInterline( halfSize ) * OVERBAR_V_MARGIN );
 
     // Gives room for line thickess and margin
-    y += linewidth          // for line thickess
-         + linewidth/2;     // for margin
+    y += linewidth;         // for line thickess
+    y += linewidth / 2;     // for margin
 
     // Starting point(anchor)
-    aPoints.push_back( wxPoint( 0, 0 ) );
-    aPoints.push_back( wxPoint( 0, -y ) );     // Up
-    aPoints.push_back( wxPoint( -x, -y ) );    // left
-    aPoints.push_back( wxPoint( -x, 0 ) );     // Up left
-    aPoints.push_back( wxPoint( -x, y ) );     // left down
-    aPoints.push_back( wxPoint( 0, y ) );      // down
+    aPoints.emplace_back( wxPoint( 0, 0 ) );
+    aPoints.emplace_back( wxPoint( 0, -y ) );     // Up
+    aPoints.emplace_back( wxPoint( -x, -y ) );    // left
+    aPoints.emplace_back( wxPoint( -x, 0 ) );     // Up left
+    aPoints.emplace_back( wxPoint( -x, y ) );     // left down
+    aPoints.emplace_back( wxPoint( 0, y ) );      // down
 
     int x_offset = 0;
 

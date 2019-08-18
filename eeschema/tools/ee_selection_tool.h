@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -74,11 +75,6 @@ public:
      */
     int Main( const TOOL_EVENT& aEvent );
 
-    /*
-     * Main() is always running, so this just clears the frame's tool stack.
-     */
-    int SelectionTool( const TOOL_EVENT& aEvent );
-
     /**
      * Function GetSelection()
      *
@@ -106,7 +102,8 @@ public:
      */
     EDA_ITEM* SelectPoint( const VECTOR2I& aWhere,
                            const KICAD_T* aFilterList = EE_COLLECTOR::AllItems,
-                           bool* aSelectionCancelledFlag = NULL, bool aCheckLocked = false );
+                           bool* aSelectionCancelledFlag = NULL, bool aCheckLocked = false,
+                           bool aAdd = false, bool aSubtract = false, bool aExclusiveOr = false );
 
     int AddItemToSel( const TOOL_EVENT& aEvent );
     void AddItemToSel( EDA_ITEM* aItem, bool aQuietMode = false );
@@ -136,6 +133,19 @@ public:
     void ClearSelection();
 
     /**
+     * Function Selectable()
+     * Checks conditions for an item to be selected.
+     * @return True if the item fulfills conditions to be selected.
+     */
+    bool Selectable( const EDA_ITEM* aItem, bool checkVisibilityOnly = false ) const;
+
+    /**
+     * Apply heuristics to try and determine a single object when multiple are found under the
+     * cursor.
+     */
+    void GuessSelectionCandidates( EE_COLLECTOR& collector, const VECTOR2I& aPos );
+
+    /**
      * Function SelectionMenu()
      * Shows a popup menu to trim the COLLECTOR passed as aEvent's parameter down to a single
      * item.
@@ -161,35 +171,12 @@ private:
     bool selectMultiple();
 
     /**
-     * Apply heuristics to try and determine a single object when multiple are found under the
-     * cursor.
-     */
-    void guessSelectionCandidates( EE_COLLECTOR& collector, const VECTOR2I& aWhere );
-
-    /**
      * Allows the selection of a single item from a list via pop-up menu.  The items are
      * highlighted on the canvas when hovered in the menu.  The collector is trimmed to
      * the picked item.
      * @return true if an item was picked
      */
     bool doSelectionMenu( EE_COLLECTOR* aItems );
-
-    /**
-     * Function toggleSelection()
-     * Changes selection status of a given item.
-     *
-     * @param aItem is the item to have selection status changed.
-     * @param aForce causes the toggle to happen without checking selectability
-     */
-    void toggleSelection( EDA_ITEM* aItem, bool aForce = false );
-
-    /**
-     * Function selectable()
-     * Checks conditions for an item to be selected.
-     *
-     * @return True if the item fulfills conditions to be selected.
-     */
-    bool selectable( const EDA_ITEM* aItem, bool checkVisibilityOnly = false ) const;
 
     /**
      * Function select()
@@ -247,6 +234,7 @@ private:
 
     bool m_additive;             // Items should be added to selection (instead of replacing)
     bool m_subtractive;          // Items should be removed from selection
+    bool m_exclusive_or;         // Items' selection state should be toggled
     bool m_multiple;             // Multiple selection mode is active
     bool m_skip_heuristics;      // Heuristics are not allowed when choosing item under cursor
 

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct 17 2018)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -53,11 +53,8 @@ class PANEL_EESCHEMA_SETTINGS_BASE : public wxPanel
 		wxStaticText* m_vPitchUnits;
 		wxStaticText* m_staticText16;
 		wxSpinCtrl* m_spinRepeatLabel;
-		wxStaticText* m_staticText161;
-		wxChoice* m_choiceMouseAction;
 		wxCheckBox* m_checkHVOrientation;
-		wxCheckBox* m_moveWarpsCursor;
-		wxCheckBox* m_moveTakesCursorAsOrigin;
+		wxCheckBox* m_mouseDragIsDrag;
 		wxCheckBox* m_checkAutoplaceFields;
 		wxCheckBox* m_checkAutoplaceJustify;
 		wxCheckBox* m_checkAutoplaceAlign;
@@ -69,7 +66,7 @@ class PANEL_EESCHEMA_SETTINGS_BASE : public wxPanel
 	
 	public:
 		
-		PANEL_EESCHEMA_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL, const wxString& name = wxEmptyString ); 
+		PANEL_EESCHEMA_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL ); 
 		~PANEL_EESCHEMA_SETTINGS_BASE();
 	
 };

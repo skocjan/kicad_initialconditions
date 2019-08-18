@@ -563,7 +563,6 @@ void DIALOG_PAD_PROPERTIES::initValues()
     // because nets are living only in the board managed by the board editor
     m_canEditNetName = m_parent->IsType( FRAME_PCB );
 
-
     // Setup layers names from board
     // Should be made first, before calling m_rbCopperLayersSel->SetSelection()
     m_rbCopperLayersSel->SetString( 0, m_board->GetLayerName( F_Cu ) );
@@ -670,28 +669,13 @@ void DIALOG_PAD_PROPERTIES::initValues()
     else
         m_SolderPasteMarginRatioCtrl->SetValue( msg );
 
-    switch( m_dummyPad->GetZoneConnection() )
+    switch( m_dummyPad->GetLocalZoneConnection() )
     {
     default:
-    case PAD_ZONE_CONN_INHERITED:
-        m_ZoneConnectionChoice->SetSelection( 0 );
-        m_ZoneConnectionCustom->SetSelection( 0 );
-        break;
-
-    case PAD_ZONE_CONN_FULL:
-        m_ZoneConnectionChoice->SetSelection( 1 );
-        m_ZoneConnectionCustom->SetSelection( 1 );
-        break;
-
-    case PAD_ZONE_CONN_THERMAL:
-        m_ZoneConnectionChoice->SetSelection( 2 );
-        m_ZoneConnectionCustom->SetSelection( 0 );
-        break;
-
-    case PAD_ZONE_CONN_NONE:
-        m_ZoneConnectionChoice->SetSelection( 3 );
-        m_ZoneConnectionCustom->SetSelection( 0 );
-        break;
+    case PAD_ZONE_CONN_INHERITED: m_ZoneConnectionChoice->SetSelection( 0 ); break;
+    case PAD_ZONE_CONN_FULL:      m_ZoneConnectionChoice->SetSelection( 1 ); break;
+    case PAD_ZONE_CONN_THERMAL:   m_ZoneConnectionChoice->SetSelection( 2 ); break;
+    case PAD_ZONE_CONN_NONE:      m_ZoneConnectionChoice->SetSelection( 3 ); break;
     }
 
     if( m_dummyPad->GetCustomShapeInZoneOpt() == CUST_PAD_SHAPE_IN_ZONE_CONVEXHULL )
@@ -727,11 +711,11 @@ void DIALOG_PAD_PROPERTIES::initValues()
     switch( m_dummyPad->GetShape() )
     {
     default:
-    case PAD_SHAPE_CIRCLE:    m_PadShape->SetSelection( CHOICE_SHAPE_CIRCLE ); break;
-    case PAD_SHAPE_OVAL:      m_PadShape->SetSelection( CHOICE_SHAPE_OVAL ); break;
-    case PAD_SHAPE_RECT:      m_PadShape->SetSelection( CHOICE_SHAPE_RECT ); break;
-    case PAD_SHAPE_TRAPEZOID: m_PadShape->SetSelection( CHOICE_SHAPE_TRAPEZOID ); break;
-    case PAD_SHAPE_ROUNDRECT: m_PadShape->SetSelection( CHOICE_SHAPE_ROUNDRECT ); break;
+    case PAD_SHAPE_CIRCLE:         m_PadShape->SetSelection( CHOICE_SHAPE_CIRCLE );         break;
+    case PAD_SHAPE_OVAL:           m_PadShape->SetSelection( CHOICE_SHAPE_OVAL );           break;
+    case PAD_SHAPE_RECT:           m_PadShape->SetSelection( CHOICE_SHAPE_RECT );           break;
+    case PAD_SHAPE_TRAPEZOID:      m_PadShape->SetSelection( CHOICE_SHAPE_TRAPEZOID );      break;
+    case PAD_SHAPE_ROUNDRECT:      m_PadShape->SetSelection( CHOICE_SHAPE_ROUNDRECT );      break;
     case PAD_SHAPE_CHAMFERED_RECT: m_PadShape->SetSelection( CHOICE_SHAPE_CHAMFERED_RECT ); break;
 
     case PAD_SHAPE_CUSTOM:
@@ -751,7 +735,10 @@ void DIALOG_PAD_PROPERTIES::initValues()
     enablePrimitivePage( PAD_SHAPE_CUSTOM == m_dummyPad->GetShape() );
 
     // Type of pad selection
-    if( m_dummyPad->GetAttribute() == PAD_ATTRIB_CONN && m_dummyPad->IsAperturePad() )
+    bool aperture = m_dummyPad->GetAttribute() == PAD_ATTRIB_CONN && m_dummyPad->IsAperturePad();
+    bool mechanical = m_dummyPad->GetAttribute() == PAD_ATTRIB_HOLE_NOT_PLATED;
+
+    if( aperture )
     {
         m_PadType->SetSelection( 4 );
     }
@@ -766,14 +753,12 @@ void DIALOG_PAD_PROPERTIES::initValues()
         }
     }
 
-    // Disable Pad name,and pad to die length for NPTH pads (mechanical pads)
-    bool enable = m_dummyPad->GetAttribute() != PAD_ATTRIB_HOLE_NOT_PLATED;
-
-    m_PadNumText->Enable( enable );
-    m_PadNumCtrl->Enable( enable );
-    m_PadNameText->Enable( enable && m_canEditNetName && m_currentPad );
-    m_PadNetSelector->Enable( enable && m_canEditNetName && m_currentPad );
-    m_padToDie.Enable( enable );
+    // Disable Pad name,and pad to die length for mechanical and aperture pads
+    m_PadNumText->Enable( !mechanical && !aperture );
+    m_PadNumCtrl->Enable( !mechanical && !aperture );
+    m_PadNameText->Enable( !mechanical && !aperture && m_canEditNetName && m_currentPad );
+    m_PadNetSelector->Enable( !mechanical && !aperture && m_canEditNetName && m_currentPad );
+    m_padToDie.Enable( !mechanical && !aperture );
 
     if( m_dummyPad->GetDrillShape() != PAD_DRILL_SHAPE_OBLONG )
         m_holeShapeCtrl->SetSelection( 0 );
@@ -988,16 +973,8 @@ void DIALOG_PAD_PROPERTIES::OnPadShapeSelection( wxCommandEvent& event )
     m_cbBottomRight->Enable( chamfered_rect_enable );
     m_tcChamferRatio->Enable( chamfered_rect_enable );
 
-    // PAD_SHAPE_CUSTOM type has constraints for zone connection and thermal shape:
-    // only not connected or solid connection is allowed to avoid destroying the shape.
-    // Enable/disable options only available for custom shaped pads
-    m_ZoneConnectionChoice->Enable( !is_custom );
-    m_ZoneConnectionCustom->Enable( is_custom );
-    m_spokeWidth.Enable( !is_custom );
-    m_thermalGap.Enable( !is_custom );
-
-    m_sbSizerZonesSettings->Show( !is_custom );
-    m_sbSizerCustomShapedZonesSettings->Show( is_custom );
+    m_staticTextcps->Enable( is_custom );
+    m_ZoneCustomPadShape->Enable( is_custom );
 
     transferDataToPad( m_dummyPad );
 
@@ -1524,17 +1501,7 @@ bool DIALOG_PAD_PROPERTIES::TransferDataFromWindow()
     m_currentPad->SetRoundRectRadiusRatio( m_padMaster->GetRoundRectRadiusRatio() );
     m_currentPad->SetChamferRectRatio( m_padMaster->GetChamferRectRatio() );
     m_currentPad->SetChamferPositions( m_padMaster->GetChamferPositions() );
-
-    if( m_currentPad->GetShape() == PAD_SHAPE_CUSTOM )
-    {
-        if( m_padMaster->GetZoneConnection() == PAD_ZONE_CONN_FULL )
-            m_currentPad->SetZoneConnection( PAD_ZONE_CONN_FULL );
-        else
-            m_currentPad->SetZoneConnection( PAD_ZONE_CONN_NONE );
-    }
-    else
-        m_currentPad->SetZoneConnection( m_padMaster->GetZoneConnection() );
-
+    m_currentPad->SetZoneConnection( m_padMaster->GetZoneConnection() );
 
     // rounded rect pads with radius ratio = 0 are in fact rect pads.
     // So set the right shape (and perhaps issues with a radius = 0)
@@ -1611,15 +1578,6 @@ bool DIALOG_PAD_PROPERTIES::transferDataToPad( D_PAD* aPad )
     case 1: aPad->SetZoneConnection( PAD_ZONE_CONN_FULL );      break;
     case 2: aPad->SetZoneConnection( PAD_ZONE_CONN_THERMAL );   break;
     case 3: aPad->SetZoneConnection( PAD_ZONE_CONN_NONE );      break;
-    }
-
-    // Custom shape has only 2 options:
-    if( aPad->GetShape() == PAD_SHAPE_CUSTOM )
-    {
-        if( m_ZoneConnectionCustom->GetSelection() == 0 )
-            aPad->SetZoneConnection( PAD_ZONE_CONN_NONE );
-        else
-            aPad->SetZoneConnection( PAD_ZONE_CONN_FULL );
     }
 
     aPad->SetPosition( wxPoint( m_posX.GetValue(), m_posY.GetValue() ) );

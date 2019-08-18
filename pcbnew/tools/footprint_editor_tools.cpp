@@ -114,7 +114,7 @@ bool MODULE_EDITOR_TOOLS::Init()
     ctxMenu.AddSeparator();
     ctxMenu.AddItem( PCB_ACTIONS::importFootprint,   SELECTION_CONDITIONS::ShowAlways );
     ctxMenu.AddItem( PCB_ACTIONS::exportFootprint,   fpSelectedCondition );
-    
+
     return true;
 }
 
@@ -166,7 +166,7 @@ int MODULE_EDITOR_TOOLS::CutCopyFootprint( const TOOL_EVENT& aEvent )
         m_copiedModule.reset( new MODULE( *m_frame->GetBoard()->GetFirstModule() ) );
     else
         m_copiedModule.reset( m_frame->LoadFootprint( fpID ) );
-    
+
     if( aEvent.IsAction( &PCB_ACTIONS::cutFootprint ) )
         DeleteFootprint(aEvent );
 
@@ -238,12 +238,12 @@ int MODULE_EDITOR_TOOLS::ExportFootprint( const TOOL_EVENT& aEvent )
 {
     LIB_ID  fpID = m_frame->GetTreeFPID();
     MODULE* fp;
-    
+
     if( !fpID.IsValid() )
         fp = m_frame->GetBoard()->GetFirstModule();
     else
         fp = m_frame->LoadFootprint( fpID );
-    
+
     m_frame->Export_Module( fp );
     return 0;
 }
@@ -285,6 +285,9 @@ int MODULE_EDITOR_TOOLS::DefaultPadProperties( const TOOL_EVENT& aEvent )
 
 int MODULE_EDITOR_TOOLS::PlacePad( const TOOL_EVENT& aEvent )
 {
+    if( !m_frame->GetBoard()->GetFirstModule() )
+        return 0;
+
     struct PAD_PLACER : public INTERACTIVE_PLACER_BASE
     {
         std::unique_ptr<BOARD_ITEM> CreateItem() override
@@ -313,13 +316,8 @@ int MODULE_EDITOR_TOOLS::PlacePad( const TOOL_EVENT& aEvent )
 
     PAD_PLACER placer;
 
-    m_frame->SetToolID( ID_MODEDIT_PAD_TOOL, wxCURSOR_PENCIL, _( "Add pads" ) );
-
-    wxASSERT( board()->GetFirstModule() );
-
-    doInteractiveItemPlacement( &placer,  _( "Place pad" ), IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP );
-
-    m_frame->SetNoToolSelected();
+    doInteractiveItemPlacement( aEvent.GetCommandStr().get(), &placer,  _( "Place pad" ),
+                                IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP );
 
     return 0;
 }
@@ -353,6 +351,7 @@ int MODULE_EDITOR_TOOLS::ExplodePadToShapes( const TOOL_EVENT& aEvent )
         // Fix an arbitray draw layer for this EDGE_MODULE
         ds->SetLayer( Dwgs_User ); //pad->GetLayer() );
         ds->Move( anchor );
+        ds->Rotate( anchor, pad->GetOrientation() );
 
         commit.Add( ds );
     }
@@ -449,6 +448,8 @@ int MODULE_EDITOR_TOOLS::CreatePadFromShapes( const TOOL_EVENT& aEvent )
         return 0;
     }
 
+    double refOrientation = 0.0;
+
     if( refPad )
     {
         pad.reset( static_cast<D_PAD*>( refPad->Clone() ) );
@@ -456,9 +457,10 @@ int MODULE_EDITOR_TOOLS::CreatePadFromShapes( const TOOL_EVENT& aEvent )
         if( refPad->GetShape() == PAD_SHAPE_RECT )
             pad->SetAnchorPadShape( PAD_SHAPE_RECT );
 
-        // ignore the pad orientation and offset for the moment. Makes more trouble than it's worth.
-        pad->SetOrientation( 0 );
+        // ignore the pad offset for the moment. Makes more trouble than it's worth.
         pad->SetOffset( wxPoint( 0, 0 ) );
+        refOrientation = pad->GetOrientation();
+        pad->SetOrientation( 0.0 );
     }
     else
     {
@@ -500,14 +502,15 @@ int MODULE_EDITOR_TOOLS::CreatePadFromShapes( const TOOL_EVENT& aEvent )
     for( auto& shape : shapes )
     {
         shape.Move( wxPoint( -anchor->x, -anchor->y ) );
+        shape.Rotate( wxPoint( 0, 0 ), -refOrientation );
     }
-
 
     pad->SetPosition( wxPoint( anchor->x, anchor->y ) );
     pad->AddPrimitives( shapes );
     pad->ClearFlags();
 
     bool result = pad->MergePrimitivesAsPolygon();
+    pad->Rotate( wxPoint( anchor->x, anchor->y ), refOrientation );
 
     if( !result )
     {

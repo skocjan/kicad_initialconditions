@@ -22,11 +22,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file  eda_3d_viewer.cpp
- * @brief Implements a 3d viewer windows GUI
- */
-
 #include "eda_3d_viewer.h"
 
 #include "../3d_viewer_id.h"
@@ -42,7 +37,6 @@
 #include <tool/common_control.h>
 #include <hotkeys_basic.h>
 #include <wx/colordlg.h>
-#include <wx/colourdata.h>
 #include <wx/toolbar.h>
 
 
@@ -86,11 +80,8 @@ static const wxChar keyBoardBodyColor_Red[]     = wxT( "BoardBodyColor_Red" );
 static const wxChar keyBoardBodyColor_Green[]   = wxT( "BoardBodyColor_Green" );
 static const wxChar keyBoardBodyColor_Blue[]    = wxT( "BoardBodyColor_Blue" );
 
-static const wxChar keyMousewheelPanning[]      = wxT( "MousewheelPAN3D" );
-
 static const wxChar keyShowRealisticMode[]      = wxT( "ShowRealisticMode" );
 static const wxChar keyRenderEngine[]           = wxT( "RenderEngine" );
-//static const wxChar keyRenderTextures[]         = wxT( "Render_Textures" );
 static const wxChar keyRenderMaterial[]         = wxT( "Render_Material" );
 
 static const wxChar keyRenderOGL_ShowCopperTck[]= wxT( "Render_OGL_ShowCopperThickness" );
@@ -131,11 +122,16 @@ BEGIN_EVENT_TABLE( EDA_3D_VIEWER, EDA_BASE_FRAME )
 
     EVT_TOOL( ID_TOOL_SET_VISIBLE_ITEMS, EDA_3D_VIEWER::Install3DViewOptionDialog )
 
-    EVT_MENU( wxID_EXIT, EDA_3D_VIEWER::Exit3DFrame )
+    EVT_MENU( wxID_CLOSE, EDA_3D_VIEWER::Exit3DFrame )
     EVT_MENU( ID_RENDER_CURRENT_VIEW, EDA_3D_VIEWER::OnRenderEngineSelection )
     EVT_MENU( ID_DISABLE_RAY_TRACING, EDA_3D_VIEWER::OnDisableRayTracing )
 
     EVT_MENU_RANGE( ID_MENU3D_GRID, ID_MENU3D_GRID_END, EDA_3D_VIEWER::On3DGridSelection )
+
+    EVT_UPDATE_UI( ID_RENDER_CURRENT_VIEW, EDA_3D_VIEWER::OnUpdateUIEngine )
+    EVT_UPDATE_UI_RANGE( ID_MENU3D_FL_RENDER_MATERIAL_MODE_NORMAL,
+                         ID_MENU3D_FL_RENDER_MATERIAL_MODE_CAD_MODE,
+                         EDA_3D_VIEWER::OnUpdateUIMaterial )
 
     EVT_CLOSE( EDA_3D_VIEWER::OnCloseWindow )
 END_EVENT_TABLE()
@@ -220,7 +216,7 @@ EDA_3D_VIEWER::~EDA_3D_VIEWER()
 
     // m_canvas delete will be called by wxWidget manager
     //delete m_canvas;
-    //m_canvas = 0;
+    //m_canvas = nullptr;
 }
 
 
@@ -260,7 +256,7 @@ void EDA_3D_VIEWER::OnCloseWindow( wxCloseEvent &event )
 
     // m_canvas delete will be called by wxWidget manager
     //delete m_canvas;
-    //m_canvas = 0;
+    //m_canvas = nullptr;
 
     Destroy();
     event.Skip( true );
@@ -580,6 +576,21 @@ void EDA_3D_VIEWER::On3DGridSelection( wxCommandEvent &event )
     default: wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::On3DGridSelection()" );
     }
 
+    int menu_ids[]
+    {
+        ID_MENU3D_GRID_NOGRID, ID_MENU3D_GRID_10_MM, ID_MENU3D_GRID_5_MM,
+        ID_MENU3D_GRID_2P5_MM, ID_MENU3D_GRID_1_MM
+    };
+
+    // Refresh checkmarks
+    wxMenuBar* menuBar = GetMenuBar();
+
+    for( int ii = 0; ii < 5; ii++ )
+    {
+        wxMenuItem* item = menuBar->FindItem( menu_ids[ii] );
+        item->Check( menu_ids[ii] == id );
+    }
+
     if( m_canvas )
         m_canvas->Request_refresh();
 }
@@ -720,7 +731,7 @@ void EDA_3D_VIEWER::LoadSettings( wxConfigBase *aCfg )
     aCfg->Read( keyRenderRAY_Shadows, &tmp, true );
     m_settings.SetFlag( FL_RENDER_RAYTRACING_SHADOWS, tmp );
 
-    aCfg->Read( keyRenderRAY_Backfloor, &tmp, true );
+    aCfg->Read( keyRenderRAY_Backfloor, &tmp, false );
     m_settings.SetFlag( FL_RENDER_RAYTRACING_BACKFLOOR, tmp );
 
     aCfg->Read( keyRenderRAY_Refractions, &tmp, true );
@@ -863,12 +874,12 @@ void EDA_3D_VIEWER::SaveSettings( wxConfigBase *aCfg )
 }
 
 
-void EDA_3D_VIEWER::CommonSettingsChanged()
+void EDA_3D_VIEWER::CommonSettingsChanged( bool aEnvVarsChanged )
 {
     wxLogTrace( m_logTrace, "EDA_3D_VIEWER::CommonSettingsChanged" );
 
     // Regen menu bars, etc
-    EDA_BASE_FRAME::CommonSettingsChanged();
+    EDA_BASE_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
     // There is no base class that handles toolbars for this frame
     ReCreateMainToolbar();
@@ -1105,6 +1116,35 @@ bool EDA_3D_VIEWER::Set3DSolderPasteColorFromUser()
     }
 
     return false;
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIEngine( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Check( m_settings.RenderEngineGet() != RENDER_ENGINE_OPENGL_LEGACY );
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIMaterial( wxUpdateUIEvent& aEvent )
+{
+    // Set the state of toggle menus according to the current display options
+    switch( aEvent.GetId() )
+    {
+    case ID_MENU3D_FL_RENDER_MATERIAL_MODE_NORMAL:
+        aEvent.Check( m_settings.MaterialModeGet() == MATERIAL_MODE_NORMAL );
+        break;
+
+    case ID_MENU3D_FL_RENDER_MATERIAL_MODE_DIFFUSE_ONLY:
+        aEvent.Check( m_settings.MaterialModeGet() == MATERIAL_MODE_DIFFUSE_ONLY );
+        break;
+
+    case ID_MENU3D_FL_RENDER_MATERIAL_MODE_CAD_MODE:
+        aEvent.Check( m_settings.MaterialModeGet() == MATERIAL_MODE_CAD_MODE );
+        break;
+
+    default:
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::OnUpdateUIMaterial()" );
+    }
 }
 
 

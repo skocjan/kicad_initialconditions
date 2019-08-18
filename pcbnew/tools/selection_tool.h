@@ -97,13 +97,6 @@ public:
     PCBNEW_SELECTION& RequestSelection( CLIENT_SELECTION_FILTER aClientFilter,
             std::vector<BOARD_ITEM*>* aFiltered = nullptr, bool aConfirmLockedItems = false );
 
-    /**
-     * Clears the selection if the selection Bounding Box doesn't fall within the given point
-     *
-     * @param aPt Point to check -- This is inclusive of the edge.
-     */
-    void ClearIfOutside( const VECTOR2I& aPt );
-
     ///> Checks if the user has agreed to modify locked items for the given selection.
     SELECTION_LOCK_FLAGS CheckLock();
 
@@ -115,6 +108,7 @@ public:
 
     ///> Item selection event handler.
     int SelectItem( const TOOL_EVENT& aEvent );
+    void AddItemToSel( BOARD_ITEM* aItem, bool aQuietMode = false );
 
     ///> Multiple item selection event handler
     int SelectItems( const TOOL_EVENT& aEvent );
@@ -125,11 +119,25 @@ public:
     ///> Multiple item unselection event handler
     int UnselectItems( const TOOL_EVENT& aEvent );
 
+    void BrightenItem( BOARD_ITEM* aItem );
+    void UnbrightenItem( BOARD_ITEM* aItem );
+
     /**
-     * Rebuilds the selection from the EDA_ITEMs' selection flags.  Commonly called after
-     * rolling back an undo state to make sure there aren't any stale pointers.
+     * Function selectable()
+     * Checks conditions for an item to be selected.
+     *
+     * @return True if the item fulfills conditions to be selected.
      */
-    void RebuildSelection();
+    bool Selectable( const BOARD_ITEM* aItem, bool checkVisibilityOnly = false ) const;
+
+    /**
+     * Function guessSelectionCandidates()
+     * Tries to guess best selection candidates in case multiple items are clicked, by doing
+     * some brain-dead heuristics.
+     * @param aCollector is the collector that has a list of items to be queried.
+     * @param aWhere is the selection point to consider
+     */
+    void GuessSelectionCandidates( GENERAL_COLLECTOR& aCollector, const VECTOR2I& aWhere ) const;
 
     /**
      * Function SelectionMenu()
@@ -139,6 +147,12 @@ public:
      * NOTE: this routine DOES NOT modify the selection.
      */
     int SelectionMenu( const TOOL_EVENT& aEvent );
+
+    /**
+     * Rebuilds the selection from the EDA_ITEMs' selection flags.  Commonly called after
+     * rolling back an undo state to make sure there aren't any stale pointers.
+     */
+    void RebuildSelection();
 
     ///> Sets up handlers for various events.
     void setTransitions() override;
@@ -244,9 +258,6 @@ private:
     ///> Find an item.
     int find( const TOOL_EVENT& aEvent );
 
-    ///> Find an item and start moving.
-    int findMove( const TOOL_EVENT& aEvent );
-
     ///> Invoke filter dialog and modify current selection
     int filterSelection( const TOOL_EVENT& aEvent );
 
@@ -263,23 +274,6 @@ private:
      * @param aCollector containes the list of items.
      */
     BOARD_ITEM* pickSmallestComponent( GENERAL_COLLECTOR* aCollector );
-
-    /**
-     * Function toggleSelection()
-     * Changes selection status of a given item.
-     *
-     * @param aItem is the item to have selection status changed.
-     * @param aForce causes the toggle to happen without checking selectability
-     */
-    void toggleSelection( BOARD_ITEM* aItem, bool aForce = false );
-
-    /**
-     * Function selectable()
-     * Checks conditions for an item to be selected.
-     *
-     * @return True if the item fulfills conditions to be selected.
-     */
-    bool selectable( const BOARD_ITEM* aItem, bool checkVisibilityOnly = false ) const;
 
     /**
      * Function select()
@@ -304,7 +298,7 @@ private:
      * @param aHighlightMode should be either SELECTED or BRIGHTENED
      * @param aGroup is the group to add the item to in the BRIGHTENED mode.
      */
-    void highlight( BOARD_ITEM* aItem, int aHighlightMode, PCBNEW_SELECTION& aGroup );
+    void highlight( BOARD_ITEM* aItem, int aHighlightMode, PCBNEW_SELECTION* aGroup = nullptr );
 
     /**
      * Function unhighlight()
@@ -313,7 +307,7 @@ private:
      * @param aHighlightMode should be either SELECTED or BRIGHTENED
      * @param aGroup is the group to remove the item from.
      */
-    void unhighlight( BOARD_ITEM* aItem, int aHighlightMode, PCBNEW_SELECTION& aGroup );
+    void unhighlight( BOARD_ITEM* aItem, int aHighlightMode, PCBNEW_SELECTION* aGroup = nullptr );
 
     /**
      * Function selectionContains()
@@ -322,15 +316,6 @@ private:
      * @return True if the given point is contained in any of selected items' bouding box.
      */
     bool selectionContains( const VECTOR2I& aPoint ) const;
-
-    /**
-     * Function guessSelectionCandidates()
-     * Tries to guess best selection candidates in case multiple items are clicked, by
-     * doing some braindead heuristics.
-     * @param aCollector is the collector that has a list of items to be queried.
-     * @param aWhere is the selection point to consider
-     */
-    void guessSelectionCandidates( GENERAL_COLLECTOR& aCollector, const VECTOR2I& aWhere ) const;
 
     /**
      * Event handler to update the selection VIEW_ITEM.
@@ -350,6 +335,7 @@ private:
 
     bool m_additive;              // Items should be added to selection (instead of replacing)
     bool m_subtractive;           // Items should be removed from selection
+    bool m_exclusive_or;          // Items' selection state should be toggled
     bool m_multiple;              // Multiple selection mode is active
     bool m_skip_heuristics;       // Heuristics are not allowed when choosing item under cursor
     bool m_locked;                // Other tools are not allowed to modify locked items

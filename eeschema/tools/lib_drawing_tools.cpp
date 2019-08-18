@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -40,7 +41,7 @@
 #include <lib_circle.h>
 #include <lib_polyline.h>
 #include <lib_rectangle.h>
-
+#include "ee_point_editor.h"
 
 static void* g_lastPinWeakPtr;
 
@@ -76,7 +77,8 @@ int LIB_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
     m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
     getViewControls()->ShowCursor( true );
 
-    m_frame->SetTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     // Prime the pump
@@ -86,28 +88,41 @@ int LIB_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_PENCIL );
         cursorPos = getViewControls()->GetCursorPosition( !evt->Modifier( MD_ALT ) );
 
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        auto cleanup = [&] () {
+            m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
+            m_view->ClearPreview();
+            delete item;
+            item = nullptr;
+        };
+
+        if( evt->IsCancelInteractive() )
         {
             if( item )
+                cleanup();
+            else
             {
-                m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
-                m_view->ClearPreview();
-                delete item;
-                item = nullptr;
+                m_frame->PopTool( tool );
+                break;
+            }
+        }
+        else if( evt->IsActivate() )
+        {
+            if( item )
+                cleanup();
+
+            if( evt->IsMoveTool() )
+            {
+                // leave ourselves on the stack so we come back after the move
+                break;
             }
             else
             {
-                if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                {
-                    m_frame->ClearToolStack();
-                    break;
-                }
-            }
-
-            if( evt->IsActivate() )
+                m_frame->PopTool( tool );
                 break;
+            }
         }
 
         else if( evt->IsClick( BUT_LEFT ) )
@@ -126,14 +141,14 @@ int LIB_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
                 {
                 case LIB_PIN_T:
                 {
-                    item = pinTool->CreatePin( wxPoint( cursorPos.x, -cursorPos.y), part );
+                    item = pinTool->CreatePin( wxPoint( cursorPos.x, -cursorPos.y ), part );
                     g_lastPinWeakPtr = item;
                     break;
                 }
                 case LIB_TEXT_T:
                 {
                     LIB_TEXT* text = new LIB_TEXT( part );
-                    text->SetPosition( wxPoint( cursorPos.x, -cursorPos.y) );
+                    text->SetPosition( wxPoint( cursorPos.x, -cursorPos.y ) );
                     text->SetTextSize( wxSize( m_frame->g_LastTextSize, m_frame->g_LastTextSize ) );
                     text->SetTextAngle( m_frame->g_LastTextAngle );
 
@@ -176,12 +191,12 @@ int LIB_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
                     break;
                 case LIB_TEXT_T:
                     part->AddDrawItem( (LIB_TEXT*) item );
-                    item->ClearEditFlags();
                     break;
                 default:
                     wxFAIL_MSG( "TwoClickPlace(): unknown type" );
                 }
 
+                item->ClearEditFlags();
                 item = nullptr;
                 m_view->ClearPreview();
 
@@ -198,12 +213,15 @@ int LIB_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
             m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
         }
 
-        else if( item && ( evt->IsAction( &EE_ACTIONS::refreshPreview ) || evt->IsMotion() ) )
+        else if( item && ( evt->IsAction( &ACTIONS::refreshPreview ) || evt->IsMotion() ) )
         {
-            static_cast<LIB_ITEM*>( item )->SetPosition( wxPoint( cursorPos.x, -cursorPos.y) );
+            static_cast<LIB_ITEM*>( item )->SetPosition( wxPoint( cursorPos.x, -cursorPos.y ) );
             m_view->ClearPreview();
             m_view->AddToPreview( item->Clone() );
         }
+
+        else
+            evt->SetPassEvent();
 
         // Enable autopanning and cursor capture only when there is an item to be placed
         getViewControls()->SetAutoPan( item != nullptr );
@@ -216,7 +234,8 @@ int LIB_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
 
 int LIB_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
 {
-    KICAD_T type = aEvent.Parameter<KICAD_T>();
+    KICAD_T          type = aEvent.Parameter<KICAD_T>();
+    EE_POINT_EDITOR* pointEditor = m_toolMgr->GetTool<EE_POINT_EDITOR>();
 
     // We might be running as the same shape in another co-routine.  Make sure that one
     // gets whacked.
@@ -225,7 +244,8 @@ int LIB_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
     m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
     getViewControls()->ShowCursor( true );
 
-    m_frame->SetTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     LIB_PART* part = m_frame->GetCurPart();
@@ -236,31 +256,50 @@ int LIB_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
         m_toolMgr->RunAction( ACTIONS::cursorClick );
 
     // Main loop: keep receiving events
-    while( auto evt = Wait() )
+    while( TOOL_EVENT* evt = Wait() )
     {
+        if( !pointEditor->HasPoint() )
+            m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_PENCIL );
+
         VECTOR2I cursorPos = getViewControls()->GetCursorPosition( !evt->Modifier( MD_ALT ) );
 
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
-        {
+        auto cleanup = [&] () {
             m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
             m_view->ClearPreview();
+            delete item;
+            item = nullptr;
+        };
 
+        if( evt->IsCancelInteractive() )
+        {
             if( item )
+                cleanup();
+            else
             {
-                delete item;
-                item = nullptr;
+                m_frame->PopTool( tool );
+                break;
+            }
+        }
+
+        else if( evt->IsActivate() )
+        {
+            if( item )
+                cleanup();
+
+            if( evt->IsPointEditor() )
+            {
+                // don't exit (the point editor runs in the background)
+            }
+            else if( evt->IsMoveTool() )
+            {
+                // leave ourselves on the stack so we come back after the move
+                break;
             }
             else
             {
-                if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
-                {
-                    m_frame->ClearToolStack();
-                    break;
-                }
-            }
-
-            if( evt->IsActivate() )
+                m_frame->PopTool( tool );
                 break;
+            }
         }
 
         else if( evt->IsClick( BUT_LEFT ) && !item )
@@ -315,7 +354,7 @@ int LIB_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
             }
         }
 
-        else if( item && ( evt->IsAction( &EE_ACTIONS::refreshPreview ) || evt->IsMotion() ) )
+        else if( item && ( evt->IsAction( &ACTIONS::refreshPreview ) || evt->IsMotion() ) )
         {
             item->CalcEdit( wxPoint( cursorPos.x, -cursorPos.y) );
             m_view->ClearPreview();
@@ -336,6 +375,9 @@ int LIB_DRAWING_TOOLS::DrawShape( const TOOL_EVENT& aEvent )
             m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
         }
 
+        else
+            evt->SetPassEvent();
+
         // Enable autopanning and cursor capture only when there is a shape being drawn
         getViewControls()->SetAutoPan( item != nullptr );
         getViewControls()->CaptureCursor( item != nullptr );
@@ -350,14 +392,23 @@ int LIB_DRAWING_TOOLS::PlaceAnchor( const TOOL_EVENT& aEvent )
     getViewControls()->ShowCursor( true );
     getViewControls()->SetSnapping( true );
 
-    m_frame->SetTool( aEvent.GetCommandStr().get() );
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
 
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
-        if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_BULLSEYE );
+
+        if( evt->IsCancelInteractive() )
         {
+            m_frame->PopTool( tool );
+            break;
+        }
+        else if( evt->IsActivate() )
+        {
+            m_frame->PopTool( tool );
             break;
         }
         else if( evt->IsClick( BUT_LEFT ) )
@@ -384,9 +435,10 @@ int LIB_DRAWING_TOOLS::PlaceAnchor( const TOOL_EVENT& aEvent )
         {
             m_menu.ShowContextMenu( m_selectionTool->GetSelection() );
         }
+        else
+            evt->SetPassEvent();
     }
 
-    m_frame->ClearToolStack();
     return 0;
 }
 

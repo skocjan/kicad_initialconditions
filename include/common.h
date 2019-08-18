@@ -45,9 +45,6 @@
 #include <atomic>
 #include <memory>
 
-// C++11 "polyfill" for the C++14 std::make_unique function
-#include "make_unique.h"
-
 class wxAboutDialogInfo;
 class SEARCH_STACK;
 class REPORTER;
@@ -159,6 +156,7 @@ enum EDA_UNITS_T {
     MILLIMETRES = 1,
     UNSCALED_UNITS = 2,
     DEGREES = 3,
+    PERCENT = 4,
 };
 
 

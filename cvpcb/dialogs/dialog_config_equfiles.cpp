@@ -26,18 +26,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
 #include <pgm_base.h>
-#include <common.h>
 #include <confirm.h>
 #include <gestfich.h>
 #include <id.h>
 #include <project.h>            // For PROJECT_VAR_NAME definition
 #include <fp_lib_table.h>       // For KISYSMOD definition
 
-#include <cvpcb.h>
 #include <cvpcb_mainframe.h>
-
 #include <dialog_config_equfiles.h>
 #include <wildcards_and_files_ext.h>
 
@@ -56,14 +52,6 @@ DIALOG_CONFIG_EQUFILES::DIALOG_CONFIG_EQUFILES( CVPCB_MAINFRAME* aParent ) :
 
     GetSizer()->SetSizeHints( this );
     Center();
-}
-
-
-void CVPCB_MAINFRAME::OnEditEquFilesList( wxCommandEvent& aEvent )
-{
-    DIALOG_CONFIG_EQUFILES dlg( this );
-
-    dlg.ShowModal();
 }
 
 

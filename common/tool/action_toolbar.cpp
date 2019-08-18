@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see CHANGELOG.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -57,7 +58,7 @@ void ACTION_TOOLBAR::AddButton( const TOOL_ACTION& aAction )
     EDA_BASE_FRAME* editFrame = m_toolManager->GetEditFrame();
     int toolId = aAction.GetId() + ACTION_ID;
 
-    AddTool( toolId, wxEmptyString, KiScaledBitmap( aAction.GetIcon(), editFrame ), 
+    AddTool( toolId, wxEmptyString, KiScaledBitmap( aAction.GetIcon(), editFrame ),
              aAction.GetName(), wxITEM_NORMAL );
 
     m_toolKinds[ toolId ] = false;
@@ -67,7 +68,15 @@ void ACTION_TOOLBAR::AddButton( const TOOL_ACTION& aAction )
 
 void ACTION_TOOLBAR::SetToolBitmap( const TOOL_ACTION& aAction, const wxBitmap& aBitmap )
 {
-    wxAuiToolBar::SetToolBitmap( aAction.GetId() + ACTION_ID, aBitmap );
+    int toolId = aAction.GetId() + ACTION_ID;
+    wxAuiToolBar::SetToolBitmap( toolId, aBitmap );
+
+    // Set the disabled bitmap: we use the disabled bitmap version
+    // of aBitmap.
+    wxAuiToolBarItem* tb_item = wxAuiToolBar::FindTool( toolId );
+
+    if( tb_item )
+        tb_item->SetDisabledBitmap( aBitmap.ConvertToDisabled() );
 }
 
 

@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2016-2018 CERN
- * Copyright (C) 2018  KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2019  KiCad Developers, see AUTHORS.txt for contributors.
  *
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
@@ -123,6 +123,9 @@ void CN_ITEM::RemoveInvalidRefs()
 
 CN_ITEM* CN_LIST::Add( D_PAD* pad )
  {
+    if( !pad->IsOnCopperLayer() )
+         return nullptr;
+
      auto item = new CN_ITEM( pad, false, 1 );
      item->AddAnchor( pad->ShapePos() );
      item->SetLayers( LAYER_RANGE( F_Cu, B_Cu ) );
@@ -153,7 +156,7 @@ CN_ITEM* CN_LIST::Add( D_PAD* pad )
      m_items.push_back( item );
      SetDirty();
      return item;
- }
+}
 
  CN_ITEM* CN_LIST::Add( TRACK* track )
  {
@@ -265,15 +268,47 @@ bool CN_ANCHOR::IsDangling() const
     if( m_item->AnchorCount() == 1 )
         return connected_count < minimal_count;
 
-    // Only items with multiple anchors might have additional items connected that we
-    // should ignore for this calculation.
+    // Items with multiple anchors have usually items connected to each anchor.
+    // We want only the item count of this anchor point
+    connected_count = 0;
     for( auto item : m_item->ConnectedItems() )
     {
-        if( !item->Parent()->HitTest( wxPoint( Pos().x, Pos().y ) ) )
-            connected_count--;
+        if( item->Parent()->Type() == PCB_ZONE_AREA_T )
+        {
+            ZONE_CONTAINER* zone = static_cast<ZONE_CONTAINER*>( item->Parent() );
+
+            if( zone->HitTestFilledArea( wxPoint( Pos().x, Pos().y ) ) )
+                connected_count++;
+        }
+        else if( item->Parent()->HitTest( wxPoint( Pos().x, Pos().y ) ) )
+            connected_count++;
     }
 
     return connected_count < minimal_count;
+}
+
+
+int CN_ANCHOR::ConnectedItemsCount() const
+{
+    if( !m_cluster )
+        return 0;
+
+    int connected_count = 0;
+
+    for( auto item : m_item->ConnectedItems() )
+    {
+        if( item->Parent()->Type() == PCB_ZONE_AREA_T )
+        {
+            ZONE_CONTAINER* zone = static_cast<ZONE_CONTAINER*>( item->Parent() );
+
+            if( zone->HitTestFilledArea( wxPoint( Pos().x, Pos().y ) ) )
+                connected_count++;
+        }
+        else if( item->Parent()->HitTest( wxPoint( Pos().x, Pos().y ) ) )
+            connected_count++;
+    }
+
+    return connected_count;
 }
 
 

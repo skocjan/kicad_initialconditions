@@ -41,7 +41,8 @@ class ACTION_TOOLBAR;
 // s_AllowedExtensionsToList[]
 
 enum TreeFileType {
-    TREE_PROJECT = 1,
+    TREE_ROOT = 0,
+    TREE_PROJECT,
     TREE_SCHEMA,            // Schematic file (.sch)
     TREE_LEGACY_PCB,        // board file (.brd) legacy format
     TREE_SEXP_PCB,          // board file (.kicad_brd) new s expression format
@@ -136,7 +137,7 @@ public:
     void SaveSettings( wxConfigBase* aCfg ) override;
 
     void ShowChangedLanguage() override;
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     /**
      * Called by sending a event with id = ID_INIT_WATCHED_PATHS

@@ -490,8 +490,18 @@ void SIM_PLOT_FRAME::addPlot( const wxString& aName, SIM_PLOT_TYPE aType, const 
 {
     SIM_TYPE simType = m_exporter->GetSimType();
 
-    if( !SIM_PLOT_PANEL::IsPlottable( simType ) )
-        return; // TODO else write out in console?
+    if( simType == ST_UNKNOWN )
+    {
+        m_simConsole->AppendText( _( "Error: simulation type not defined!\n" ) );
+        m_simConsole->SetInsertionPointEnd();
+        return;
+    }
+    else if( !SIM_PLOT_PANEL::IsPlottable( simType ) )
+    {
+        m_simConsole->AppendText( _( "Error: simulation type doesn't support plotting!\n" ) );
+        m_simConsole->SetInsertionPointEnd();
+        return;
+    }
 
     // Create a new plot if the current one displays a different type
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
@@ -1270,6 +1280,9 @@ void SIM_PLOT_FRAME::onClose( wxCloseEvent& aEvent )
 
     if( IsSimulationRunning() )
         m_simulator->Stop();
+
+    // Cancel a running simProbe or simTune tool
+    m_schematicFrame->GetToolManager()->RunAction( ACTIONS::cancelInteractive );
 
     Destroy();
 }

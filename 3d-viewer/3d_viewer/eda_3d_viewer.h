@@ -149,7 +149,7 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
      * need to do this manually from the PCB frame because the 3D viewer isn't
      * updated via the #KIWAY.
      */
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
  private:
     /// Called when user press the File->Exit
@@ -171,6 +171,9 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     void OnSetFocus( wxFocusEvent &event );
 
     void Install3DViewOptionDialog( wxCommandEvent &event );
+
+    void OnUpdateUIEngine( wxUpdateUIEvent& aEvent );
+    void OnUpdateUIMaterial( wxUpdateUIEvent& aEvent );
 
     void CreateMenuBar();
 

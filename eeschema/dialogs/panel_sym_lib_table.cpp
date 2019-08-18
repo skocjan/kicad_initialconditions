@@ -414,7 +414,9 @@ void PANEL_SYM_LIB_TABLE::browseLibrariesHandler( wxCommandEvent& event )
             // try to use path normalized to an environmental variable or project path
             wxString path = NormalizePath( filePath, &envVars, m_projectBasePath );
 
-            if( path.IsEmpty() )
+            // Do not use the project path in the global library table.  This will almost
+            // assuredly be wrong for a different project.
+            if( path.IsEmpty() || (m_pageNdx == 0 && path.Contains( "${KIPRJMOD}" )) )
                 path = fn.GetFullPath();
 
             m_cur_grid->SetCellValue( last_row, COL_URI, path );
@@ -722,32 +724,19 @@ void InvokeSchEditSymbolLibTable( KIWAY* aKiway, wxWindow *aParent )
         // This prevents an ugly crash on OSX (https://bugs.launchpad.net/kicad/+bug/1765286)
         libEditor->FreezeSearchTree();
 
-        // Check the symbol library editor for modifications to give the user a chance to save
-        // or revert changes before allowing changes to the library table.
         if( libEditor->HasLibModifications() )
         {
-            wxMessageDialog saveDlg( aParent,
-                                     _( "Modifications have been made to one or more symbol "
-                                        "libraries.  Changes must be saved or discarded before "
-                                        "the symbol library table can be modified." ),
-                                     _( "Warning" ),
-                                     wxYES_NO | wxCANCEL | wxYES_DEFAULT | wxCENTER );
-            saveDlg.SetYesNoCancelLabels( wxMessageDialog::ButtonLabel( _( "Save Changes" ) ),
-                                          wxMessageDialog::ButtonLabel(_( "Discard Changes" ) ),
-                                          wxMessageDialog::ButtonLabel( _( "Cancel" ) ) );
+            msg = _( "Modifications have been made to one or more symbol libraries.\n"
+                     "Changes must be saved or discarded before the symbol library "
+                     "table can be modified." );
 
-            int resp = saveDlg.ShowModal();
-
-            if( resp == wxID_CANCEL )
+            switch( UnsavedChangesDialog( aParent, msg ) )
             {
-                libEditor->ThawSearchTree();
-                return;
+            case wxID_YES:    libEditor->SaveAll(); break;
+            case wxID_NO:     libEditor->RevertAll(); break;
+            default:
+            case wxID_CANCEL: libEditor->ThawSearchTree(); return;
             }
-
-            if( resp == wxID_YES )
-                libEditor->SaveAll();
-            else
-                libEditor->RevertAll();
         }
     }
 
@@ -780,7 +769,6 @@ void InvokeSchEditSymbolLibTable( KIWAY* aKiway, wxWindow *aParent )
 
     if( dlg.m_ProjectTableChanged )
     {
-
         try
         {
             projectTable->Save( projectTableFn.GetFullPath() );

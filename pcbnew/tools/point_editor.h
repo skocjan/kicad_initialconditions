@@ -58,6 +58,12 @@ public:
      */
     int OnSelectionChange( const TOOL_EVENT& aEvent );
 
+    /**
+     * Indicates the cursor is over an edit point.  Used to coordinate cursor shapes with
+     * other tools.
+     */
+    bool HasPoint() { return m_editedPoint != nullptr; }
+
     ///> Sets up handlers for various events.
     void setTransitions() override;
 
@@ -92,12 +98,11 @@ private:
     void finishItem();
 
     /**
-     * Validates a polygon and restores it to its original version if available.
+     * Validates a polygon and displays a popup warning if invalid.
      * @param aModified is the polygon to be checked.
-     * @param aOriginal is the original copy that will be used to restore its state.
      * @return True if polygon is valid.
      */
-    bool validatePolygon( SHAPE_POLY_SET& aModified, const SHAPE_POLY_SET* aOriginal = nullptr ) const;
+    bool validatePolygon( SHAPE_POLY_SET& aModified ) const;
 
     ///> Updates edit points with item's points.
     void updatePoints();

@@ -36,7 +36,7 @@
 #include <msgpanel.h>
 #include <bitmaps.h>
 
-#include <lib_draw_item.h>
+#include <lib_item.h>
 #include <general.h>
 #include <transform.h>
 #include <lib_text.h>
@@ -52,8 +52,9 @@ LIB_TEXT::LIB_TEXT( LIB_PART * aParent ) :
 
 void LIB_TEXT::ViewGetLayers( int aLayers[], int& aCount ) const
 {
-    aCount      = 1;
+    aCount      = 2;
     aLayers[0]  = LAYER_DEVICE;
+    aLayers[1]  = LAYER_SELECTION_SHADOWS;
 }
 
 
@@ -80,8 +81,8 @@ EDA_ITEM* LIB_TEXT::Clone() const
     newitem->m_Unit      = m_Unit;
     newitem->m_Convert   = m_Convert;
     newitem->m_Flags     = m_Flags;
-    newitem->m_Text      = m_Text;
 
+    newitem->SetText( GetText() );
     newitem->SetEffects( *this );
 
     return newitem;
@@ -94,7 +95,7 @@ int LIB_TEXT::compare( const LIB_ITEM& other ) const
 
     const LIB_TEXT* tmp = ( LIB_TEXT* ) &other;
 
-    int result = m_Text.CmpNoCase( tmp->m_Text );
+    int result = GetText().CmpNoCase( tmp->GetText() );
 
     if( result != 0 )
         return result;
@@ -188,11 +189,11 @@ void LIB_TEXT::Plot( PLOTTER* plotter, const wxPoint& offset, bool fill,
     COLOR4D color;
 
     if( plotter->GetColorMode() )       // Used normal color or selected color
-        color = IsSelected() ? GetItemSelectedColor() : GetDefaultColor();
+        color = GetDefaultColor();
     else
         color = COLOR4D::BLACK;
 
-    plotter->Text( pos, color, GetShownText(), t1 ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT,
+    plotter->Text( pos, color, GetText(), t1 ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT,
                    GetTextSize(), GR_TEXT_HJUSTIFY_CENTER, GR_TEXT_VJUSTIFY_CENTER,
                    GetPenSize(), IsItalic(), IsBold() );
 }
@@ -289,18 +290,6 @@ const EDA_RECT LIB_TEXT::GetBoundingBox() const
     rect.RevertYAxis();
 
     return rect;
-}
-
-
-void LIB_TEXT::Rotate()
-{
-    SetTextAngle( GetTextAngle() == TEXT_ANGLE_VERT ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
-}
-
-
-void LIB_TEXT::SetText( const wxString& aText )
-{
-    m_Text = aText;
 }
 
 

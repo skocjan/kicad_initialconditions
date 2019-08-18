@@ -82,12 +82,12 @@ TOOL_ACTION GERBVIEW_ACTIONS::highlightAttribute( "gerbview.Control.highlightAtt
 TOOL_ACTION GERBVIEW_ACTIONS::layerNext( "gerbview.Control.layerNext",
         AS_GLOBAL,
         '+', LEGACY_HK_NAME( "Switch to Next Layer" ),
-        "", "" );
+        _( "Next Layer" ), "" );
 
 TOOL_ACTION GERBVIEW_ACTIONS::layerPrev( "gerbview.Control.layerPrev",
         AS_GLOBAL,
         '-', LEGACY_HK_NAME( "Switch to Previous Layer" ),
-        "", "" );
+        _( "Previous Layer" ), "" );
 
 TOOL_ACTION GERBVIEW_ACTIONS::linesDisplayOutlines( "gerbview.Control.linesDisplayOutlines",
         AS_GLOBAL,
@@ -130,9 +130,6 @@ TOOL_ACTION GERBVIEW_ACTIONS::toggleDiffMode( "gerbview.Control.toggleDiffMode",
 TOOL_ACTION GERBVIEW_ACTIONS::selectionActivate( "gerbview.InteractiveSelection",
         AS_GLOBAL, 0, "",
         "", "", NULL, AF_ACTIVATE ); // No description, it is not supposed to be shown anywhere
-
-TOOL_ACTION GERBVIEW_ACTIONS::selectionCursor( "gerbview.InteractiveSelection.Cursor",
-        AS_GLOBAL );
 
 TOOL_ACTION GERBVIEW_ACTIONS::selectItem( "gerbview.InteractiveSelection.SelectItem",
         AS_GLOBAL );

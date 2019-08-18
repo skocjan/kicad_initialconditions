@@ -4,6 +4,7 @@
  * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2009 Wayne Stambaugh <stambaughw@verizon.net>
  * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2019 CERN
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -84,8 +85,7 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
                        unzip_xpm,                              SELECTION_CONDITIONS::ShowAlways );
 
     fileMenu->AddSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm,   SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddQuitOrClose( nullptr, _( "KiCad" ) );
 
     fileMenu->Resolve();
 
@@ -190,7 +190,11 @@ void KICAD_MANAGER_FRAME::RecreateBaseHToolbar()
     KiScaledSeparator( m_mainToolBar, this );
     m_mainToolBar->AddTool( ID_BROWSE_IN_FILE_EXPLORER, wxEmptyString,
                             KiScaledBitmap( directory_browser_xpm, this ),
+#ifdef __APPLE__
+                            _( "Reveal project directory in Finder" ) );
+#else
                             _( "Open project directory in file explorer" ) );
+#endif
 
     // Create m_mainToolBar
     m_mainToolBar->Realize();
@@ -205,6 +209,8 @@ void KICAD_MANAGER_FRAME::RecreateLauncher()
         m_launcher = new ACTION_TOOLBAR( this, ID_H_TOOLBAR, wxDefaultPosition, wxDefaultSize,
                                          KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT );
 
+    // Add tools. Note these KICAD_MANAGER_ACTIONS are defined with a bitmap
+    // suitable for menus. The icans will be changed later.
     m_launcher->Add( KICAD_MANAGER_ACTIONS::editSchematic );
     m_launcher->Add( KICAD_MANAGER_ACTIONS::editSymbols );
 
@@ -218,8 +224,29 @@ void KICAD_MANAGER_FRAME::RecreateLauncher()
     m_launcher->Add( KICAD_MANAGER_ACTIONS::showCalculator );
     m_launcher->Add( KICAD_MANAGER_ACTIONS::editWorksheet );
 
+    // Now set big icons for these tools:
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::editSchematic,
+                               KiScaledBitmap( icon_eeschema_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::editSymbols,
+                               KiScaledBitmap( icon_libedit_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::editPCB,
+                               KiScaledBitmap( icon_pcbnew_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::editFootprints,
+                               KiScaledBitmap( icon_modedit_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::viewGerbers,
+                               KiScaledBitmap( icon_gerbview_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::convertImage,
+                               KiScaledBitmap( icon_bitmap2component_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::showCalculator,
+                               KiScaledBitmap( icon_pcbcalculator_xpm, this ) );
+    m_launcher->SetToolBitmap( KICAD_MANAGER_ACTIONS::editWorksheet,
+                               KiScaledBitmap( icon_pagelayout_editor_xpm, this ) );
+
     // Create mlauncher
     m_launcher->Realize();
+
+    // And update the visual tools state:
+    SyncToolbars();
 }
 
 

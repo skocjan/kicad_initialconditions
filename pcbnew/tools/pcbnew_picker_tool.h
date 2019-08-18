@@ -35,10 +35,11 @@ class PCBNEW_PICKER_TOOL : public PCB_TOOL_BASE
 {
 public:
     PCBNEW_PICKER_TOOL();
-    ~PCBNEW_PICKER_TOOL() {}
+    ~PCBNEW_PICKER_TOOL() override { }
 
     ///> Event handler types.
     typedef std::function<bool(const VECTOR2D&)> CLICK_HANDLER;
+    typedef std::function<void(const VECTOR2D&)> MOTION_HANDLER;
     typedef std::function<void(void)> CANCEL_HANDLER;
     typedef std::function<void(const int&)> FINALIZE_HANDLER;
 
@@ -58,22 +59,12 @@ public:
     int Main( const TOOL_EVENT& aEvent );
 
     /**
-     * Function SetAutoPanning()
-     * Sets autopanning mode for the period when the tool is active.
-     */
-    inline void SetAutoPanning( bool aEnable ) { m_autoPanning = aEnable; }
-
-    /**
-     * Function SetAutoPanning()
-     * Toggles cursor capture mode for the period when the tool is active.
-     */
-    inline void SetCursorCapture( bool aEnable ) { m_cursorCapture = aEnable; }
-
-    /**
      * Function SetLayerSet()
      * Sets the tool's snap layer set
      */
     inline void SetLayerSet( LSET aLayerSet ) { m_layerMask = aLayerSet; }
+
+    inline void SetCursor( const wxCursor& aCursor ) { m_cursor = aCursor; }
 
     /**
      * Function SetClickHandler()
@@ -82,8 +73,18 @@ public:
      */
     inline void SetClickHandler( CLICK_HANDLER aHandler )
     {
-        assert( !m_clickHandler );
+        wxASSERT( !m_clickHandler );
         m_clickHandler = aHandler;
+    }
+
+    /**
+     * Function SetMotionHandler()
+     * Sets a handler for mouse motion.  Used for roll-over highlighting.
+     */
+    inline void SetMotionHandler( MOTION_HANDLER aHandler )
+    {
+        wxASSERT( !m_motionHandler );
+        m_motionHandler = aHandler;
     }
 
     /**
@@ -92,7 +93,7 @@ public:
      */
     inline void SetCancelHandler( CANCEL_HANDLER aHandler )
     {
-        assert( !m_cancelHandler );
+        wxASSERT( !m_cancelHandler );
         m_cancelHandler = aHandler;
     }
 
@@ -102,31 +103,31 @@ public:
      */
     inline void SetFinalizeHandler( FINALIZE_HANDLER aHandler )
     {
-        assert( !m_finalizeHandler );
+        wxASSERT( !m_finalizeHandler );
         m_finalizeHandler = aHandler;
     }
 
+private:
     ///> @copydoc TOOL_INTERACTIVE::setTransitions();
     void setTransitions() override;
-
-private:
-    bool m_cursorCapture;
-    bool m_autoPanning;
-
-    ///> The layer set to use for optional snapping
-    LSET m_layerMask;
-
-    OPT<CLICK_HANDLER> m_clickHandler;
-    OPT<CANCEL_HANDLER> m_cancelHandler;
-    OPT<FINALIZE_HANDLER> m_finalizeHandler;
-
-    OPT<VECTOR2D> m_picked;
 
     ///> Reinitializes tool to its initial state.
     void reset();
 
     ///> Applies the requested VIEW_CONTROLS settings.
     void setControls();
+
+private:
+    ///> The layer set to use for optional snapping
+    LSET                  m_layerMask;
+    wxCursor              m_cursor;
+
+    OPT<CLICK_HANDLER>    m_clickHandler;
+    OPT<MOTION_HANDLER>   m_motionHandler;
+    OPT<CANCEL_HANDLER>   m_cancelHandler;
+    OPT<FINALIZE_HANDLER> m_finalizeHandler;
+
+    OPT<VECTOR2D>         m_picked;
 };
 
 #endif /* PICKER_TOOL_H */

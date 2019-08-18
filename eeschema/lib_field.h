@@ -30,7 +30,7 @@
 #define CLASS_LIBENTRY_FIELDS_H
 
 #include <eda_text.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 
 
 class SCH_LEGACY_PLUGIN_CACHE;
@@ -144,14 +144,6 @@ public:
      */
     void Copy( LIB_FIELD* aTarget ) const;
 
-    /**
-     * @return true if the field value is void (no text in this field)
-     */
-    bool IsVoid() const
-    {
-        return m_Text.IsEmpty();
-    }
-
     void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
     const EDA_RECT GetBoundingBox() const override;
@@ -177,21 +169,6 @@ public:
     COLOR4D GetDefaultColor() override;
 
     void BeginEdit( const wxPoint aStartPoint ) override;
-
-    void Rotate() override;
-
-    /**
-     * Sets the field text to \a aText.
-     *
-     * This method does more than just set the set the field text.  There are special
-     * cases when changing the text string alone is not enough.  If the field is the
-     * value field, the parent component's name is changed as well.  If the field is
-     * being moved, the name change must be delayed until the next redraw to prevent
-     * drawing artifacts.
-     *
-     * @param aText - New text value.
-     */
-    void SetText( const wxString& aText ) override;
 
     void Offset( const wxPoint& aOffset ) override;
 

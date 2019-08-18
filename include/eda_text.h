@@ -121,7 +121,7 @@ public:
      *
      * @return a const wxString reference containing the string of the item.
      */
-    virtual const wxString& GetText() const { return m_Text; }
+    virtual const wxString& GetText() const { return m_text; }
 
     /**
      * Returns the string actually shown after processing of the base
@@ -203,6 +203,18 @@ public:
      */
     void SwapEffects( EDA_TEXT& aTradingPartner );
 
+    void SwapText( EDA_TEXT& aTradingPartner );
+
+    /**
+     * Helper function used in search and replace dialog
+     * performs a text replace using the find and replace criteria in \a aSearchData.
+     *
+     * @param aSearchData A reference to a wxFindReplaceData object containing the
+     *                    search and replace criteria.
+     * @return True if the text item was modified, otherwise false.
+     */
+    bool Replace( wxFindReplaceData& aSearchData );
+
     bool IsDefaultFormatting() const;
 
     void SetTextSize( const wxSize& aNewSize )  { m_e.size = aNewSize; };
@@ -222,9 +234,15 @@ public:
 
     void Offset( const wxPoint& aOffset )       { m_e.pos += aOffset; }
 
-    void Empty()                                { m_Text.Empty(); }
+    void Empty()                                { m_text.Empty(); }
 
-    /**
+    static int MapOrientation( KICAD_T labelType, int aOrientation );
+
+    static EDA_TEXT_HJUSTIFY_T MapHorizJustify( int aHorizJustify );
+
+    static EDA_TEXT_VJUSTIFY_T MapVertJustify( int aVertJustify );
+
+        /**
      * Function Print
      * @param aDC = the current Device Context
      * @param aOffset = draw offset (usually (0,0))
@@ -306,17 +324,11 @@ public:
     /**
      * Return the distance between two lines of text.
      *
-     * <p>
      * Calculates the distance (pitch) between two lines of text.  This distance includes the
      * interline distance plus room for characters like j, {, and [.  It also used for single
      * line text, to calculate the text bounding box.
-     * </p>
-     *
-     * @param aTextThickness Overrides the current thickness when greater than 0.
-     * this is needed when the current m_Thickness is 0 and a default line thickness
-     * is used
      */
-    int GetInterline( int aTextThickness = -1 ) const;
+    int GetInterline() const;
 
     /**
      * Function GetTextStyleName
@@ -346,11 +358,9 @@ public:
      */
     virtual void Format( OUTPUTFORMATTER* aFormatter, int aNestLevel, int aControlBits ) const;
 
-protected:
-    wxString    m_Text;
-
-    /// Cache of unescaped text for efficient access
-    wxString    m_shown_text;
+private:
+    wxString    m_text;
+    wxString    m_shown_text;   // Cache of unescaped text for efficient access
 
 private:
     /**

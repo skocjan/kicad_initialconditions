@@ -96,6 +96,19 @@ DIALOG_PAGES_SETTINGS::DIALOG_PAGES_SETTINGS( EDA_DRAW_FRAME* parent, wxSize aMa
 
     m_PickDate->SetValue( wxDateTime::Now() );
 
+    if( parent->GetName() == PL_EDITOR_FRAME_NAME )
+    {
+        SetTitle( _( "Preview Settings" ) );
+        m_staticTextPaper->SetLabel( _( "Preview Paper" ) );
+        m_staticTextTitleBlock->SetLabel( _( "Preview Title Block Data" ) );
+    }
+    else
+    {
+        SetTitle( _( "Page Settings" ) );
+        m_staticTextPaper->SetLabel( _( "Paper" ) );
+        m_staticTextTitleBlock->SetLabel( _( "Title Block" ) );
+    }
+
     initDialog();
 
     GetSizer()->SetSizeHints( this );
@@ -624,7 +637,7 @@ void DIALOG_PAGES_SETTINGS::UpdatePageLayoutExample()
         WS_DATA_MODEL::SetAltInstance( m_pagelayout );
         GRFilledRect( NULL, &memDC, 0, 0, m_layout_size.x, m_layout_size.y, WHITE, WHITE );
         PrintPageLayout( &memDC, pageDUMMY, emptyString, emptyString, m_tb,
-                         m_screen->m_NumberOfScreens, m_screen->m_ScreenNumber, 1, 1, DARKGRAY );
+                         m_screen->m_NumberOfScreens, m_screen->m_ScreenNumber, 1, 1, RED );
 
         memDC.SelectObject( wxNullBitmap );
         m_PageLayoutExampleBitmap->SetBitmap( *m_page_bitmap );

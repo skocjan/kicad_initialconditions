@@ -24,10 +24,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <map>
-#include <stack>
 #include <algorithm>
 #include <core/optional.h>
+#include <map>
+#include <stack>
+#include <trace_helpers.h>
 
 #include <wx/event.h>
 #include <wx/clipbrd.h>
@@ -277,8 +278,9 @@ bool TOOL_MANAGER::RunAction( const std::string& aActionName, bool aNow, void* a
 }
 
 
-void TOOL_MANAGER::RunAction( const TOOL_ACTION& aAction, bool aNow, void* aParam )
+bool TOOL_MANAGER::RunAction( const TOOL_ACTION& aAction, bool aNow, void* aParam )
 {
+    bool       handled = false;
     TOOL_EVENT event = aAction.MakeEvent();
 
     // Allow to override the action parameter
@@ -288,7 +290,7 @@ void TOOL_MANAGER::RunAction( const TOOL_ACTION& aAction, bool aNow, void* aPara
     if( aNow )
     {
         TOOL_STATE* current = m_activeState;
-        processEvent( event );
+        handled = processEvent( event );
         setActiveState( current );
         UpdateUI( event );
     }
@@ -296,6 +298,8 @@ void TOOL_MANAGER::RunAction( const TOOL_ACTION& aAction, bool aNow, void* aPara
     {
         PostEvent( event );
     }
+
+    return handled;
 }
 
 
@@ -446,7 +450,7 @@ void TOOL_MANAGER::InitTools()
 
         if( !tool->Init() )
         {
-            wxMessageBox( wxString::Format( "Initialization of tool \"%s\" failed", 
+            wxMessageBox( wxString::Format( "Initialization of tool \"%s\" failed",
                                             tool->GetName() ) );
 
             // Unregister the tool
@@ -462,7 +466,7 @@ void TOOL_MANAGER::InitTools()
     }
 
     m_actionMgr->UpdateHotKeys( true );
-    
+
     ResetTools( TOOL_BASE::RUN );
 }
 
@@ -524,9 +528,13 @@ TOOL_EVENT* TOOL_MANAGER::ScheduleWait( TOOL_BASE* aTool, const TOOL_EVENT_LIST&
 }
 
 
-void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
+bool TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
 {
-    // iterate over all registered tools
+    bool handled = false;
+
+    wxLogTrace( kicadTraceToolStack, "TOOL_MANAGER::dispatchInternal %s", aEvent.Format() );
+
+    // iterate over active tool stack
     for( auto it = m_activeTools.begin(); it != m_activeTools.end(); ++it )
     {
         TOOL_STATE* st = m_toolIdIndex[*it];
@@ -543,6 +551,9 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
         {
             if( st->waitEvents.Matches( aEvent ) )
             {
+                if( !aEvent.FirstResponder() )
+                    const_cast<TOOL_EVENT*>( &aEvent )->SetFirstResponder( st->theTool );
+
                 // got matching event? clear wait list and wake up the coroutine
                 st->wakeupEvent = aEvent;
                 st->pendingWait = false;
@@ -550,6 +561,10 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
 
                 if( st->cofunc )
                 {
+                    wxLogTrace( kicadTraceToolStack,
+                            "TOOL_MANAGER::dispatchInternal Waking tool %s for event: %s",
+                            st->theTool->GetName(), aEvent.Format() );
+
                     setActiveState( st );
                     bool end = !st->cofunc->Resume();
 
@@ -559,7 +574,14 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
 
                 // If the tool did not request the event be passed to other tools, we're done
                 if( !st->wakeupEvent.PassEvent() )
+                {
+                    wxLogTrace( kicadTraceToolStack,
+                            "TOOL_MANAGER::dispatchInternal %s stopped passing event: %s",
+                            st->theTool->GetName(), aEvent.Format() );
+
+                    handled = true;
                     break;
+                }
             }
         }
     }
@@ -579,6 +601,9 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
                 {
                     auto func_copy = tr.second;
 
+                    if( !aEvent.FirstResponder() )
+                        const_cast<TOOL_EVENT*>( &aEvent )->SetFirstResponder( st->theTool );
+
                     // if there is already a context, then push it on the stack
                     // and transfer the previous view control settings to the new context
                     if( st->cofunc )
@@ -593,10 +618,15 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
                     // as the state changes, the transition table has to be set up again
                     st->transitions.clear();
 
+                    wxLogTrace( kicadTraceToolStack,
+                            "TOOL_MANAGER::dispatchInternal Running tool %s for event: %s",
+                            st->theTool->GetName(), aEvent.Format() );
+
                     // got match? Run the handler.
                     setActiveState( st );
                     st->idle = false;
                     st->cofunc->Call( aEvent );
+                    handled = true;
 
                     if( !st->cofunc->Running() )
                         finishTool( st ); // The couroutine has finished immediately?
@@ -613,24 +643,26 @@ void TOOL_MANAGER::dispatchInternal( const TOOL_EVENT& aEvent )
         if( finished )
             break;      // only the first tool gets the event
     }
+
+    wxLogTrace( kicadTraceToolStack, "TOOL_MANAGER::dispatchInternal handled: %s  %s",
+            ( handled ? "true" : "false" ), aEvent.Format() );
+
+    return handled;
 }
 
 
-bool TOOL_MANAGER::dispatchStandardEvents( const TOOL_EVENT& aEvent )
+bool TOOL_MANAGER::dispatchHotKey( const TOOL_EVENT& aEvent )
 {
     if( aEvent.Action() == TA_KEY_PRESSED )
-    {
-        // Check if there is a hotkey associated
-        if( m_actionMgr->RunHotKey( aEvent.Modifier() | aEvent.KeyCode() ) )
-            return false;                 // hotkey event was handled so it does not go any further
-    }
+        return m_actionMgr->RunHotKey( aEvent.Modifier() | aEvent.KeyCode() );
 
-    return true;
+    return false;
 }
 
 
 bool TOOL_MANAGER::dispatchActivation( const TOOL_EVENT& aEvent )
 {
+    wxLogTrace( kicadTraceToolStack, "TOOL_MANAGER::dispatchActivation %s", aEvent.Format() );
     if( aEvent.IsActivate() )
     {
         wxString cmdStr( *aEvent.GetCommandStr() );
@@ -639,6 +671,10 @@ bool TOOL_MANAGER::dispatchActivation( const TOOL_EVENT& aEvent )
 
         if( tool != m_toolNameIndex.end() )
         {
+            wxLogTrace( kicadTraceToolStack,
+                    "TOOL_MANAGER::dispatchActivation Running tool %s for event: %s",
+                    tool->second->theTool->GetName(), aEvent.Format() );
+
             runTool( tool->second->theTool );
             return true;
         }
@@ -763,16 +799,18 @@ TOOL_MANAGER::ID_LIST::iterator TOOL_MANAGER::finishTool( TOOL_STATE* aState )
     if( tool->GetType() == INTERACTIVE )
         static_cast<TOOL_INTERACTIVE*>( tool )->resetTransitions();
 
-    return it;
+    return --it;
 }
 
 
 bool TOOL_MANAGER::ProcessEvent( const TOOL_EVENT& aEvent )
 {
-    bool hotkey_handled = processEvent( aEvent );
+    bool handled = processEvent( aEvent );
 
-    if( TOOL_STATE* active = GetCurrentToolState() )
-        setActiveState( active );
+    TOOL_STATE* activeTool = GetCurrentToolState();
+
+    if( activeTool )
+        setActiveState( activeTool );
 
     if( m_view && m_view->IsDirty() )
     {
@@ -785,7 +823,7 @@ bool TOOL_MANAGER::ProcessEvent( const TOOL_EVENT& aEvent )
 
     UpdateUI( aEvent );
 
-    return hotkey_handled;
+    return handled;
 }
 
 
@@ -919,23 +957,34 @@ void TOOL_MANAGER::applyViewControls( TOOL_STATE* aState )
 
 bool TOOL_MANAGER::processEvent( const TOOL_EVENT& aEvent )
 {
-    // Early dispatch of events destined for the TOOL_MANAGER
-    if( !dispatchStandardEvents( aEvent ) )
-        return true;
+    wxLogTrace( kicadTraceToolStack, "TOOL_MANAGER::processEvent %s", aEvent.Format() );
 
-    dispatchInternal( aEvent );
-    dispatchActivation( aEvent );
-    DispatchContextMenu( aEvent );
+    // First try to dispatch the action associated with the event if it is a key press event
+    bool handled = dispatchHotKey( aEvent );
 
-    // Dispatch queue
-    while( !m_eventQueue.empty() )
+    if( !handled )
     {
-        TOOL_EVENT event = m_eventQueue.front();
-        m_eventQueue.pop_front();
-        processEvent( event );
+        // If the event is not handled through a hotkey activation, pass it to the currently
+        // running tool loops
+        handled |= dispatchInternal( aEvent );
+        handled |= dispatchActivation( aEvent );
+
+        // Open the context menu if requested by a tool
+        DispatchContextMenu( aEvent );
+
+        // Dispatch any remaining events in the event queue
+        while( !m_eventQueue.empty() )
+        {
+            TOOL_EVENT event = m_eventQueue.front();
+            m_eventQueue.pop_front();
+            processEvent( event );
+        }
     }
 
-    return false;
+    wxLogTrace( kicadTraceToolStack, "TOOL_MANAGER::processEvent handled: %s  %s",
+            ( handled ? "true" : "false" ), aEvent.Format() );
+
+    return handled;
 }
 
 
@@ -966,7 +1015,7 @@ void TOOL_MANAGER::UpdateUI( const TOOL_EVENT& aEvent )
     {
         frame->UpdateStatusBar();
 
-        if( !aEvent.IsMotion() )
+        if( !aEvent.IsMotion() && !aEvent.IsDrag() )
             frame->SyncToolbars();
     }
 }

@@ -33,7 +33,7 @@
 class SCH_COMPONENT;
 
 #include <eda_rect.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 
 #include "pin_shape.h"
 #include "pin_type.h"
@@ -212,8 +212,6 @@ public:
      * @param aTestOtherPins determines if other pins need to be updated
      */
     void SetOrientation( int aOrientation, bool aTestOtherPins = true );
-
-    void Rotate() override;
 
     GRAPHIC_PINSHAPE GetShape() const { return m_shape; }
 

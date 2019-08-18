@@ -36,7 +36,6 @@ set( EESCHEMA_DLGS
     dialogs/dialog_annotate_base.cpp
     dialogs/dialog_bom.cpp
     dialogs/dialog_bom_base.cpp
-    dialogs/dialog_bom_cfg_keywords.cpp
     dialogs/dialog_bus_manager.cpp
     dialogs/dialog_fields_editor_global.cpp
     dialogs/dialog_fields_editor_global_base.cpp
@@ -55,6 +54,8 @@ set( EESCHEMA_DLGS
     dialogs/dialog_erc.cpp
     dialogs/dialog_erc_base.cpp
     dialogs/dialog_global_sym_lib_table_config.cpp
+    dialogs/dialog_global_edit_text_and_graphics.cpp
+    dialogs/dialog_global_edit_text_and_graphics_base.cpp
     dialogs/dialog_lib_edit_draw_item.cpp
     dialogs/dialog_lib_edit_draw_item_base.cpp
     dialogs/dialog_lib_edit_pin.cpp
@@ -134,7 +135,6 @@ set( EESCHEMA_SRCS
     bus-wire-junction.cpp
     class_libentry.cpp
     class_library.cpp
-    cmp_library_keywords.cpp
     cmp_library_lexer.cpp
     component_references_lister.cpp
     connection_graph.cpp
@@ -145,14 +145,13 @@ set( EESCHEMA_SRCS
     erc.cpp
     fields_grid_table.cpp
     files-io.cpp
-    find.cpp
     generate_alias_info.cpp
     getpart.cpp
     hierarch.cpp
     lib_arc.cpp
     lib_bezier.cpp
     lib_circle.cpp
-    lib_draw_item.cpp
+    lib_item.cpp
     lib_field.cpp
     lib_pin.cpp
     lib_polyline.cpp
@@ -204,7 +203,6 @@ set( EESCHEMA_SRCS
     symbol_tree_model_adapter.cpp
     symbol_tree_synchronizing_adapter.cpp
     template_fieldnames.cpp
-    template_fieldnames_keywords.cpp
     toolbars_sch_editor.cpp
     toolbars_viewlib.cpp
     transform.cpp
@@ -221,7 +219,6 @@ set( EESCHEMA_SRCS
     tools/backanno.cpp
     tools/ee_actions.cpp
     tools/ee_inspection_tool.cpp
-    tools/ee_picker_tool.cpp
     tools/ee_point_editor.cpp
     tools/ee_selection.cpp
     tools/ee_selection_tool.cpp
@@ -333,14 +330,23 @@ add_library( eeschema_kiface_objects OBJECT
 
 # CMake <3.9 can't link anything to object libraries,
 # but we only need include directories, as we will link the kiface MODULE
-target_include_directories( eeschema_kiface_objects PRIVATE
-   $<TARGET_PROPERTY:common,INCLUDE_DIRECTORIES>
+target_include_directories( eeschema_kiface_objects PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    $<TARGET_PROPERTY:common,INTERFACE_INCLUDE_DIRECTORIES>
 )
+
+# Since we're not using target_link_libraries, we need to explicitly
+# declare the dependency
+add_dependencies( eeschema_kiface_objects common )
 
 add_library( eeschema_kiface MODULE
     eeschema.cpp
     $<TARGET_OBJECTS:eeschema_kiface_objects>
     )
+
+target_include_directories( eeschema_kiface PUBLIC
+    $<TARGET_PROPERTY:eeschema_kiface_objects,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 target_link_libraries( eeschema_kiface
     common
@@ -440,39 +446,27 @@ endif()
 # auto-generate cmp_library_lexer.h and cmp_library_keywords.cpp for the component
 # library format.
 make_lexer(
-    cmp_library_lexer_source_files
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library.keywords
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_lexer.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmp_library_keywords.cpp
+    eeschema_kiface_objects
+    cmp_library.keywords
+    cmp_library_lexer.h
+    cmp_library_keywords.cpp
     TLIB_T
     )
 
-add_dependencies( eeschema_kiface cmp_library_lexer_source_files )
-
 make_lexer(
-    field_template_lexer_source_files
-    ${CMAKE_CURRENT_SOURCE_DIR}/template_fieldnames.keywords
-    ${CMAKE_CURRENT_SOURCE_DIR}/template_fieldnames_lexer.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/template_fieldnames_keywords.cpp
+    eeschema_kiface_objects
+    template_fieldnames.keywords
+    template_fieldnames_lexer.h
+    template_fieldnames_keywords.cpp
     TFIELD_T
-
-    # Pass header file with dependency on *_lexer.h as extra_arg
-    template_fieldnames.h
     )
-
-add_dependencies( eeschema_kiface field_template_lexer_source_files )
 
 make_lexer(
-    dialog_bom_cfg_lexer_source_files
-    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_bom_cfg.keywords
-    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_bom_cfg_lexer.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_bom_cfg_keywords.cpp
+    eeschema_kiface_objects
+    dialogs/dialog_bom_cfg.keywords
+    dialogs/dialog_bom_cfg_lexer.h
+    dialogs/dialog_bom_cfg_keywords.cpp
     T_BOMCFG_T
-
-    # Pass header file with dependency on *_lexer.h as extra_arg
-    dialogs/dialog_bom_cfg.h
     )
-
-add_dependencies( eeschema_kiface dialog_bom_cfg_lexer_source_files )
 
 add_subdirectory( plugins )

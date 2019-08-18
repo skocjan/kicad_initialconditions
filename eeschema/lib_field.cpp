@@ -25,7 +25,6 @@
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <gr_basic.h>
-#include <macros.h>
 #include <base_struct.h>
 #include <gr_text.h>
 #include <kicad_string.h>
@@ -35,7 +34,6 @@
 #include <base_units.h>
 #include <msgpanel.h>
 #include <bitmaps.h>
-
 #include <general.h>
 #include <class_libentry.h>
 #include <transform.h>
@@ -73,10 +71,10 @@ LIB_FIELD::~LIB_FIELD()
 LIB_FIELD& LIB_FIELD::operator=( const LIB_FIELD& field )
 {
     m_id = field.m_id;
-    m_Text = field.m_Text;
     m_name = field.m_name;
     m_Parent = field.m_Parent;
 
+    SetText( field.GetText() );
     SetEffects( field );
 
     return *this;
@@ -92,21 +90,15 @@ void LIB_FIELD::Init( int id )
 
     SetTextAngle( TEXT_ANGLE_HORIZ );    // constructor already did this.
 
-    // fields in RAM must always have names, because we are trying to get
-    // less dependent on field ids and more dependent on names.
-    // Plus assumptions are made in the field editors.
+    // Fields in RAM must always have names, because we are trying to get less dependent on
+    // field ids and more dependent on names. Plus assumptions are made in the field editors.
     m_name = TEMPLATE_FIELDNAME::GetDefaultFieldName( id );
 
-    switch( id )
-    {
-    case DATASHEET:
-    case FOOTPRINT:
-        // by contrast, VALUE and REFERENCE are are always constructed as
-        // initially visible, and template fieldsnames' initial visibility
-        // is controlled by the template fieldname configuration record.
+    // By contrast, VALUE and REFERENCE are are always constructed as initially visible, and
+    // template fieldsnames' initial visibility is controlled by the template fieldname config.
+    if( id == DATASHEET || id == FOOTPRINT )
         SetVisible( false );
-        break;
-    }
+
 }
 
 
@@ -131,18 +123,10 @@ int LIB_FIELD::GetPenSize() const
 void LIB_FIELD::print( wxDC* aDC, const wxPoint& aOffset, void* aData,
                        const TRANSFORM& aTransform )
 {
-    wxPoint  text_pos;
     COLOR4D  color = IsVisible() ? GetDefaultColor() : GetInvisibleItemColor();
     int      linewidth = GetPenSize();
-
-    text_pos = aTransform.TransformCoordinate( GetTextPos() ) + aOffset;
-
-    wxString text;
-
-    if( aData )
-        text = *(wxString*)aData;
-    else
-        text = m_Text;
+    wxPoint  text_pos = aTransform.TransformCoordinate( GetTextPos() ) + aOffset;
+    wxString text = aData ? *static_cast<wxString*>( aData ) : GetText();
 
     GRText( aDC, text_pos, color, text, GetTextAngle(), GetTextSize(), GetHorizJustify(),
             GetVertJustify(), linewidth, IsItalic(), IsBold() );
@@ -151,15 +135,14 @@ void LIB_FIELD::print( wxDC* aDC, const wxPoint& aOffset, void* aData,
 
 bool LIB_FIELD::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 {
-    // Because HitTest is mainly used to select the field return false if it is void
-    if( IsVoid() )
+    // Because HitTest is mainly used to select the field return false if it is empty
+    if( GetText().IsEmpty() )
         return false;
 
     // Build a temporary copy of the text for hit testing
     EDA_TEXT tmp_text( *this );
 
-    // Reference designator text has one or 2 additional character (displays
-    // U? or U?A)
+    // Reference designator text has one or 2 additional character (displays U? or U?A)
     if( m_id == REFERENCE )
     {
         wxString extended_text = tmp_text.GetText();
@@ -173,10 +156,8 @@ bool LIB_FIELD::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 
     tmp_text.SetTextPos( DefaultTransform.TransformCoordinate( GetTextPos() ) );
 
-    /* The text orientation may need to be flipped if the
-     *  transformation matrix causes xy axes to be flipped.
-     * this simple algo works only for schematic matrix (rot 90 or/and mirror)
-     */
+    // The text orientation may need to be flipped if the transformation matrix causes xy axes
+    // to be flipped.  This simple algo works only for schematic matrix (rot 90 or/and mirror)
     bool t1 = ( DefaultTransform.x1 != 0 ) ^ ( GetTextAngle() != 0 );
     tmp_text.SetTextAngle( t1 ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
 
@@ -196,9 +177,9 @@ EDA_ITEM* LIB_FIELD::Clone() const
 
 void LIB_FIELD::Copy( LIB_FIELD* aTarget ) const
 {
-    aTarget->m_Text = m_Text;
     aTarget->m_name = m_name;
 
+    aTarget->SetText( GetText() );
     aTarget->SetEffects( *this );
     aTarget->SetParent( m_Parent );
 }
@@ -213,7 +194,7 @@ int LIB_FIELD::compare( const LIB_ITEM& other ) const
     if( m_id != tmp->m_id )
         return m_id - tmp->m_id;
 
-    int result = m_Text.CmpNoCase( tmp->m_Text );
+    int result = GetText().CmpNoCase( tmp->GetText() );
 
     if( result != 0 )
         return result;
@@ -291,11 +272,10 @@ void LIB_FIELD::Rotate( const wxPoint& center, bool aRotateCCW )
 void LIB_FIELD::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
                       const TRANSFORM& aTransform )
 {
-    if( IsVoid() )
+    if( GetText().IsEmpty() )
         return;
 
-    /* Calculate the text orientation, according to the component
-     * orientation/mirror */
+    // Calculate the text orientation, according to the component orientation/mirror
     int orient = (int) GetTextAngle();
 
     if( aTransform.y1 )  // Rotate component 90 deg.
@@ -311,13 +291,10 @@ void LIB_FIELD::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     EDA_TEXT_HJUSTIFY_T hjustify = GR_TEXT_HJUSTIFY_CENTER;
     EDA_TEXT_VJUSTIFY_T vjustify = GR_TEXT_VJUSTIFY_CENTER;
-    wxPoint textpos = aTransform.TransformCoordinate( BoundaryBox.Centre() )
-                      + aOffset;
+    wxPoint textpos = aTransform.TransformCoordinate( BoundaryBox.Centre() ) + aOffset;
 
-    aPlotter->Text( textpos, GetDefaultColor(), GetShownText(),
-                    orient, GetTextSize(),
-                    hjustify, vjustify,
-                    GetPenSize(), IsItalic(), IsBold() );
+    aPlotter->Text( textpos, GetDefaultColor(), GetShownText(), orient, GetTextSize(),
+                    hjustify, vjustify, GetPenSize(), IsItalic(), IsBold() );
 }
 
 
@@ -363,7 +340,7 @@ const EDA_RECT LIB_FIELD::GetBoundingBox() const
 
 void LIB_FIELD::ViewGetLayers( int aLayers[], int& aCount ) const
 {
-    aCount      = 1;
+    aCount      = 2;
 
     switch( m_id )
     {
@@ -371,6 +348,8 @@ void LIB_FIELD::ViewGetLayers( int aLayers[], int& aCount ) const
     case VALUE:     aLayers[0] = LAYER_VALUEPART;     break;
     default:        aLayers[0] = LAYER_FIELDS;        break;
     }
+
+    aLayers[1] = LAYER_SELECTION_SHADOWS;
 }
 
 
@@ -382,12 +361,6 @@ COLOR4D LIB_FIELD::GetDefaultColor()
     case VALUE:     return GetLayerColor( LAYER_VALUEPART );
     default:        return GetLayerColor( LAYER_FIELDS );
     }
-}
-
-
-void LIB_FIELD::Rotate()
-{
-    SetTextAngle( GetTextAngle() == TEXT_ANGLE_VERT ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
 }
 
 
@@ -433,12 +406,6 @@ void LIB_FIELD::SetName( const wxString& aName )
         m_name = aName;
         SetModified();
     }
-}
-
-
-void LIB_FIELD::SetText( const wxString& aText )
-{
-    m_Text = aText;
 }
 
 

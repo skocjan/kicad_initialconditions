@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -80,7 +81,7 @@ public:
     int AddJunctionsIfNeeded( const TOOL_EVENT& aEvent );
 
 private:
-    int doDrawSegments( int aType, SCH_LINE* aSegment );
+    int doDrawSegments( const std::string& aTool, int aType, SCH_LINE* aSegment );
     SCH_LINE* startSegments( int aType, const VECTOR2D& aPos );
     SCH_LINE* doUnfoldBus( const wxString& aNet );
     void finishSegments();

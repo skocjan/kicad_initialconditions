@@ -116,6 +116,13 @@ public:
      */
     void Move( wxPoint aMoveVector );
 
+    /**
+     * Rotates the primitive about a point
+     * @param aRotCentre center of rotation
+     * @param aAngle angle in tenths of degree
+     */
+    void Rotate( const wxPoint& aRotCentre, double aAngle );
+
     /** Export the PAD_CS_PRIMITIVE parameters to a DRAWSEGMENT
      * useful to draw a primitive shape
      * @param aTarget is the DRAWSEGMENT to initialize
@@ -254,6 +261,16 @@ public:
         m_boundingRadius = -1;
     }
 
+    /**
+     * @return true if the pad is on any copper layer, false otherwise.
+     * pads can be only on tech layers to build special pads.
+     * they are therefore not always on a copper layer
+     */
+    bool IsOnCopperLayer() const override
+    {
+        return ( GetLayerSet() & LSET::AllCuMask() ) != 0;
+    }
+
     void SetY( int y )                          { m_Pos.y = y; }
     void SetX( int x )                          { m_Pos.x = x; }
 
@@ -340,7 +357,7 @@ public:
      */
     const SHAPE_POLY_SET& GetCustomShapeAsPolygon() const { return m_customShapeAsPolygon; }
 
-    void Flip( const wxPoint& aCentre ) override;
+    void Flip( const wxPoint& aCentre, bool aFlipLeftRight ) override;
 
     /**
      * Flip the basic shapes, in custom pads
@@ -489,6 +506,7 @@ public:
 
     void SetZoneConnection( ZoneConnection aType ) { m_ZoneConnection = aType; }
     ZoneConnection GetZoneConnection() const;
+    ZoneConnection GetLocalZoneConnection() const { return m_ZoneConnection; }
 
     void SetThermalWidth( int aWidth ) { m_ThermalWidth = aWidth; }
     int GetThermalWidth() const;
@@ -780,23 +798,6 @@ public:
     virtual unsigned int ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const override;
 
     virtual const BOX2I ViewBBox() const override;
-
-    /**
-     * Function CopyNetlistSettings
-     * copies the netlist settings to \a aPad, and the net name.
-     * Used to copy some pad parameters when replacing a footprint by an other
-     * footprint when reading a netlist, or in exchange footprint dialog
-     *
-     * The netlist settings are all of the #D_PAD settings not define by a #D_PAD in
-     * a netlist.
-     * The copied settings are the net name and optionally include local clearance, etc.
-     * The pad physical geometry settings are not copied.
-     *
-     * @param aPad is the #D_PAD to copy the settings to.
-     * @param aCopyLocalSettings = false to copy only the net name
-     *   true to also copy local prms
-     */
-    void CopyNetlistSettings( D_PAD* aPad, bool aCopyLocalSettings );
 
     virtual void SwapData( BOARD_ITEM* aImage ) override;
 

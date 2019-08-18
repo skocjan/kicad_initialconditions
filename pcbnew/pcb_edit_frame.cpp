@@ -25,8 +25,6 @@
 #include <pgm_base.h>
 #include <confirm.h>
 #include <pcb_edit_frame.h>
-#include <collectors.h>
-#include <build_version.h>
 #include <3d_viewer/eda_3d_viewer.h>
 #include <fp_lib_table.h>
 #include <bitmaps.h>
@@ -38,13 +36,11 @@
 #include <pcb_layer_widget.h>
 #include <config_params.h>
 #include <footprint_edit_frame.h>
-#include <dialog_helpers.h>
 #include <dialog_plot.h>
 #include <dialog_edit_footprint_for_BoardEditor.h>
 #include <dialogs/dialog_exchange_footprints.h>
 #include <dialog_board_setup.h>
 #include <convert_to_biu.h>
-#include <view/view.h>
 #include <view/view_controls.h>
 #include <pcb_painter.h>
 #include <invoke_pcb_dialog.h>
@@ -57,7 +53,6 @@
 #include <wildcards_and_files_ext.h>
 #include <kicad_string.h>
 #include <pcb_draw_panel_gal.h>
-#include <gal/graphics_abstraction_layer.h>
 #include <functional>
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
@@ -74,6 +69,7 @@
 #include <tools/point_editor.h>
 #include <tools/pcbnew_control.h>
 #include <tools/pcb_editor_control.h>
+#include <tools/pcb_inspection_tool.h>
 #include <tools/placement_tool.h>
 #include <tools/pad_tool.h>
 #include <tools/microwave_tool.h>
@@ -137,6 +133,7 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU( ID_MENU_CREATE_LIBRARY_AND_ARCHIVE_MODULES, PCB_EDIT_FRAME::Process_Special_Functions )
 
     EVT_MENU( wxID_EXIT, PCB_EDIT_FRAME::OnQuit )
+    EVT_MENU( wxID_CLOSE, PCB_EDIT_FRAME::OnQuit )
 
     // menu Config
     EVT_MENU( ID_PCB_3DSHAPELIB_WIZARD, PCB_EDIT_FRAME::On3DShapeLibWizard )
@@ -157,8 +154,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_TOOL( ID_TOOLBARH_PCB_ACTION_PLUGIN_REFRESH, PCB_EDIT_FRAME::OnActionPluginRefresh )
 #endif
 
-    EVT_TOOL( ID_RUN_EESCHEMA, PCB_EDIT_FRAME::OnRunEeschema )
-
     // Tracks and vias sizes general options
     EVT_MENU_RANGE( ID_POPUP_PCB_SELECT_WIDTH_START_RANGE,
                     ID_POPUP_PCB_SELECT_WIDTH_END_RANGE,
@@ -172,8 +167,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
                          PCB_EDIT_FRAME::OnUpdateSelectTrackWidth )
     EVT_UPDATE_UI_RANGE( ID_POPUP_PCB_SELECT_VIASIZE1, ID_POPUP_PCB_SELECT_VIASIZE8,
                          PCB_EDIT_FRAME::OnUpdateSelectViaSize )
-    EVT_UPDATE_UI_RANGE( ID_PCB_MUWAVE_START_CMD, ID_PCB_MUWAVE_END_CMD,
-                         PCB_EDIT_FRAME::OnUpdateMuWaveToolbar )
 
     EVT_COMMAND( wxID_ANY, LAYER_WIDGET::EVT_LAYER_COLOR_CHANGE, PCB_EDIT_FRAME::OnLayerColorChange )
 END_EVENT_TABLE()
@@ -311,6 +304,8 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
         SaveSettings( config() );
     }
 
+    InitExitKey();
+
     GetCanvas()->SwitchBackend( m_canvasType );
     GetCanvas()->GetGAL()->SetGridSize( VECTOR2D( GetScreen()->GetGridSize() ) );
     GetCanvas()->GetView()->SetScale( GetZoomLevelCoeff() / GetScreen()->GetZoom() );
@@ -421,6 +416,7 @@ void PCB_EDIT_FRAME::setupTools()
     m_toolManager->RegisterTool( new POINT_EDITOR );
     m_toolManager->RegisterTool( new PCBNEW_CONTROL );
     m_toolManager->RegisterTool( new PCB_EDITOR_CONTROL );
+    m_toolManager->RegisterTool( new PCB_INSPECTION_TOOL );
     m_toolManager->RegisterTool( new ALIGN_DISTRIBUTE_TOOL );
     m_toolManager->RegisterTool( new MICROWAVE_TOOL );
     m_toolManager->RegisterTool( new POSITION_RELATIVE_TOOL );
@@ -455,7 +451,11 @@ void PCB_EDIT_FRAME::ReFillLayerWidget()
 
 void PCB_EDIT_FRAME::OnQuit( wxCommandEvent& event )
 {
-    Close( false );
+    if( event.GetId() == wxID_EXIT )
+        Kiway().OnKiCadExit();
+
+    if( event.GetId() == wxID_CLOSE || Kiface().IsSingle() )
+        Close( false );
 }
 
 
@@ -749,30 +749,30 @@ void PCB_EDIT_FRAME::ShowChangedLanguage()
 }
 
 
-wxString PCB_EDIT_FRAME::GetLastNetListRead()
+wxString PCB_EDIT_FRAME::GetLastPath( LAST_PATH_TYPE aType )
 {
-    wxFileName absoluteFileName = m_lastNetListRead;
+    if( m_lastPath[ aType ].IsEmpty() )
+        return wxEmptyString;
+
+    wxFileName absoluteFileName = m_lastPath[ aType ];
     wxFileName pcbFileName = GetBoard()->GetFileName();
 
-    if( !absoluteFileName.MakeAbsolute( pcbFileName.GetPath() ) || !absoluteFileName.FileExists() )
-    {
-        absoluteFileName.Clear();
-        m_lastNetListRead = wxEmptyString;
-    }
-
+    absoluteFileName.MakeAbsolute( pcbFileName.GetPath() );
     return absoluteFileName.GetFullPath();
 }
 
 
-void PCB_EDIT_FRAME::SetLastNetListRead( const wxString& aLastNetListRead )
+void PCB_EDIT_FRAME::SetLastPath( LAST_PATH_TYPE aType, const wxString& aLastPath )
 {
-    wxFileName relativeFileName = aLastNetListRead;
+    wxFileName relativeFileName = aLastPath;
     wxFileName pcbFileName = GetBoard()->GetFileName();
 
-    if( relativeFileName.MakeRelativeTo( pcbFileName.GetPath() )
-        && relativeFileName.GetFullPath() != aLastNetListRead )
+    relativeFileName.MakeRelativeTo( pcbFileName.GetPath() );
+
+    if( relativeFileName.GetFullPath() != m_lastPath[ aType ] )
     {
-        m_lastNetListRead = relativeFileName.GetFullPath();
+        m_lastPath[ aType ] = relativeFileName.GetFullPath();
+        SaveProjectSettings( false );
     }
 }
 
@@ -982,7 +982,7 @@ void PCB_EDIT_FRAME::DoUpdatePCBFromNetlist( NETLIST& aNetlist, bool aUseTimesta
 }
 
 
-void PCB_EDIT_FRAME::OnRunEeschema( wxCommandEvent& event )
+void PCB_EDIT_FRAME::RunEeschema()
 {
     wxString   msg;
     wxFileName schfn( Prj().GetProjectPath(), Prj().GetProjectName(), SchematicFileExtension );
@@ -1131,9 +1131,9 @@ int PCB_EDIT_FRAME::InstallExchangeModuleFrame( MODULE* aModule, bool updateMode
 }
 
 
-void PCB_EDIT_FRAME::CommonSettingsChanged()
+void PCB_EDIT_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    PCB_BASE_EDIT_FRAME::CommonSettingsChanged();
+    PCB_BASE_EDIT_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
     ReCreateMicrowaveVToolbar();
 

@@ -37,9 +37,58 @@
 #include <base_units.h>
 #include <convert_to_biu.h>
 
+// Sadly we store the orientation of hierarchical and global labels using a different
+// int encoding than that for local labels:
+//                   Global      Local
+// Left justified      0           2
+// Up                  1           3
+// Right justified     2           0
+// Down                3           1
+int EDA_TEXT::MapOrientation( KICAD_T labelType, int aOrientation )
+{
+    if( labelType == SCH_LABEL_T )
+        return aOrientation;
+
+    switch( aOrientation )
+    {
+    case 0: return 2;
+    case 2: return 0;
+    default: return aOrientation;
+    }
+}
+
+
+EDA_TEXT_HJUSTIFY_T EDA_TEXT::MapHorizJustify( int aHorizJustify )
+{
+    wxASSERT( aHorizJustify >= GR_TEXT_HJUSTIFY_LEFT && aHorizJustify <= GR_TEXT_HJUSTIFY_RIGHT );
+
+    if( aHorizJustify > GR_TEXT_HJUSTIFY_RIGHT )
+        return GR_TEXT_HJUSTIFY_RIGHT;
+
+    if( aHorizJustify < GR_TEXT_HJUSTIFY_LEFT )
+        return GR_TEXT_HJUSTIFY_LEFT;
+
+    return (EDA_TEXT_HJUSTIFY_T) aHorizJustify;
+}
+
+
+EDA_TEXT_VJUSTIFY_T EDA_TEXT::MapVertJustify( int aVertJustify )
+{
+    wxASSERT( aVertJustify >= GR_TEXT_VJUSTIFY_TOP && aVertJustify <= GR_TEXT_VJUSTIFY_BOTTOM );
+
+    if( aVertJustify > GR_TEXT_VJUSTIFY_BOTTOM )
+        return GR_TEXT_VJUSTIFY_BOTTOM;
+
+    if( aVertJustify < GR_TEXT_VJUSTIFY_TOP )
+        return GR_TEXT_VJUSTIFY_TOP;
+
+    return (EDA_TEXT_VJUSTIFY_T) aVertJustify;
+}
+
+
 EDA_TEXT::EDA_TEXT( const wxString& text ) :
-    m_Text( text ),
-    m_e( 1<<TE_VISIBLE )
+        m_text( text ),
+        m_e( 1<<TE_VISIBLE )
 {
     int sz = Mils2iu( DEFAULT_SIZE_TEXT );
     SetTextSize( wxSize( sz, sz ) );
@@ -48,10 +97,10 @@ EDA_TEXT::EDA_TEXT( const wxString& text ) :
 
 
 EDA_TEXT::EDA_TEXT( const EDA_TEXT& aText ) :
-    m_Text( aText.m_Text ),
-    m_e( aText.m_e )
+        m_text( aText.m_text ),
+        m_e( aText.m_e )
 {
-    m_shown_text = UnescapeString( m_Text );
+    m_shown_text = UnescapeString( m_text );
 }
 
 
@@ -62,7 +111,7 @@ EDA_TEXT::~EDA_TEXT()
 
 void EDA_TEXT::SetText( const wxString& aText )
 {
-    m_Text = aText;
+    m_text = aText;
     m_shown_text = UnescapeString( aText );
 }
 
@@ -73,9 +122,22 @@ void EDA_TEXT::SetEffects( const EDA_TEXT& aSrc )
 }
 
 
+void EDA_TEXT::SwapText( EDA_TEXT& aTradingPartner )
+{
+    std::swap( m_text, aTradingPartner.m_text );
+    std::swap( m_shown_text, aTradingPartner.m_shown_text );
+}
+
+
 void EDA_TEXT::SwapEffects( EDA_TEXT& aTradingPartner )
 {
     std::swap( m_e, aTradingPartner.m_e );
+}
+
+
+bool EDA_TEXT::Replace( wxFindReplaceData& aSearchData )
+{
+    return EDA_ITEM::Replace( aSearchData, m_text );
 }
 
 
@@ -83,7 +145,7 @@ int EDA_TEXT::LenSize( const wxString& aLine, int aThickness ) const
 {
     basic_gal.SetFontItalic( IsItalic() );
     basic_gal.SetFontBold( IsBold() );
-    basic_gal.SetLineWidth( aThickness );
+    basic_gal.SetLineWidth( (float) aThickness );
     basic_gal.SetGlyphSize( VECTOR2D( GetTextSize() ) );
 
     VECTOR2D tsize = basic_gal.GetTextLineSize( aLine );
@@ -107,11 +169,9 @@ wxString EDA_TEXT::ShortenedShownText() const
 }
 
 
-int EDA_TEXT::GetInterline( int aTextThickness ) const
+int EDA_TEXT::GetInterline() const
 {
-    int thickness = aTextThickness <= 0 ? GetThickness() : aTextThickness;
-
-    return KiROUND( KIGFX::STROKE_FONT::GetInterline( GetTextHeight(), thickness ) );
+    return KiROUND( KIGFX::STROKE_FONT::GetInterline( GetTextHeight() ) );
 }
 
 
@@ -153,7 +213,7 @@ EDA_RECT EDA_TEXT::GetTextBox( int aLine, int aThickness, bool aInvertY ) const
     // calculate the H and V size
     int dx = KiROUND( basic_gal.GetStrokeFont().ComputeStringBoundaryLimits(
                             text, VECTOR2D( GetTextSize() ), double( thickness ) ).x );
-    int dy = GetInterline( thickness );
+    int dy = GetInterline();
 
     // Creates bounding box (rectangle) for an horizontal
     // and left and top justified text. the bounding box will be moved later
@@ -255,7 +315,7 @@ EDA_RECT EDA_TEXT::GetTextBox( int aLine, int aThickness, bool aInvertY ) const
             break;
 
         case GR_TEXT_VJUSTIFY_BOTTOM:
-            yoffset = linecount * GetInterline( aThickness );
+            yoffset = linecount * GetInterline();
             rect.SetY( rect.GetY() - yoffset );
             break;
         }

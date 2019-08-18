@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 23 2019)
+// C++ code generated with wxFormBuilder (version May 13 2019)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -39,10 +39,6 @@ PANEL_PCBNEW_SETTINGS_BASE::PANEL_PCBNEW_SETTINGS_BASE( wxWindow* parent, wxWind
 	wxStaticBoxSizer* bOptionsSizer;
 	bOptionsSizer = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Editing Options") ), wxVERTICAL );
 
-	m_Show_Page_Limits = new wxCheckBox( bOptionsSizer->GetStaticBox(), wxID_ANY, _("Show page limits"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_Show_Page_Limits->SetValue(true);
-	bOptionsSizer->Add( m_Show_Page_Limits, 0, wxALL, 5 );
-
 	m_Segments_45_Only_Ctrl = new wxCheckBox( bOptionsSizer->GetStaticBox(), wxID_SEGMENTS45, _("L&imit graphic lines to H, V and 45 degrees"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_Segments_45_Only_Ctrl->SetToolTip( _("Force line segment directions to H, V or 45 degrees when drawing on technical layers.") );
 
@@ -53,10 +49,8 @@ PANEL_PCBNEW_SETTINGS_BASE::PANEL_PCBNEW_SETTINGS_BASE( wxWindow* parent, wxWind
 
 	bOptionsSizer->Add( m_UseEditKeyForWidth, 0, wxBOTTOM|wxLEFT|wxRIGHT, 5 );
 
-	m_dragSelects = new wxCheckBox( bOptionsSizer->GetStaticBox(), wxID_ANY, _("Prefer selection to dragging"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_dragSelects->SetToolTip( _("When enabled and nothing is selected, drag gesture will draw a selection box, even if there are items under the cursor that could be immediately dragged.") );
-
-	bOptionsSizer->Add( m_dragSelects, 0, wxBOTTOM|wxLEFT|wxRIGHT, 5 );
+	m_FlipLeftRight = new wxCheckBox( bOptionsSizer->GetStaticBox(), wxID_ANY, _("Flip board items L/R (default is T/B)"), wxDefaultPosition, wxDefaultSize, 0 );
+	bOptionsSizer->Add( m_FlipLeftRight, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
 	wxFlexGridSizer* fgSizer12;
 	fgSizer12 = new wxFlexGridSizer( 0, 2, 0, 0 );
@@ -97,7 +91,7 @@ PANEL_PCBNEW_SETTINGS_BASE::PANEL_PCBNEW_SETTINGS_BASE( wxWindow* parent, wxWind
 	m_staticText2->Wrap( -1 );
 	m_staticText2->SetToolTip( _("Capture cursor when the mouse enters a pad area") );
 
-	fgSizer2->Add( m_staticText2, 0, wxALIGN_CENTER_VERTICAL|wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+	fgSizer2->Add( m_staticText2, 0, wxALIGN_CENTER_VERTICAL|wxLEFT|wxRIGHT, 5 );
 
 	wxString m_magneticPadChoiceChoices[] = { _("Never"), _("When creating tracks"), _("Always") };
 	int m_magneticPadChoiceNChoices = sizeof( m_magneticPadChoiceChoices ) / sizeof( wxString );
@@ -136,7 +130,7 @@ PANEL_PCBNEW_SETTINGS_BASE::PANEL_PCBNEW_SETTINGS_BASE( wxWindow* parent, wxWind
 	fgSizer2->Add( m_magneticGraphicsChoice, 0, wxALIGN_CENTER_VERTICAL|wxEXPAND|wxLEFT|wxRIGHT, 5 );
 
 
-	sbMagnets->Add( fgSizer2, 1, wxEXPAND, 5 );
+	sbMagnets->Add( fgSizer2, 1, wxEXPAND|wxBOTTOM, 5 );
 
 
 	bRightSizer->Add( sbMagnets, 1, wxEXPAND, 5 );
@@ -145,16 +139,26 @@ PANEL_PCBNEW_SETTINGS_BASE::PANEL_PCBNEW_SETTINGS_BASE( wxWindow* parent, wxWind
 	sbSizer3 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Ratsnest") ), wxVERTICAL );
 
 	m_showGlobalRatsnest = new wxCheckBox( sbSizer3->GetStaticBox(), wxID_ANY, _("Show ratsnest"), wxDefaultPosition, wxDefaultSize, 0 );
-	sbSizer3->Add( m_showGlobalRatsnest, 0, wxALL, 5 );
+	sbSizer3->Add( m_showGlobalRatsnest, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
 	m_showSelectedRatsnest = new wxCheckBox( sbSizer3->GetStaticBox(), wxID_ANY, _("Always show selected ratsnest"), wxDefaultPosition, wxDefaultSize, 0 );
-	sbSizer3->Add( m_showSelectedRatsnest, 0, wxALL, 5 );
+	sbSizer3->Add( m_showSelectedRatsnest, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
 	m_OptDisplayCurvedRatsnestLines = new wxCheckBox( sbSizer3->GetStaticBox(), wxID_ANY, _("Show ratsnest with curved lines"), wxDefaultPosition, wxDefaultSize, 0 );
-	sbSizer3->Add( m_OptDisplayCurvedRatsnestLines, 0, wxALL, 5 );
+	sbSizer3->Add( m_OptDisplayCurvedRatsnestLines, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
 
 	bRightSizer->Add( sbSizer3, 1, wxEXPAND, 5 );
+
+	wxStaticBoxSizer* sbSizer4;
+	sbSizer4 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Annotations") ), wxVERTICAL );
+
+	m_Show_Page_Limits = new wxCheckBox( sbSizer4->GetStaticBox(), wxID_ANY, _("Show page limits"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_Show_Page_Limits->SetValue(true);
+	sbSizer4->Add( m_Show_Page_Limits, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+
+
+	bRightSizer->Add( sbSizer4, 1, wxEXPAND, 5 );
 
 
 	bMargins->Add( bRightSizer, 1, wxEXPAND|wxTOP|wxRIGHT, 5 );

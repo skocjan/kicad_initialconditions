@@ -171,7 +171,7 @@ void PCB_BASE_FRAME::SetBoard( BOARD* aBoard )
     {
         delete m_Pcb;
         m_Pcb = aBoard;
-        m_Pcb->SetColorsSettings( &Settings().Colors() );
+        m_Pcb->SetGeneralSettings( &Settings() );
     }
 }
 
@@ -191,7 +191,7 @@ void PCB_BASE_FRAME::AddModuleToBoard( MODULE* module )
         // Put it on FRONT layer,
         // (Can be stored flipped if the lib is an archive built from a board)
         if( module->IsFlipped() )
-            module->Flip( module->GetPosition() );
+            module->Flip( module->GetPosition(), m_configSettings.m_FlipLeftRight );
 
         // Place it in orientation 0,
         // even if it is not saved with orientation 0 in lib
@@ -373,10 +373,7 @@ void PCB_BASE_FRAME::ShowChangedLanguage()
     EDA_DRAW_FRAME::ShowChangedLanguage();
 
     // tooltips in toolbars
-    ReCreateHToolbar();
-    ReCreateAuxiliaryToolbar();
-    ReCreateVToolbar();
-    ReCreateOptToolbar();
+    RecreateToolbars();
 
     // status bar
     UpdateMsgPanel();
@@ -564,31 +561,6 @@ GENERAL_COLLECTORS_GUIDE PCB_BASE_FRAME::GetCollectorsGuide()
     return guide;
 }
 
-void PCB_BASE_FRAME::SetToolID( int aId, int aCursor, const wxString& aToolMsg )
-{
-    bool redraw = false;
-
-    EDA_DRAW_FRAME::SetToolID( aId, aCursor, aToolMsg );
-
-    if( aId < 0 )
-        return;
-
-    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
-
-    // handle color changes for transitions in and out of ID_TRACK_BUTT
-    if( ( GetToolId() == ID_TRACK_BUTT && aId != ID_TRACK_BUTT )
-        || ( GetToolId() != ID_TRACK_BUTT && aId == ID_TRACK_BUTT ) )
-    {
-        if( displ_opts->m_ContrastModeDisplay )
-            redraw = true;
-    }
-
-    // must do this after the tool has been set, otherwise pad::Draw() does
-    // not show proper color when GetDisplayOptions().ContrastModeDisplay is true.
-    if( redraw )
-        GetCanvas()->Refresh();
-}
-
 
 /*
  * Display the grid status.
@@ -654,7 +626,7 @@ void PCB_BASE_FRAME::UpdateStatusBar()
         case INCHES:         formatter = wxT( "r %.6f  theta %.1f" ); break;
         case MILLIMETRES:    formatter = wxT( "r %.6f  theta %.1f" ); break;
         case UNSCALED_UNITS: formatter = wxT( "r %f  theta %f" );     break;
-        case DEGREES:        wxASSERT( false );                       break;
+        default:             wxASSERT( false );                       break;
         }
 
         line.Printf( formatter, To_User_Unit( GetUserUnits(), ro ), theta );
@@ -687,7 +659,7 @@ void PCB_BASE_FRAME::UpdateStatusBar()
         locformatter = "dx %f  dy %f  dist %f";
         break;
 
-    case DEGREES:
+    default:
         wxASSERT( false );
         break;
     }
@@ -773,20 +745,17 @@ void PCB_BASE_FRAME::SaveSettings( wxConfigBase* aCfg )
 }
 
 
-void PCB_BASE_FRAME::CommonSettingsChanged()
+void PCB_BASE_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    EDA_DRAW_FRAME::CommonSettingsChanged();
+    EDA_DRAW_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
-    ReCreateHToolbar();
-    ReCreateAuxiliaryToolbar();
-    ReCreateVToolbar();
-    ReCreateOptToolbar();
+    RecreateToolbars();
 
     // The 3D viewer isn't in the Kiway, so send its update manually
     EDA_3D_VIEWER* viewer = Get3DViewerFrame();
 
     if( viewer )
-        viewer->CommonSettingsChanged();
+        viewer->CommonSettingsChanged( aEnvVarsChanged );
 }
 
 

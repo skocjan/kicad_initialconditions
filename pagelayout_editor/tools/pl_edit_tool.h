@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -89,6 +90,8 @@ private:
     ///> Last cursor position (needed for getModificationPoint() to avoid changes
     ///> of edit reference point).
     VECTOR2I           m_cursor;
+
+    EDA_ITEM*          m_pickerItem;
 };
 
 #endif //PL_EDIT_TOOL_H

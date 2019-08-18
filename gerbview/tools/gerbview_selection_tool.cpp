@@ -33,7 +33,6 @@ using namespace std::placeholders;
 #include <bitmaps.h>
 #include <tool/tool_event.h>
 #include <tool/tool_manager.h>
-#include <preview_items/bright_box.h>
 #include <preview_items/ruler_item.h>
 #include <preview_items/selection_area.h>
 #include <gerbview_id.h>
@@ -108,10 +107,11 @@ private:
 
 GERBVIEW_SELECTION_TOOL::GERBVIEW_SELECTION_TOOL() :
         TOOL_INTERACTIVE( "gerbview.InteractiveSelection" ),
-        m_frame( NULL ), m_additive( false ), m_subtractive( false ),
-        m_multiple( false )
+        m_frame( NULL ),
+        m_additive( false ),
+        m_subtractive( false ),
+        m_exclusive_or( false )
 {
-    // these members are initialized to avoid warnings about non initialized vars
     m_preliminary = true;
 }
 
@@ -129,7 +129,6 @@ int GERBVIEW_SELECTION_TOOL::UpdateMenu( const TOOL_EVENT& aEvent )
 
     return 0;
 }
-
 
 
 GERBVIEW_SELECTION_TOOL::~GERBVIEW_SELECTION_TOOL()
@@ -183,11 +182,23 @@ int GERBVIEW_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
     {
+        if( m_frame->ToolStackIsEmpty() )
+            m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
+
+        m_additive = m_subtractive = m_exclusive_or = false;
+
+        if( evt->Modifier( MD_SHIFT ) && evt->Modifier( MD_CTRL ) )
+            m_subtractive = true;
+        else if( evt->Modifier( MD_SHIFT ) )
+            m_additive = true;
+        else if( evt->Modifier( MD_CTRL ) )
+            m_exclusive_or = true;
+
         // This is kind of hacky: activate RMB drag on any event.
         // There doesn't seem to be any other good way to tell when another tool
         // is canceled and control returns to the selection tool, except by the
         // fact that the selection tool starts to get events again.
-        if( m_frame->GetToolId() == ID_NO_TOOL_SELECTED)
+        if( m_frame->IsCurrentTool( ACTIONS::selectionTool ) )
         {
             getViewControls()->SetAdditionalPanButtons( false, true );
         }
@@ -201,9 +212,6 @@ int GERBVIEW_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         // single click? Select single object
         if( evt->IsClick( BUT_LEFT ) )
         {
-            if( !m_additive )
-                clearSelection();
-
             selectPoint( evt->Position() );
         }
 
@@ -241,34 +249,6 @@ GERBVIEW_SELECTION& GERBVIEW_SELECTION_TOOL::GetSelection()
 }
 
 
-void GERBVIEW_SELECTION_TOOL::toggleSelection( EDA_ITEM* aItem )
-{
-    if( aItem->IsSelected() )
-    {
-        unselect( aItem );
-
-        // Inform other potentially interested tools
-        m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
-    }
-    else
-    {
-        if( !m_additive )
-            clearSelection();
-
-        // Prevent selection of invisible or inactive items
-        if( selectable( aItem ) )
-        {
-            select( aItem );
-
-            // Inform other potentially interested tools
-            m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
-        }
-    }
-
-    m_frame->GetCanvas()->ForceRefresh();
-}
-
-
 bool GERBVIEW_SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag )
 {
     EDA_ITEM* item = NULL;
@@ -277,8 +257,6 @@ bool GERBVIEW_SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag 
 
     collector.Collect( model, GERBER_COLLECTOR::AllItems, wxPoint( aWhere.x, aWhere.y ) );
 
-    bool anyCollected = collector.GetCount() != 0;
-
     // Remove unselectable items
     for( int i = collector.GetCount() - 1; i >= 0; --i )
     {
@@ -286,42 +264,39 @@ bool GERBVIEW_SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag 
             collector.Remove( i );
     }
 
-    switch( collector.GetCount() )
+    if( collector.GetCount() > 1 )
     {
-    case 0:
-        if( !m_additive && anyCollected )
-            clearSelection();
+        if( aOnDrag )
+            Wait( TOOL_EVENT( TC_ANY, TA_MOUSE_UP, BUT_LEFT ) );
 
-        return false;
+        item = disambiguationMenu( &collector );
 
-    case 1:
-        toggleSelection( collector[0] );
-
-        return true;
-
-    default:
-        // Let's see if there is still disambiguation in selection..
-        if( collector.GetCount() == 1 )
+        if( item )
         {
-            toggleSelection( collector[0] );
+            collector.Empty();
+            collector.Append( item );
+        }
+    }
 
+    if( !m_additive && !m_subtractive && !m_exclusive_or )
+        clearSelection();
+
+    if( collector.GetCount() == 1 )
+    {
+        item = collector[ 0 ];
+
+        if( m_subtractive || ( m_exclusive_or && item->IsSelected() ) )
+        {
+            unselect( item );
+            m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
+            return false;
+        }
+        else
+        {
+            select( item );
+            m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
             return true;
         }
-        else if( collector.GetCount() > 1 )
-        {
-            if( aOnDrag )
-                Wait( TOOL_EVENT( TC_ANY, TA_MOUSE_UP, BUT_LEFT ) );
-
-            item = disambiguationMenu( &collector );
-
-            if( item )
-            {
-                toggleSelection( item );
-
-                return true;
-            }
-        }
-        break;
     }
 
     return false;
@@ -340,120 +315,14 @@ bool GERBVIEW_SELECTION_TOOL::selectCursor( bool aSelectAlways )
 }
 
 
-bool GERBVIEW_SELECTION_TOOL::selectMultiple()
-{
-    bool cancelled = false;     // Was the tool cancelled while it was running?
-    m_multiple = true;          // Multiple selection mode is active
-    KIGFX::VIEW* view = getView();
-    getViewControls()->SetAutoPan( true );
-
-    KIGFX::PREVIEW::SELECTION_AREA area;
-    view->Add( &area );
-
-    while( TOOL_EVENT* evt = Wait() )
-    {
-        if( evt->IsCancel() )
-        {
-            cancelled = true;
-            break;
-        }
-
-        if( evt->IsDrag( BUT_LEFT ) )
-        {
-
-            // Start drawing a selection box
-            area.SetOrigin( evt->DragOrigin() );
-            area.SetEnd( evt->Position() );
-            area.SetAdditive( m_additive );
-            area.SetSubtractive( m_subtractive );
-
-            view->SetVisible( &area, true );
-            view->Update( &area );
-        }
-
-        if( evt->IsMouseUp( BUT_LEFT ) )
-        {
-            // End drawing the selection box
-            view->SetVisible( &area, false );
-
-            // Mark items within the selection box as selected
-            std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> selectedItems;
-
-            // Filter the view items based on the selection box
-            BOX2I selectionBox = area.ViewBBox();
-            view->Query( selectionBox, selectedItems );         // Get the list of selected items
-
-            std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR>::iterator it, it_end;
-
-            int width = area.GetEnd().x - area.GetOrigin().x;
-            int height = area.GetEnd().y - area.GetOrigin().y;
-
-            // Construct an EDA_RECT to determine EDA_ITEM selection
-            EDA_RECT selectionRect( wxPoint( area.GetOrigin().x, area.GetOrigin().y ),
-                                    wxSize( width, height ) );
-
-            selectionRect.Normalize();
-
-            for( it = selectedItems.begin(), it_end = selectedItems.end(); it != it_end; ++it )
-            {
-                auto item = static_cast<GERBER_DRAW_ITEM*>( it->first );
-
-                if( !item || !selectable( item ) )
-                    continue;
-
-                /* Selection mode depends on direction of drag-selection:
-                 * Left > Right : Select objects that are fully enclosed by selection
-                 * Right > Left : Select objects that are crossed by selection
-                 */
-                if( item->HitTest( selectionRect, width >= 0 ) )
-                {
-                    if( m_subtractive )
-                        unselect( item );
-                    else
-                        select( item );
-                }
-            }
-
-            // Inform other potentially interested tools
-            if( !m_selection.Empty() )
-                m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
-
-            break;  // Stop waiting for events
-        }
-    }
-
-    // Stop drawing the selection box
-    view->Remove( &area );
-    m_multiple = false;         // Multiple selection mode is inactive
-    getViewControls()->SetAutoPan( false );
-
-    return cancelled;
-}
-
-
 void GERBVIEW_SELECTION_TOOL::setTransitions()
 {
-    Go( &GERBVIEW_SELECTION_TOOL::UpdateMenu,       ACTIONS::updateMenu.MakeEvent() );
-    Go( &GERBVIEW_SELECTION_TOOL::Main,             GERBVIEW_ACTIONS::selectionActivate.MakeEvent() );
-    Go( &GERBVIEW_SELECTION_TOOL::CursorSelection,  GERBVIEW_ACTIONS::selectionCursor.MakeEvent() );
-    Go( &GERBVIEW_SELECTION_TOOL::ClearSelection,   GERBVIEW_ACTIONS::selectionClear.MakeEvent() );
-    Go( &GERBVIEW_SELECTION_TOOL::SelectItem,       GERBVIEW_ACTIONS::selectItem.MakeEvent() );
-    Go( &GERBVIEW_SELECTION_TOOL::UnselectItem,     GERBVIEW_ACTIONS::unselectItem.MakeEvent() );
-    Go( &GERBVIEW_SELECTION_TOOL::MeasureTool,      ACTIONS::measureTool.MakeEvent() );
-}
-
-
-int GERBVIEW_SELECTION_TOOL::CursorSelection( const TOOL_EVENT& aEvent )
-{
-    if( m_selection.Empty() )                        // Try to find an item that could be modified
-    {
-        selectCursor( true );
-
-        clearSelection();
-        return 0;
-    }
-
-    return 0;
+    Go( &GERBVIEW_SELECTION_TOOL::UpdateMenu,     ACTIONS::updateMenu.MakeEvent() );
+    Go( &GERBVIEW_SELECTION_TOOL::Main,           GERBVIEW_ACTIONS::selectionActivate.MakeEvent() );
+    Go( &GERBVIEW_SELECTION_TOOL::ClearSelection, GERBVIEW_ACTIONS::selectionClear.MakeEvent() );
+    Go( &GERBVIEW_SELECTION_TOOL::SelectItem,     GERBVIEW_ACTIONS::selectItem.MakeEvent() );
+    Go( &GERBVIEW_SELECTION_TOOL::UnselectItem,   GERBVIEW_ACTIONS::unselectItem.MakeEvent() );
+    Go( &GERBVIEW_SELECTION_TOOL::MeasureTool,    ACTIONS::measureTool.MakeEvent() );
 }
 
 
@@ -471,12 +340,9 @@ int GERBVIEW_SELECTION_TOOL::SelectItems( const TOOL_EVENT& aEvent )
 
     if( items )
     {
-        // Perform individual selection of each item
-        // before processing the event.
+        // Perform individual selection of each item before processing the event.
         for( auto item : *items )
-        {
             select( item );
-        }
 
         m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
     }
@@ -508,12 +374,9 @@ int GERBVIEW_SELECTION_TOOL::UnselectItems( const TOOL_EVENT& aEvent )
 
     if( items )
     {
-        // Perform individual unselection of each item
-        // before processing the event
+        // Perform individual unselection of each item before processing the event
         for( auto item : *items )
-        {
             unselect( item );
-        }
 
         m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
     }
@@ -551,28 +414,6 @@ void GERBVIEW_SELECTION_TOOL::clearSelection()
 
     // Inform other potentially interested tools
     m_toolMgr->ProcessEvent( EVENTS::ClearedEvent );
-}
-
-
-void GERBVIEW_SELECTION_TOOL::zoomFitSelection( void )
-{
-    //Should recalculate the view to zoom in on the selection
-    auto selectionBox = m_selection.ViewBBox();
-    auto view = getView();
-
-    VECTOR2D screenSize = view->ToWorld( m_frame->GetCanvas()->GetClientSize(), false );
-
-    if( !( selectionBox.GetWidth() == 0 ) || !( selectionBox.GetHeight() == 0 ) )
-    {
-        VECTOR2D vsize = selectionBox.GetSize();
-        double scale = view->GetScale() / std::max( fabs( vsize.x / screenSize.x ),
-                                                    fabs( vsize.y / screenSize.y ) );
-        view->SetScale( scale );
-        view->SetCenter( selectionBox.Centre() );
-        view->Add( &m_selection );
-    }
-
-    m_frame->GetCanvas()->ForceRefresh();
 }
 
 
@@ -657,7 +498,10 @@ EDA_ITEM* GERBVIEW_SELECTION_TOOL::disambiguationMenu( GERBER_COLLECTOR* aCollec
 
 bool GERBVIEW_SELECTION_TOOL::selectable( const EDA_ITEM* aItem ) const
 {
-    auto item = static_cast<const GERBER_DRAW_ITEM*>( aItem );
+    GERBVIEW_FRAME*         frame = getEditFrame<GERBVIEW_FRAME>();
+    const GERBER_DRAW_ITEM* item = static_cast<const GERBER_DRAW_ITEM*>( aItem );
+    int                     layer = item->GetLayer();
+
 
     if( item->GetLayerPolarity() )
     {
@@ -667,16 +511,18 @@ bool GERBVIEW_SELECTION_TOOL::selectable( const EDA_ITEM* aItem ) const
             return false;
     }
 
-    return getEditFrame<GERBVIEW_FRAME>()->IsLayerVisible( item->GetLayer() );
+    // We do not want to select items that are in the background
+    if( frame->m_DisplayOptions.m_HighContrastMode && layer != frame->GetActiveLayer() )
+        return false;
+
+    return frame->IsLayerVisible( layer );
 }
 
 
 void GERBVIEW_SELECTION_TOOL::select( EDA_ITEM* aItem )
 {
     if( aItem->IsSelected() )
-    {
         return;
-    }
 
     m_selection.Add( aItem );
     getView()->Add( &m_selection );
@@ -722,33 +568,15 @@ void GERBVIEW_SELECTION_TOOL::unselectVisually( EDA_ITEM* aItem )
 }
 
 
-bool GERBVIEW_SELECTION_TOOL::selectionContains( const VECTOR2I& aPoint ) const
-{
-    const unsigned GRIP_MARGIN = 20;
-    VECTOR2D margin = getView()->ToWorld( VECTOR2D( GRIP_MARGIN, GRIP_MARGIN ), false );
-
-    // Check if the point is located within any of the currently selected items bounding boxes
-    for( auto item : m_selection )
-    {
-        BOX2I itemBox = item->ViewBBox();
-        itemBox.Inflate( margin.x, margin.y );    // Give some margin for gripping an item
-
-        if( itemBox.Contains( aPoint ) )
-            return true;
-    }
-
-    return false;
-}
-
-
 int GERBVIEW_SELECTION_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
 {
     auto& view = *getView();
     auto& controls = *getViewControls();
     auto previous_settings = controls.GetSettings();
 
+    std::string tool = aEvent.GetCommandStr().get();
+    m_frame->PushTool( tool );
     Activate();
-    m_frame->SetToolID( ID_TB_MEASUREMENT_TOOL, wxCURSOR_PENCIL, _( "Measure distance" ) );
 
     KIGFX::PREVIEW::TWO_POINT_GEOMETRY_MANAGER twoPtMgr;
     KIGFX::PREVIEW::RULER_ITEM ruler( twoPtMgr, m_frame->GetUserUnits() );
@@ -762,18 +590,48 @@ int GERBVIEW_SELECTION_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
     controls.SetSnapping( true );
     controls.SetAdditionalPanButtons( false, true );
 
-    while( auto evt = Wait() )
+    while( TOOL_EVENT* evt = Wait() )
     {
+        m_frame->GetCanvas()->SetCurrentCursor( wxCURSOR_ARROW );
         const VECTOR2I cursorPos = controls.GetCursorPosition();
 
-        if( evt->IsCancel() || evt->IsActivate() )
+        auto clearRuler = [&] () {
+            view.SetVisible( &ruler, false );
+            controls.SetAutoPan( false );
+            controls.CaptureCursor( false );
+            originSet = false;
+        };
+
+        if( evt->IsCancelInteractive() )
         {
-            break;
+            if( originSet )
+                clearRuler();
+            else
+            {
+                m_frame->PopTool( tool );
+                break;
+            }
+        }
+
+        else if( evt->IsActivate() )
+        {
+            if( originSet )
+                clearRuler();
+
+            if( evt->IsMoveTool() )
+            {
+                // leave ourselves on the stack so we come back after the move
+                break;
+            }
+            else
+            {
+                m_frame->PopTool( tool );
+                break;
+            }
         }
 
         // click or drag starts
-        else if( !originSet &&
-                ( evt->IsDrag( BUT_LEFT ) || evt->IsClick( BUT_LEFT ) ) )
+        else if( !originSet && ( evt->IsDrag( BUT_LEFT ) || evt->IsClick( BUT_LEFT ) ) )
         {
             if( !evt->IsDrag( BUT_LEFT ) )
             {
@@ -796,8 +654,7 @@ int GERBVIEW_SELECTION_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
         }
 
         // second click or mouse up after drag ends
-        else if( originSet &&
-                ( evt->IsClick( BUT_LEFT ) || evt->IsMouseUp( BUT_LEFT ) ) )
+        else if( originSet && ( evt->IsClick( BUT_LEFT ) || evt->IsMouseUp( BUT_LEFT ) ) )
         {
             originSet = false;
 
@@ -808,8 +665,7 @@ int GERBVIEW_SELECTION_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
         }
 
         // move or drag when origin set updates rules
-        else if( originSet &&
-                ( evt->IsMotion() || evt->IsDrag( BUT_LEFT ) ) )
+        else if( originSet && ( evt->IsMotion() || evt->IsDrag( BUT_LEFT ) ) )
         {
             twoPtMgr.SetAngleSnap( evt->Modifier( MD_CTRL ) );
             twoPtMgr.SetEnd( cursorPos );
@@ -822,15 +678,14 @@ int GERBVIEW_SELECTION_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
         {
             m_menu.ShowContextMenu( m_selection );
         }
+
+        else
+            evt->SetPassEvent();
     }
 
     view.SetVisible( &ruler, false );
     view.Remove( &ruler );
-
     controls.ApplySettings( previous_settings );
-
-    m_frame->SetNoToolSelected();
-
     return 0;
 }
 

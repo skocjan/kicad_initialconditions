@@ -51,6 +51,15 @@ static const std::string flag2string( int aFlag, const FlagString* aExps )
 }
 
 
+void TOOL_EVENT::init()
+{
+    // By default only MESSAGEs and Cancels are passed to multiple recipients
+    m_passEvent = m_category == TC_MESSAGE || IsCancelInteractive() || IsActivate();
+
+    m_hasPosition = ( m_category == TC_MOUSE || m_category == TC_COMMAND );
+}
+
+
 bool TOOL_EVENT::IsAction( const TOOL_ACTION* aAction ) const
 {
     return Matches( aAction->MakeEvent() );
@@ -164,27 +173,45 @@ const std::string TOOL_EVENT_LIST::Format() const
 
 bool TOOL_EVENT::IsClick( int aButtonMask ) const
 {
-    return m_actions == TA_MOUSE_CLICK && ( m_mouseButtons & aButtonMask ) == aButtonMask;
+    return m_actions == TA_MOUSE_CLICK && ( m_mouseButtons & aButtonMask ) == m_mouseButtons;
 }
 
 
 bool TOOL_EVENT::IsDblClick( int aButtonMask ) const
 {
-    return m_actions == TA_MOUSE_DBLCLICK && ( m_mouseButtons & aButtonMask ) == aButtonMask;
+    return m_actions == TA_MOUSE_DBLCLICK && ( m_mouseButtons & aButtonMask ) == m_mouseButtons;
 }
 
 
-bool TOOL_EVT_UTILS::IsCancelInteractive( const TOOL_EVENT& aEvt )
+bool TOOL_EVENT::IsCancelInteractive()
 {
-    return aEvt.IsAction( &ACTIONS::cancelInteractive ) || aEvt.IsCancel();
+    return( ( m_commandStr.is_initialized()
+                && m_commandStr.get() == ACTIONS::cancelInteractive.GetName() )
+         || ( m_commandId.is_initialized()
+                && m_commandId.get() == ACTIONS::cancelInteractive.GetId() )
+         || ( m_actions == TA_CANCEL_TOOL ) );
 }
 
 
-bool TOOL_EVT_UTILS::IsSelectionEvent( const TOOL_EVENT& aEvt )
+bool TOOL_EVENT::IsSelectionEvent()
 {
-    return aEvt.Matches( EVENTS::ClearedEvent )
-           || aEvt.Matches( EVENTS::UnselectedEvent )
-           || aEvt.Matches( EVENTS::SelectedEvent );
+    return Matches( EVENTS::ClearedEvent )
+        || Matches( EVENTS::UnselectedEvent )
+        || Matches( EVENTS::SelectedEvent );
 }
 
 
+bool TOOL_EVENT::IsPointEditor()
+{
+    return( ( m_commandStr.is_initialized()
+                    && m_commandStr.get().find( "PointEditor" ) != GetCommandStr()->npos )
+         || ( m_commandId.is_initialized()
+                    && m_commandId.get() == ACTIONS::activatePointEditor.GetId() ) );
+}
+
+
+bool TOOL_EVENT::IsMoveTool()
+{
+    return( m_commandStr.is_initialized()
+                && m_commandStr.get().find( "InteractiveMove" ) != GetCommandStr()->npos );
+}

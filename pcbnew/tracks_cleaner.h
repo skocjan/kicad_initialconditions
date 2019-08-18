@@ -57,13 +57,6 @@ private:
     bool removeBadTrackSegments();
 
     /**
-     * Checks whether the track is connected to a pad
-     * @param aTrack pointer to the track
-     * @return true if the track has a pad
-     */
-    bool testTrackHasPad( const TRACK* aTrack ) const;
-
-    /**
      * Removes redundant vias like vias at same location
      * or on pad through
      */
@@ -98,10 +91,29 @@ private:
      * helper function
      * merge aTrackRef and aCandidate, when possible,
      * i.e. when they are colinear, same width, and obviously same layer
+     * @return true if the segments are merged, false if not
+     * @param aSeg1 is the reference
+     * @param aSeg2 is the candidate, and after merging, the removed segment
      */
     bool mergeCollinearSegments( TRACK* aSeg1, TRACK* aSeg2 );
 
+    /**
+     * @return true if aTrack has at least one end dangling, i.e. connected
+     * to nothing.
+     * if aTrack is a via, it is dangling if the via is connected to nothing
+     * or only one item.
+     * @param aTrack is the track (or the via) to test.
+     */
     bool testTrackEndpointDangling( TRACK* aTrack );
+
+    /**
+     * @return true if a track end position is a node, i.e. a end connected
+     * to more than one item.
+     * @param aTrack is the track to test.
+     * @param aTstStart = true ot test the start point of the track, and false to
+     * test the end point
+     */
+    bool testTrackEndpointIsNode( TRACK* aTrack, bool aTstStart );
 
     EDA_UNITS_T   m_units;
     BOARD*        m_brd;

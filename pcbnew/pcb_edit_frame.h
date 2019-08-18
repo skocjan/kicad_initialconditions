@@ -73,6 +73,18 @@ enum TRACK_ACTION_RESULT
     TRACK_ACTION_NONE           //!< TRACK_ACTION_NONE - Nothing to change
 };
 
+enum LAST_PATH_TYPE
+{
+    LAST_PATH_NETLIST = 0,
+    LAST_PATH_STEP,
+    LAST_PATH_IDF,
+    LAST_PATH_VRML,
+    LAST_PATH_SPECCTRADSN,
+    LAST_PATH_GENCAD,
+
+    LAST_PATH_SIZE
+};
+
 /**
  * Class PCB_EDIT_FRAME
  * is the main frame for Pcbnew.
@@ -87,14 +99,41 @@ class PCB_EDIT_FRAME : public PCB_BASE_EDIT_FRAME
     friend class PCB_LAYER_WIDGET;
 
     /// The auxiliary right vertical tool bar used to access the microwave tools.
-    wxAuiToolBar* m_microWaveToolBar;
+    ACTION_TOOLBAR*   m_microWaveToolBar;
 
 protected:
     PCB_LAYER_WIDGET* m_Layers;
 
-    PARAM_CFG_ARRAY   m_configParams;         ///< List of Pcbnew configuration settings.
+    PARAM_CFG_ARRAY   m_configParams;           // List of Pcbnew configuration settings.
+    PARAM_CFG_ARRAY   m_projectFileParams;
 
-    wxString          m_lastNetListRead;        ///< Last net list read with relative path.
+    wxString          m_lastPath[ LAST_PATH_SIZE ];
+
+
+    /**
+     * Store the previous layer toolbar icon state information
+     */
+    struct LAYER_TOOLBAR_ICON_VALUES
+    {
+        int     previous_requested_scale;
+        COLOR4D previous_active_layer_color;
+        COLOR4D previous_Route_Layer_TOP_color;
+        COLOR4D previous_Route_Layer_BOTTOM_color;
+        COLOR4D previous_via_color;
+        COLOR4D previous_background_color;
+
+        LAYER_TOOLBAR_ICON_VALUES()
+                : previous_requested_scale( 0 ),
+                  previous_active_layer_color( COLOR4D::UNSPECIFIED ),
+                  previous_Route_Layer_TOP_color( COLOR4D::UNSPECIFIED ),
+                  previous_Route_Layer_BOTTOM_color( COLOR4D::UNSPECIFIED ),
+                  previous_via_color( COLOR4D::UNSPECIFIED ),
+                  previous_background_color( COLOR4D::UNSPECIFIED )
+        {
+        }
+    };
+
+    LAYER_TOOLBAR_ICON_VALUES m_prevIconVal;
 
     // The Tool Framework initalization
     void setupTools();
@@ -302,9 +341,9 @@ public:
     bool MicrowaveToolbarShown();
     void OnUpdateSelectViaSize( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectTrackWidth( wxUpdateUIEvent& aEvent );
-    void OnUpdateMuWaveToolbar( wxUpdateUIEvent& aEvent );
     void OnLayerColorChange( wxCommandEvent& aEvent );
-    void OnRunEeschema( wxCommandEvent& event );
+
+    void RunEeschema();
 
     void UpdateTrackWidthSelectBox( wxChoice* aTrackWidthSelectBox, bool aEdit = true );
     void UpdateViaSizeSelectBox( wxChoice* aViaSizeSelectBox, bool aEdit = true );
@@ -380,7 +419,7 @@ public:
      * @return PARAM_CFG_ARRAY - it is only good until SetBoard() is called, so
      *   don't keep it around past that event.
      */
-    PARAM_CFG_ARRAY GetProjectFileParameters();
+    PARAM_CFG_ARRAY& GetProjectFileParameters();
 
     /**
      * Function SaveProjectSettings
@@ -421,13 +460,13 @@ public:
     wxConfigBase* GetSettings() { return config(); };
 
     /**
-     * Get the last net list read with the net list dialog box.
-     * @return - Absolute path and file name of the last net list file successfully read.
+     * Get the last path for a particular type.
+     * @return - Absolute path and file name of the last file successfully read.
      */
-    wxString GetLastNetListRead();
+    wxString GetLastPath( LAST_PATH_TYPE aType );
 
     /**
-     * Set the last net list successfully read by the net list dialog box.
+     * Set the path of the last file successfully read.
      *
      * Note: the file path is converted to a path relative to the project file path.  If
      *       the path cannot be made relative, than m_lastNetListRead is set to and empty
@@ -435,27 +474,13 @@ public:
      *       the project file.  The advantage of relative paths is that is more likely to
      *       work when opening the same project from both Windows and Linux.
      *
-     * @param aNetListFile - The last net list file with full path successfully read.
+     * @param aLastPath - The last file with full path successfully read.
      */
-    void SetLastNetListRead( const wxString& aNetListFile );
+    void SetLastPath( LAST_PATH_TYPE aType, const wxString& aLastPath );
 
     void OnCloseWindow( wxCloseEvent& Event ) override;
     void Process_Special_Functions( wxCommandEvent& event );
     void Tracks_and_Vias_Size_Event( wxCommandEvent& event );
-
-    /**
-     * Function OnEditTextAndGraphics
-     * Dialog for editing properties of text and graphic items, selected by type, layer,
-     * and/or parent footprint.
-     */
-    void OnEditTextAndGraphics( wxCommandEvent& event );
-
-    /**
-     * Function OnEditTracksAndVias
-     * Dialog for editing the properties of tracks and vias, selected by net, netclass,
-     * and/or layer.
-     */
-    void OnEditTracksAndVias( wxCommandEvent& event );
 
     void ReCreateHToolbar() override;
     void ReCreateAuxiliaryToolbar() override;
@@ -553,7 +578,7 @@ public:
 
     /* toolbars update UI functions: */
 
-    void PrepareLayerIndicator();
+    void PrepareLayerIndicator( bool aForceRebuild = false );
 
     void ToggleLayersManager();
     void ToggleMicrowaveToolbar();
@@ -565,15 +590,15 @@ public:
      * @param aUnitsMM = false to use inches, true to use mm in coordinates
      * @param aForceSmdItems = true to force all footprints with smd pads in list
      *                       = false to put only footprints with option "INSERT" in list
-     * @param aSide = 0 to list footprints on BACK side,
-     *                1 to list footprints on FRONT side
-     *                2 to list footprints on both sides
+     * @param aTopSide true to list footprints on front (top) side,
+     * @param BottomSide true to list footprints on back (bottom) side,
+     * if aTopSide and aTopSide are true, list footprints on both sides
      * @param aFormatCSV = true to use a comma separated file (CSV) format; defautl = false
      * @return the number of footprints found on aSide side,
      *    or -1 if the file could not be created
      */
     int DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM,
-                                      bool aForceSmdItems, int aSide, bool aFormatCSV = false );
+                                      bool aForceSmdItems, bool aTopSide, bool BottomSide, bool aFormatCSV = false );
 
     /**
      * Function GenFootprintsReport
@@ -864,20 +889,6 @@ public:
                                bool               aUseNetclassValue );
 
 
-    // zone handling
-
-    /**
-     * Function Fill_All_Zones
-     */
-    void Fill_All_Zones();
-
-    /**
-     * Function Check_All_Zones
-     *  Checks for out-of-date fills and fills them if requested by the user.
-     * @param aActiveWindow
-     */
-    void Check_All_Zones( wxWindow* aActiveWindow );
-
     /**
      * Function Edit_Zone_Params
      * Edit params (layer, clearance, ...) for a zone outline
@@ -934,30 +945,6 @@ public:
     void LockModule( MODULE* aModule, bool aLocked );
 
     /**
-     * Function SpreadFootprints
-     * Footprints (after loaded by reading a netlist for instance) are moved
-     * to be in a small free area (outside the current board) without overlapping.
-     * @param aFootprints: a list of footprints to be spread out.
-     * @param aMoveFootprintsOutsideBoardOnly: true to move only
-     *        footprints outside the board outlines
-     *        (they are outside if the position of a footprint anchor is outside
-     *        the board outlines bounding box). It imply the board outlines exist
-     * @param aCheckForBoardEdges: true to try to place footprints outside of
-     *        board edges, if aSpreadAreaPosition is incorrectly chosen.
-     * @param aSpreadAreaPosition the position of the upper left corner of the
-     *        area used to spread footprints
-     * @param aPrepareUndoCommand = true (defualt) to commit a undo command for the
-     * spread footprints, false to do just the spread command
-     * (no undo specific to this move command)
-     */
-    void SpreadFootprints( std::vector<MODULE*>* aFootprints,
-                           bool                  aMoveFootprintsOutsideBoardOnly,
-                           bool                  aCheckForBoardEdges,
-                           wxPoint               aSpreadAreaPosition,
-                           bool                  aPrepareUndoCommand = true );
-
-
-    /**
      * Function SendMessageToEESCHEMA
      * sends a message to the schematic editor so that it may move its cursor
      * to a part with the same reference as the objectToSync
@@ -1009,7 +996,7 @@ public:
     void UpdateTitle();
 
     void On3DShapeLibWizard( wxCommandEvent& event );
-    
+
     /**
      * Allows Pcbnew to install its preferences panel into the preferences dialog.
      */
@@ -1018,7 +1005,7 @@ public:
     /**
      * Called after the preferences dialog is run.
      */
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     void SyncToolbars() override;
 

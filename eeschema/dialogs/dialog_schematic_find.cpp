@@ -24,7 +24,6 @@
 
 #include <dialog_schematic_find.h>
 #include <tool/actions.h>
-#include <tool/tool_manager.h>
 #include <sch_edit_frame.h>
 #include <tools/sch_editor_control.h>
 
@@ -98,6 +97,13 @@ void DIALOG_SCH_FIND::OnClose( wxCloseEvent& aEvent )
     m_frame->OnFindDialogClose();
     // Notify the controller
     m_editorControl->UpdateFind( ACTIONS::updateFind.MakeEvent() );
+}
+
+
+void DIALOG_SCH_FIND::OnCancel( wxCommandEvent& aEvent )
+{
+    wxCloseEvent dummy;
+    OnClose( dummy );
 }
 
 

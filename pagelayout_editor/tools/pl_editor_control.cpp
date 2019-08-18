@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -97,7 +98,6 @@ int PL_EDITOR_CONTROL::PageSetup( const TOOL_EVENT& aEvent )
     }
     else
     {
-        m_toolMgr->RunAction( ACTIONS::zoomFitScreen, true );
         m_frame->HardRedraw();
     }
     return 0;
@@ -114,13 +114,6 @@ int PL_EDITOR_CONTROL::Print( const TOOL_EVENT& aEvent )
 int PL_EDITOR_CONTROL::Plot( const TOOL_EVENT& aEvent )
 {
     wxMessageBox( wxT( "Not yet available" ) );
-    return 0;
-}
-
-
-int PL_EDITOR_CONTROL::Quit( const TOOL_EVENT& aEvent )
-{
-    m_frame->Close( false );
     return 0;
 }
 
@@ -184,13 +177,12 @@ void PL_EDITOR_CONTROL::setTransitions()
     Go( &PL_EDITOR_CONTROL::Open,                  ACTIONS::open.MakeEvent() );
     Go( &PL_EDITOR_CONTROL::Save,                  ACTIONS::save.MakeEvent() );
     Go( &PL_EDITOR_CONTROL::SaveAs,                ACTIONS::saveAs.MakeEvent() );
-    Go( &PL_EDITOR_CONTROL::PageSetup,             ACTIONS::pageSettings.MakeEvent() );
     Go( &PL_EDITOR_CONTROL::Print,                 ACTIONS::print.MakeEvent() );
     Go( &PL_EDITOR_CONTROL::Plot,                  ACTIONS::plot.MakeEvent() );
-    Go( &PL_EDITOR_CONTROL::Quit,                  ACTIONS::quit.MakeEvent() );
 
+    Go( &PL_EDITOR_CONTROL::PageSetup,             PL_ACTIONS::previewSettings.MakeEvent() );
     Go( &PL_EDITOR_CONTROL::ToggleBackgroundColor, PL_ACTIONS::toggleBackground.MakeEvent() );
-    Go( &PL_EDITOR_CONTROL::ShowInspector, PL_ACTIONS::showInspector.MakeEvent() );
+    Go( &PL_EDITOR_CONTROL::ShowInspector,         PL_ACTIONS::showInspector.MakeEvent() );
 
     Go( &PL_EDITOR_CONTROL::UpdateMessagePanel,    EVENTS::SelectedEvent );
     Go( &PL_EDITOR_CONTROL::UpdateMessagePanel,    EVENTS::UnselectedEvent );

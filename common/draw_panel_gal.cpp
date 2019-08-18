@@ -61,11 +61,7 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
     m_lostFocus  = false;
     m_stealsFocus = true;
 
-#ifdef __WXMAC__
-    m_defaultCursor = m_currentCursor = wxCURSOR_CROSS;
-#else
-    m_defaultCursor = m_currentCursor = wxCURSOR_ARROW;
-#endif
+    m_currentCursor = wxStockCursor( wxCURSOR_ARROW );
 
     SetLayoutDirection( wxLayout_LeftToRight );
 
@@ -78,6 +74,7 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
     Connect( wxEVT_SIZE, wxSizeEventHandler( EDA_DRAW_PANEL_GAL::onSize ), NULL, this );
     Connect( wxEVT_ENTER_WINDOW, wxEventHandler( EDA_DRAW_PANEL_GAL::onEnter ), NULL, this );
     Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( EDA_DRAW_PANEL_GAL::onLostFocus ), NULL, this );
+    Connect( wxEVT_SET_CURSOR, wxSetCursorEventHandler( EDA_DRAW_PANEL_GAL::onSetCursor ), NULL, this );
 
     const wxEventType events[] =
     {
@@ -408,7 +405,11 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
     // from the defaults
     m_options.NotifyChanged();
 
-    wxASSERT( new_gal );
+    wxWindow* galWindow = dynamic_cast<wxWindow*>( new_gal );
+
+    if( galWindow )
+        galWindow->Connect( wxEVT_SET_CURSOR, wxSetCursorEventHandler( EDA_DRAW_PANEL_GAL::onSetCursor ), NULL, this );
+
     delete m_gal;
     m_gal = new_gal;
 
@@ -495,13 +496,25 @@ void EDA_DRAW_PANEL_GAL::onShowTimer( wxTimerEvent& aEvent )
         OnShow();
     }
 }
-void EDA_DRAW_PANEL_GAL::SetCurrentCursor( int aCursor )
-{
-    if ( aCursor > wxCURSOR_NONE && aCursor < wxCURSOR_MAX )
-        m_currentCursor = aCursor;
-    else
-        m_currentCursor = wxCURSOR_ARROW;
 
-    SetCursor( (wxStockCursor) m_currentCursor );
+
+void EDA_DRAW_PANEL_GAL::SetCurrentCursor( wxStockCursor aStockCursorID )
+{
+    if ( aStockCursorID <= wxCURSOR_NONE || aStockCursorID >= wxCURSOR_MAX )
+        aStockCursorID = wxCURSOR_ARROW;
+
+    SetCurrentCursor( wxCursor( aStockCursorID ) );
 }
 
+
+void EDA_DRAW_PANEL_GAL::SetCurrentCursor( const wxCursor& aCursor )
+{
+    m_currentCursor = aCursor;
+    SetCursor( m_currentCursor );
+}
+
+
+void EDA_DRAW_PANEL_GAL::onSetCursor( wxSetCursorEvent& event )
+{
+    event.SetCursor( m_currentCursor );
+}

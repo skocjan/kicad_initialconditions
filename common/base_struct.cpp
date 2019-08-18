@@ -32,14 +32,10 @@
 #include <trigo.h>
 #include <common.h>
 #include <macros.h>
-#include <kicad_string.h>
-#include <eda_base_frame.h>
 #include <base_screen.h>
 #include <bitmaps.h>
 #include <trace_helpers.h>
 #include <eda_rect.h>
-
-#include "../eeschema/dialogs/dialog_schematic_find.h"
 
 
 static const unsigned char dummy_png[] = {
@@ -186,9 +182,6 @@ bool EDA_ITEM::Matches( const wxString& aText, wxFindReplaceData& aSearchData )
 
 bool EDA_ITEM::Replace( wxFindReplaceData& aSearchData, wxString& aText )
 {
-    wxCHECK_MSG( IsReplaceable(), false,
-                 wxT( "Attempt to replace text in <" ) + GetClass() + wxT( "> item." ) );
-
     wxString searchString = (aSearchData.GetFlags() & wxFR_MATCHCASE) ? aText : aText.Upper();
 
     int result = searchString.Find( (aSearchData.GetFlags() & wxFR_MATCHCASE) ?
@@ -367,6 +360,9 @@ bool EDA_RECT::Intersects( const wxPoint& aPoint1, const wxPoint& aPoint2 ) cons
 
 bool EDA_RECT::Intersects( const EDA_RECT& aRect ) const
 {
+    if( !m_init )
+        return false;
+
     // this logic taken from wxWidgets' geometry.cpp file:
     bool rc;
     EDA_RECT me(*this);
@@ -395,6 +391,9 @@ bool EDA_RECT::Intersects( const EDA_RECT& aRect ) const
 
 bool EDA_RECT::Intersects( const EDA_RECT& aRect, double aRot ) const
 {
+    if( !m_init )
+        return false;
+
     /* Most rectangles will be axis aligned.
      * It is quicker to check for this case and pass the rect
      * to the simpler intersection test
@@ -527,6 +526,9 @@ const wxPoint EDA_RECT::FarthestPointTo( const wxPoint& aPoint ) const
 
 bool EDA_RECT::IntersectsCircle( const wxPoint& aCenter, const int aRadius ) const
 {
+    if( !m_init )
+        return false;
+
     wxPoint closest = ClosestPointTo( aCenter );
 
     double dx = aCenter.x - closest.x;
@@ -540,6 +542,9 @@ bool EDA_RECT::IntersectsCircle( const wxPoint& aCenter, const int aRadius ) con
 
 bool EDA_RECT::IntersectsCircleEdge( const wxPoint& aCenter, const int aRadius, const int aWidth ) const
 {
+    if( !m_init )
+        return false;
+
     EDA_RECT me( *this );
     me.Normalize();         // ensure size is >= 0
 
@@ -637,6 +642,17 @@ EDA_RECT& EDA_RECT::Inflate( wxCoord dx, wxCoord dy )
 
 void EDA_RECT::Merge( const EDA_RECT& aRect )
 {
+    if( !m_init )
+    {
+        if( aRect.IsValid() )
+        {
+            m_Pos = aRect.GetPosition();
+            m_Size = aRect.GetSize();
+            m_init = true;
+        }
+        return;
+    }
+
     Normalize();        // ensure width and height >= 0
     EDA_RECT rect = aRect;
     rect.Normalize();   // ensure width and height >= 0
@@ -654,6 +670,13 @@ void EDA_RECT::Merge( const EDA_RECT& aRect )
 
 void EDA_RECT::Merge( const wxPoint& aPoint )
 {
+    if( !m_init )
+    {
+        m_Pos = aPoint;
+        m_Size = wxSize( 0, 0 );
+        return;
+    }
+
     Normalize();        // ensure width and height >= 0
 
     wxPoint  end = GetEnd();

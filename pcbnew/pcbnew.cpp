@@ -38,7 +38,6 @@
 #include <kiface_ids.h>
 #include <confirm.h>
 #include <macros.h>
-#include <make_unique.h>
 #include <pcb_edit_frame.h>
 #include <eda_dde.h>
 #include <wx/stdpaths.h>
@@ -100,18 +99,12 @@ static struct IFACE : public KIFACE_I
         }
 
         case FRAME_PCB_MODULE_EDITOR:
+            return new FOOTPRINT_EDIT_FRAME( aKiway, aParent,
+                                             EDA_DRAW_PANEL_GAL::GAL_TYPE_UNKNOWN );
+
         case FRAME_PCB_MODULE_VIEWER:
         case FRAME_PCB_MODULE_VIEWER_MODAL:
-        {
-            switch( aClassId )
-            {
-            case FRAME_PCB_MODULE_EDITOR:
-                return new FOOTPRINT_EDIT_FRAME( aKiway, aParent, EDA_DRAW_PANEL_GAL::GAL_TYPE_UNKNOWN );
-            case FRAME_PCB_MODULE_VIEWER:
-            case FRAME_PCB_MODULE_VIEWER_MODAL:
-                return new FOOTPRINT_VIEWER_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
-            }
-        }
+            return new FOOTPRINT_VIEWER_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
 
         case FRAME_PCB_FOOTPRINT_WIZARD:
             return new FOOTPRINT_WIZARD_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
@@ -122,7 +115,10 @@ static struct IFACE : public KIFACE_I
         case DIALOG_CONFIGUREPATHS:
         {
             DIALOG_CONFIGURE_PATHS dlg( aParent, aKiway->Prj().Get3DFilenameResolver() );
-            dlg.ShowModal();
+
+            if( dlg.ShowModal() == wxID_OK )
+                aKiway->CommonSettingsChanged( true );
+
             // Dialog has completed; nothing to return.
             return nullptr;
         }

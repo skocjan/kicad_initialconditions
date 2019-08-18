@@ -23,12 +23,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <cstdint>
-
 #include "edit_tool.h"
-#include "grid_helper.h"
 #include "pcb_actions.h"
-#include "pcb_editor_control.h"
 #include "pcbnew_control.h"
 #include "pcbnew_picker_tool.h"
 #include "selection_tool.h"
@@ -48,7 +44,6 @@
 #include <kicad_plugin.h>
 #include <kiway.h>
 #include <origin_viewitem.h>
-#include <pcb_draw_panel_gal.h>
 #include <pcb_edit_frame.h>
 #include <pcb_painter.h>
 #include <pcb_screen.h>
@@ -56,7 +51,6 @@
 #include <properties.h>
 #include <tool/tool_manager.h>
 #include <view/view_controls.h>
-
 #include <functional>
 #include <footprint_viewer_frame.h>
 
@@ -256,6 +250,8 @@ int PCBNEW_CONTROL::ZoneDisplayMode( const TOOL_EVENT& aEvent )
         opts->m_DisplayZonesMode = 1;
     else if( aEvent.IsAction( &PCB_ACTIONS::zoneDisplayOutlines ) )
         opts->m_DisplayZonesMode = 2;
+    else if( aEvent.IsAction( &PCB_ACTIONS::zoneDisplayToggle ) )
+        opts->m_DisplayZonesMode = ( opts->m_DisplayZonesMode + 1 ) % 3;
     else
         wxFAIL;
 
@@ -416,7 +412,6 @@ int PCBNEW_CONTROL::GridFast1( const TOOL_EVENT& aEvent )
 {
     m_frame->SetFastGrid1();
     updateGrid();
-
     return 0;
 }
 
@@ -425,7 +420,6 @@ int PCBNEW_CONTROL::GridFast2( const TOOL_EVENT& aEvent )
 {
     m_frame->SetFastGrid2();
     updateGrid();
-
     return 0;
 }
 
@@ -441,15 +435,6 @@ void PCBNEW_CONTROL::DoSetGridOrigin( KIGFX::VIEW* aView, PCB_BASE_FRAME* aFrame
 }
 
 
-bool PCBNEW_CONTROL::SetGridOrigin( KIGFX::VIEW* aView, PCB_BASE_FRAME* aFrame,
-                                    BOARD_ITEM* originViewItem, const VECTOR2D& aPoint )
-{
-    aFrame->SaveCopyInUndoList( originViewItem, UR_GRIDORIGIN );
-    DoSetGridOrigin( aView, aFrame, originViewItem, aPoint );
-    return false;   // Set grid origin is a one-shot; don't keep tool active
-}
-
-
 int PCBNEW_CONTROL::GridSetOrigin( const TOOL_EVENT& aEvent )
 {
     VECTOR2D* origin = aEvent.Parameter<VECTOR2D*>();
@@ -457,22 +442,29 @@ int PCBNEW_CONTROL::GridSetOrigin( const TOOL_EVENT& aEvent )
     if( origin )
     {
         // We can't undo the other grid dialog settings, so no sense undoing just the origin
-
         DoSetGridOrigin( getView(), m_frame, m_gridOrigin.get(), *origin );
         delete origin;
     }
     else
     {
+        if( m_editModules && !getEditFrame<PCB_BASE_EDIT_FRAME>()->GetModel() )
+            return 0;
+
+        std::string         tool = aEvent.GetCommandStr().get();
+        PCBNEW_PICKER_TOOL* picker = m_toolMgr->GetTool<PCBNEW_PICKER_TOOL>();
+
+        // Deactivate other tools; particularly important if another PICKER is currently running
         Activate();
 
-        PCBNEW_PICKER_TOOL* picker = m_toolMgr->GetTool<PCBNEW_PICKER_TOOL>();
-        wxCHECK( picker, 0 );
+        picker->SetClickHandler(
+            [this] ( const VECTOR2D& pt ) -> bool
+            {
+                m_frame->SaveCopyInUndoList( m_gridOrigin.get(), UR_GRIDORIGIN );
+                DoSetGridOrigin( getView(), m_frame, m_gridOrigin.get(), pt );
+                return false;   // drill origin is a one-shot; don't continue with tool
+            } );
 
-        // TODO it will not check the toolbar button in module editor, as it uses a different ID..
-        m_frame->SetToolID( ID_PCB_PLACE_GRID_COORD_BUTT, wxCURSOR_PENCIL, _( "Adjust grid origin" ) );
-        picker->SetClickHandler( std::bind( SetGridOrigin, getView(), m_frame, m_gridOrigin.get(), _1 ) );
-        picker->Activate();
-        Wait();
+        m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
     }
 
     return 0;
@@ -481,45 +473,102 @@ int PCBNEW_CONTROL::GridSetOrigin( const TOOL_EVENT& aEvent )
 
 int PCBNEW_CONTROL::GridResetOrigin( const TOOL_EVENT& aEvent )
 {
-    SetGridOrigin( getView(), m_frame, m_gridOrigin.get(), VECTOR2D( 0, 0 ) );
-
+    m_frame->SaveCopyInUndoList( m_gridOrigin.get(), UR_GRIDORIGIN );
+    DoSetGridOrigin( getView(), m_frame, m_gridOrigin.get(), VECTOR2D( 0, 0 ) );
     return 0;
 }
 
 
-// Miscellaneous
-static bool deleteItem( TOOL_MANAGER* aToolMgr, const VECTOR2D& aPosition )
-{
-    SELECTION_TOOL* selectionTool = aToolMgr->GetTool<SELECTION_TOOL>();
-    wxCHECK( selectionTool, false );
-
-    aToolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-
-    const PCBNEW_SELECTION& selection = selectionTool->RequestSelection(
-            []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
-            { EditToolSelectionFilter( aCollector, EXCLUDE_LOCKED ); } );
-
-    if( selection.Empty() )
-        return true;
-
-    aToolMgr->RunAction( PCB_ACTIONS::remove, true );
-
-    return true;
-}
+#define HITTEST_THRESHOLD_PIXELS 5
 
 
 int PCBNEW_CONTROL::DeleteItemCursor( const TOOL_EVENT& aEvent )
 {
+    if( m_editModules && !m_frame->GetBoard()->GetFirstModule() )
+        return 0;
+
+    std::string         tool = aEvent.GetCommandStr().get();
+    PCBNEW_PICKER_TOOL* picker = m_toolMgr->GetTool<PCBNEW_PICKER_TOOL>();
+
+    m_pickerItem = nullptr;
+    m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
+
+    // Deactivate other tools; particularly important if another PICKER is currently running
     Activate();
 
-    PCBNEW_PICKER_TOOL* picker = m_toolMgr->GetTool<PCBNEW_PICKER_TOOL>();
-    wxCHECK( picker, 0 );
+    picker->SetCursor( wxStockCursor( wxCURSOR_BULLSEYE ) );
 
-    m_frame->SetToolID( m_editModules ? ID_MODEDIT_DELETE_TOOL : ID_PCB_DELETE_ITEM_BUTT,
-            wxCURSOR_BULLSEYE, _( "Delete item" ) );
-    picker->SetClickHandler( std::bind( deleteItem, m_toolMgr, _1 ) );
-    picker->Activate();
-    Wait();
+    picker->SetClickHandler(
+        [this] ( const VECTOR2D& aPosition ) -> bool
+        {
+            if( m_pickerItem )
+            {
+                if( m_pickerItem && m_pickerItem->IsLocked() )
+                {
+                    STATUS_TEXT_POPUP statusPopup( m_frame );
+                    statusPopup.SetText( _( "Item locked." ) );
+                    statusPopup.PopupFor( 2000 );
+                    statusPopup.Move( wxGetMousePosition() + wxPoint( 20, 20 ) );
+                    return true;
+                }
+
+                SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<SELECTION_TOOL>();
+                selectionTool->UnbrightenItem( m_pickerItem );
+                selectionTool->AddItemToSel( m_pickerItem, true );
+                m_toolMgr->RunAction( ACTIONS::doDelete, true );
+                m_pickerItem = nullptr;
+            }
+
+            return true;
+        } );
+
+    picker->SetMotionHandler(
+        [this] ( const VECTOR2D& aPos )
+        {
+            BOARD* board = m_frame->GetBoard();
+            SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<SELECTION_TOOL>();
+            GENERAL_COLLECTORS_GUIDE guide = m_frame->GetCollectorsGuide();
+            GENERAL_COLLECTOR collector;
+            collector.m_Threshold = KiROUND( getView()->ToWorld( HITTEST_THRESHOLD_PIXELS ) );
+
+            if( m_editModules )
+                collector.Collect( board, GENERAL_COLLECTOR::ModuleItems, (wxPoint) aPos, guide );
+            else
+                collector.Collect( board, GENERAL_COLLECTOR::BoardLevelItems, (wxPoint) aPos, guide );
+
+            // Remove unselectable items
+            for( int i = collector.GetCount() - 1; i >= 0; --i )
+            {
+                if( !selectionTool->Selectable( collector[ i ] ) )
+                    collector.Remove( i );
+            }
+
+            if( collector.GetCount() > 1 )
+                selectionTool->GuessSelectionCandidates( collector, aPos );
+
+            BOARD_ITEM* item = collector.GetCount() == 1 ? collector[ 0 ] : nullptr;
+
+            if( m_pickerItem != item )
+            {
+
+                if( m_pickerItem )
+                    selectionTool->UnbrightenItem( m_pickerItem );
+
+                m_pickerItem = item;
+
+                if( m_pickerItem )
+                    selectionTool->BrightenItem( m_pickerItem );
+            }
+        } );
+
+    picker->SetFinalizeHandler(
+        [this] ( const int& aFinalState )
+        {
+            if( m_pickerItem )
+                m_toolMgr->GetTool<SELECTION_TOOL>()->UnbrightenItem( m_pickerItem );
+        } );
+
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
 
     return 0;
 }
@@ -632,7 +681,8 @@ template<typename T>
 static void moveNoFlagToVector( std::deque<T>& aList, std::vector<BOARD_ITEM*>& aTarget, bool aIsNew )
 {
     std::copy_if( aList.begin(), aList.end(), std::back_inserter( aTarget ),
-            [](T aItem){
+            [](T aItem)
+            {
                 bool retval = ( aItem->GetFlags() & FLAG0 ) == 0;
                 aItem->ClearFlags( FLAG0 );
                 return retval;
@@ -717,10 +767,16 @@ int PCBNEW_CONTROL::placeBoardItems( std::vector<BOARD_ITEM*>& aItems, bool aIsN
             editTool->GetCurrentCommit()->Added( item );
     }
 
-    selection.SetReferencePoint( VECTOR2I( 0, 0 ) );
+    if( selection.Size() > 0 )
+    {
+        BOARD_ITEM* item = (BOARD_ITEM*) selection.GetTopLeftItem();
 
-    m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
-    m_toolMgr->RunAction( PCB_ACTIONS::move, true );
+        selection.SetReferencePoint( item->GetPosition() );
+        getViewControls()->SetCursorPosition( getViewControls()->GetMousePosition(), false );
+
+        m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
+        m_toolMgr->RunAction( PCB_ACTIONS::move, true );
+    }
 
     return 0;
 }
@@ -822,6 +878,7 @@ int PCBNEW_CONTROL::Redo( const TOOL_EVENT& aEvent )
 
     if( editFrame )
         editFrame->RestoreCopyFromRedoList( dummy );
+
     return 0;
 }
 
@@ -852,7 +909,6 @@ int PCBNEW_CONTROL::Show3DViewer( const TOOL_EVENT& aEvent )
 void PCBNEW_CONTROL::updateGrid()
 {
     BASE_SCREEN* screen = m_frame->GetScreen();
-    //GRID_TYPE grid = screen->GetGrid( idx );
     getView()->GetGAL()->SetGridSize( VECTOR2D( screen->GetGridSize() ) );
     getView()->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
 }
@@ -906,6 +962,7 @@ void PCBNEW_CONTROL::setTransitions()
     Go( &PCBNEW_CONTROL::ZoneDisplayMode,      PCB_ACTIONS::zoneDisplayEnable.MakeEvent() );
     Go( &PCBNEW_CONTROL::ZoneDisplayMode,      PCB_ACTIONS::zoneDisplayDisable.MakeEvent() );
     Go( &PCBNEW_CONTROL::ZoneDisplayMode,      PCB_ACTIONS::zoneDisplayOutlines.MakeEvent() );
+    Go( &PCBNEW_CONTROL::ZoneDisplayMode,      PCB_ACTIONS::zoneDisplayToggle.MakeEvent() );
     Go( &PCBNEW_CONTROL::HighContrastMode,     ACTIONS::highContrastMode.MakeEvent() );
 
     // Layer control
@@ -916,6 +973,30 @@ void PCBNEW_CONTROL::setTransitions()
     Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner4.MakeEvent() );
     Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner5.MakeEvent() );
     Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner6.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner7.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner8.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner9.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner10.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner11.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner12.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner13.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner14.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner15.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner16.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner17.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner18.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner19.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner20.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner21.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner22.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner23.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner24.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner25.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner26.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner27.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner28.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner29.MakeEvent() );
+    Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerInner30.MakeEvent() );
     Go( &PCBNEW_CONTROL::LayerSwitch,          PCB_ACTIONS::layerBottom.MakeEvent() );
     Go( &PCBNEW_CONTROL::LayerNext,            PCB_ACTIONS::layerNext.MakeEvent() );
     Go( &PCBNEW_CONTROL::LayerPrev,            PCB_ACTIONS::layerPrev.MakeEvent() );
@@ -933,7 +1014,7 @@ void PCBNEW_CONTROL::setTransitions()
     Go( &PCBNEW_CONTROL::Redo,                 ACTIONS::redo.MakeEvent() );
 
     // Miscellaneous
-    Go( &PCBNEW_CONTROL::DeleteItemCursor,     PCB_ACTIONS::deleteTool.MakeEvent() );
+    Go( &PCBNEW_CONTROL::DeleteItemCursor,     ACTIONS::deleteTool.MakeEvent() );
     Go( &PCBNEW_CONTROL::Show3DViewer,         ACTIONS::show3DViewer.MakeEvent() );
 
     // Append control

@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -58,12 +59,6 @@ TOOL_ACTION EE_ACTIONS::showMarkerInfo( "eeschema.InspectionTool.showMarkerInfo"
         AS_GLOBAL, 0, "",
         _( "Show Marker Info" ), _( "Display the marker's info in a dialog" ),
         info_xpm );
-
-
-// EE_PICKER
-//
-TOOL_ACTION EE_ACTIONS::pickerTool( "eeschema.InteractivePicker",
-        AS_GLOBAL, 0, "", "", "", NULL, AF_ACTIVATE );
 
 
 // EE_POINT_EDITOR
@@ -462,6 +457,12 @@ TOOL_ACTION EE_ACTIONS::cleanupSheetPins( "eeschema.InteractiveEdit.cleanupSheet
         _( "Cleanup Sheet Pins" ), _( "Delete unreferenced sheet pins" ),
         nullptr );
 
+TOOL_ACTION EE_ACTIONS::editTextAndGraphics( "eeschema.InteractiveEdit.editTextAndGraphics",
+        AS_GLOBAL, 0, "",
+        _( "Edit Text & Graphics Properties..." ),
+        _( "Edit text and graphics properties globally across schematic" ),
+        reset_text_xpm );
+
 TOOL_ACTION EE_ACTIONS::symbolProperties( "eeschema.InteractiveEdit.symbolProperties",
         AS_GLOBAL, 0, "",
         _( "Symbol Properties..." ), _( "Displays symbol properties dialog" ),
@@ -471,11 +472,6 @@ TOOL_ACTION EE_ACTIONS::pinTable( "eeschema.InteractiveEdit.pinTable",
         AS_GLOBAL, 0, "",
         _( "Pin Table..." ), _( "Displays pin table for bulk editing of pins" ),
         pin_table_xpm );
-
-TOOL_ACTION EE_ACTIONS::deleteItemCursor( "eeschema.InteractiveEdit.deleteTool",
-        AS_GLOBAL, 0, "",
-        _( "Delete Tool" ), _( "Delete clicked items" ),
-        delete_xpm, AF_ACTIVATE );
 
 TOOL_ACTION EE_ACTIONS::breakWire( "eeschema.InteractiveEdit.breakWire",
         AS_GLOBAL, 0, "",
@@ -490,9 +486,6 @@ TOOL_ACTION EE_ACTIONS::breakBus( "eeschema.InteractiveEdit.breakBus",
 
 // SCH_EDITOR_CONTROL
 //
-TOOL_ACTION EE_ACTIONS::refreshPreview( "eeschema.EditorControl.refreshPreview",
-         AS_GLOBAL );
-
 TOOL_ACTION EE_ACTIONS::restartMove( "eeschema.EditorControl.restartMove",
         AS_GLOBAL );
 
@@ -505,7 +498,10 @@ TOOL_ACTION EE_ACTIONS::simTune( "eeschema.Simulation.tune",
         _( "Select a value to be tuned" ), "" );
 
 TOOL_ACTION EE_ACTIONS::highlightNet( "eeschema.EditorControl.highlightNet",
-        AS_GLOBAL );
+        AS_GLOBAL,
+        '`', "",
+        _( "Highlight Net" ), _( "Highlight net under cursor" ),
+        net_highlight_schematic_xpm );
 
 TOOL_ACTION EE_ACTIONS::clearHighlight( "eeschema.EditorControl.clearHighlight",
         AS_GLOBAL );
@@ -513,7 +509,7 @@ TOOL_ACTION EE_ACTIONS::clearHighlight( "eeschema.EditorControl.clearHighlight",
 TOOL_ACTION EE_ACTIONS::updateNetHighlighting( "eeschema.EditorControl.updateNetHighlighting",
         AS_GLOBAL );
 
-TOOL_ACTION EE_ACTIONS::highlightNetCursor( "eeschema.EditorControl.highlightNetTool",
+TOOL_ACTION EE_ACTIONS::highlightNetTool( "eeschema.EditorControl.highlightNetTool",
         AS_GLOBAL, 0, "",
         _( "Highlight Nets" ), _( "Highlight wires and pins of a net" ),
         net_highlight_schematic_xpm, AF_ACTIVATE );
@@ -562,7 +558,7 @@ TOOL_ACTION EE_ACTIONS::drawSheetOnClipboard( "eeschema.EditorControl.drawSheetO
 
 TOOL_ACTION EE_ACTIONS::showPcbNew( "eeschema.EditorControl.showPcbNew",
         AS_GLOBAL, 0, "",
-        _( "Open PCB Editor" ), _( "Run Pcbnew" ),
+        _( "Switch to PCB Editor" ), _( "Open PCB in Pcbnew" ),
         pcbnew_xpm );
 
 TOOL_ACTION EE_ACTIONS::exportNetlist( "eeschema.EditorControl.exportNetlist",
@@ -661,12 +657,12 @@ TOOL_ACTION EE_ACTIONS::finishLine( "eeschema.InteractiveDrawingLineWireBus.fini
 
 // SCH_MOVE_TOOL
 //
-TOOL_ACTION EE_ACTIONS::move( "eeschema.InteractiveEdit.move",
+TOOL_ACTION EE_ACTIONS::move( "eeschema.InteractiveMove.move",
         AS_GLOBAL,
         'M', LEGACY_HK_NAME( "Move Item" ),
         _( "Move" ), _( "Moves the selected item(s)" ), move_xpm, AF_ACTIVATE );
 
-TOOL_ACTION EE_ACTIONS::drag( "eeschema.InteractiveEdit.drag",
+TOOL_ACTION EE_ACTIONS::drag( "eeschema.InteractiveMove.drag",
         AS_GLOBAL,
         'G', LEGACY_HK_NAME( "Drag Item" ),
         _( "Drag" ), _( "Drags the selected item(s)" ), move_xpm, AF_ACTIVATE );

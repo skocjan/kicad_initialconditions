@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -49,6 +50,12 @@ public:
     bool Init() override;
 
     int Main( const TOOL_EVENT& aEvent );
+
+    /**
+     * Indicates the cursor is over an edit point.  Used to coordinate cursor shapes with
+     * other tools.
+     */
+    bool HasPoint() { return m_editedPoint != nullptr; }
 
     ///> Sets up handlers for various events.
     void setTransitions() override;

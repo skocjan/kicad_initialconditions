@@ -139,8 +139,7 @@ void GERBVIEW_FRAME::ReCreateMenuBar()
     fileMenu->AddItem( ACTIONS::print,            SELECTION_CONDITIONS::ShowAlways );
 
     fileMenu->AddSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm, SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddQuitOrClose( &Kiface(), _( "GerbView" ) );
 
     fileMenu->Resolve();
 
@@ -190,8 +189,6 @@ void GERBVIEW_FRAME::ReCreateMenuBar()
                             _( "Show &Layers Manager" ), _( "Show or hide the layer manager" ),
                             layers_manager_xpm, layersManagerShownCondition );
 
-    viewMenu->AppendSeparator();
-
     viewMenu->AddSeparator();
     viewMenu->AddItem( ACTIONS::zoomInCenter,                 SELECTION_CONDITIONS::ShowAlways );
     viewMenu->AddItem( ACTIONS::zoomOutCenter,                SELECTION_CONDITIONS::ShowAlways );
@@ -199,7 +196,7 @@ void GERBVIEW_FRAME::ReCreateMenuBar()
     viewMenu->AddItem( ACTIONS::zoomTool,                     SELECTION_CONDITIONS::ShowAlways );
     viewMenu->AddItem( ACTIONS::zoomRedraw,                   SELECTION_CONDITIONS::ShowAlways );
 
-    viewMenu->AppendSeparator();
+    viewMenu->AddSeparator();
     viewMenu->AddCheckItem( ACTIONS::toggleGrid,              gridShownCondition );
     viewMenu->AddCheckItem( ACTIONS::togglePolarCoords,       polarCoordsCondition );
 
@@ -211,7 +208,7 @@ void GERBVIEW_FRAME::ReCreateMenuBar()
     unitsSubMenu->AddCheckItem( ACTIONS::metricUnits,         metricUnitsCondition );
     viewMenu->AddMenu( unitsSubMenu );
 
-    viewMenu->AppendSeparator();
+    viewMenu->AddSeparator();
     viewMenu->AddCheckItem( GERBVIEW_ACTIONS::flashedDisplayOutlines,  sketchFlashedCondition );
     viewMenu->AddCheckItem( GERBVIEW_ACTIONS::linesDisplayOutlines,    sketchLinesCondition );
     viewMenu->AddCheckItem( GERBVIEW_ACTIONS::polygonsDisplayOutlines, sketchPolygonsCondition );

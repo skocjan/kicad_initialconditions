@@ -28,12 +28,10 @@
 #include <base_units.h>
 #include <sch_validators.h>
 #include <tool/tool_manager.h>
-#include <sch_draw_panel.h>
 #include <general.h>
 #include <gr_text.h>
 #include <confirm.h>
 #include <sch_text.h>
-#include <typeinfo>
 #include <widgets/unit_binder.h>
 #include <dialog_edit_label_base.h>
 #include <kicad_string.h>
@@ -72,7 +70,7 @@ public:
 
 private:
     virtual void OnEnterKey( wxCommandEvent& aEvent ) override;
-    void OnCharHook( wxKeyEvent& aEvent );
+    void OnCharHook( wxKeyEvent& aEvt );
 
     bool TransferDataToWindow() override;
     bool TransferDataFromWindow() override;
@@ -116,10 +114,12 @@ DIALOG_LABEL_EDITOR::DIALOG_LABEL_EDITOR( SCH_EDIT_FRAME* aParent, SCH_TEXT* aTe
     default:                       SetTitle( _( "Text Properties" ) );                   break;
     }
 
+    m_valueMultiLine->SetEOLMode( wxSTC_EOL_LF );
+
     if( m_CurrentText->IsMultilineAllowed() )
     {
         m_activeTextCtrl = m_valueMultiLine;
-        m_activeTextEntry = m_valueMultiLine;
+        m_activeTextEntry = nullptr;
 
         m_labelSingleLine->Show( false );  m_valueSingleLine->Show( false );
         m_labelCombo->Show( false );       m_valueCombo->Show( false );
@@ -178,33 +178,15 @@ DIALOG_LABEL_EDITOR::~DIALOG_LABEL_EDITOR()
 }
 
 
-// Sadly we store the orientation of hierarchical and global labels using a different
-// int encoding than that for local labels:
-//                   Global      Local
-// Left justified      0           2
-// Up                  1           3
-// Right justified     2           0
-// Down                3           1
-static int mapOrientation( KICAD_T labelType, int aOrientation )
-{
-    if( labelType == SCH_LABEL_T )
-        return aOrientation;
-
-    switch( aOrientation )
-    {
-    case 0: return 2;
-    case 2: return 0;
-    default: return aOrientation;
-    }
-}
-
-
 bool DIALOG_LABEL_EDITOR::TransferDataToWindow()
 {
     if( !wxDialog::TransferDataToWindow() )
         return false;
 
-    m_activeTextEntry->SetValue( UnescapeString( m_CurrentText->GetText() ) );
+    if( m_activeTextEntry )
+        m_activeTextEntry->SetValue( UnescapeString( m_CurrentText->GetText() ) );
+    else
+        m_valueMultiLine->SetValue( UnescapeString( m_CurrentText->GetText() ) );
 
     if( m_valueCombo->IsShown() )
     {
@@ -230,8 +212,8 @@ bool DIALOG_LABEL_EDITOR::TransferDataToWindow()
     }
 
     // Set text options:
-    int orientation = mapOrientation( m_CurrentText->Type(), m_CurrentText->GetLabelSpinStyle() );
-    m_TextOrient->SetSelection( orientation );
+    int orient = m_CurrentText->GetLabelSpinStyle();
+    m_TextOrient->SetSelection( EDA_TEXT::MapOrientation( m_CurrentText->Type(), orient ) );
 
     m_TextShape->SetSelection( m_CurrentText->GetShape() );
 
@@ -261,28 +243,65 @@ void DIALOG_LABEL_EDITOR::OnEnterKey( wxCommandEvent& aEvent )
 }
 
 
+static bool isCtrl( int aChar, const wxKeyEvent& e )
+{
+    return e.GetKeyCode() == aChar && e.ControlDown() && !e.AltDown() && !e.ShiftDown() && !e.MetaDown();
+}
+
+static bool isShiftCtrl( int aChar, const wxKeyEvent& e )
+{
+    return e.GetKeyCode() == aChar && e.ControlDown() && !e.AltDown() && e.ShiftDown() && !e.MetaDown();
+}
+
 /*!
  * wxEVT_CHAR_HOOK event handler for multi-line control
  */
 
-void DIALOG_LABEL_EDITOR::OnCharHook( wxKeyEvent& aEvent )
+void DIALOG_LABEL_EDITOR::OnCharHook( wxKeyEvent& aEvt )
 {
-    if( aEvent.GetKeyCode() == WXK_TAB )
+    if( aEvt.GetKeyCode() == WXK_TAB )
     {
-        int flags = 0;
-        if( !aEvent.ShiftDown() )
-            flags |= wxNavigationKeyEvent::IsForward;
-        if( aEvent.ControlDown() )
-            flags |= wxNavigationKeyEvent::WinChange;
-        NavigateIn( flags );
+        if( aEvt.ControlDown() )
+        {
+            int flags = 0;
+
+            if( !aEvt.ShiftDown() )
+                flags |= wxNavigationKeyEvent::IsForward;
+
+            NavigateIn( flags );
+        }
+        else
+        {
+            m_valueMultiLine->Tab();
+        }
     }
-    else if( aEvent.GetKeyCode() == WXK_RETURN && aEvent.ShiftDown() )
+    else if( m_valueMultiLine->IsShown() && isCtrl( 'Z', aEvt ) )
     {
-        wxPostEvent( this, wxCommandEvent( wxEVT_COMMAND_BUTTON_CLICKED, wxID_OK ) );
+        m_valueMultiLine->Undo();
+    }
+#if defined( __WXMAC__ )
+    else if( m_valueMultiLine->IsShown() && isShiftCtrl( 'Z', aEvt ) )
+#else
+    else if( m_valueMultiLine->IsShown() && isCtrl( 'Y', aEvt ) )
+#endif
+    {
+        m_valueMultiLine->Redo();
+    }
+    else if( isCtrl( 'X', aEvt ) )
+    {
+        m_valueMultiLine->Cut();
+    }
+    else if( isCtrl( 'C', aEvt ) )
+    {
+        m_valueMultiLine->Copy();
+    }
+    else if( isCtrl( 'V', aEvt ) )
+    {
+        m_valueMultiLine->Paste();
     }
     else
     {
-        aEvent.Skip();
+        aEvt.Skip();
     }
 }
 
@@ -305,7 +324,7 @@ bool DIALOG_LABEL_EDITOR::TransferDataFromWindow()
 
     // Escape string only if is is a label. For a simple graphic text do not change anything
     if( m_CurrentText->Type() == SCH_TEXT_T )
-        text = m_activeTextEntry->GetValue();
+        text = m_valueMultiLine->GetValue();
     else
         text = EscapeString( m_activeTextEntry->GetValue(), CTX_NETNAME );
 
@@ -317,8 +336,8 @@ bool DIALOG_LABEL_EDITOR::TransferDataFromWindow()
         return false;
     }
 
-    int orientation = m_TextOrient->GetSelection();
-    m_CurrentText->SetLabelSpinStyle( mapOrientation( m_CurrentText->Type(), orientation ) );
+    int orient = m_TextOrient->GetSelection();
+    m_CurrentText->SetLabelSpinStyle( EDA_TEXT::MapOrientation( m_CurrentText->Type(), orient ) );
 
     m_CurrentText->SetTextSize( wxSize( m_textSize.GetValue(), m_textSize.GetValue() ) );
 

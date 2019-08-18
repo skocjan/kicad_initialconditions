@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -59,6 +60,7 @@ public:
     int BreakWire( const TOOL_EVENT& aEvent );
 
     int CleanupSheetPins( const TOOL_EVENT& aEvent );
+    int GlobalEdit( const TOOL_EVENT& aEvent );
 
     ///> Deletes the selected items, or the item under the cursor.
     int DoDelete( const TOOL_EVENT& aEvent );

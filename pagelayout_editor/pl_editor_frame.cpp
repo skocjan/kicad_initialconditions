@@ -44,19 +44,22 @@
 #include <tool/tool_manager.h>
 #include <tool/common_control.h>
 #include <tool/common_tools.h>
+#include <tool/picker_tool.h>
 #include <tool/zoom_tool.h>
 #include <tools/pl_actions.h>
 #include <tools/pl_selection_tool.h>
 #include <tools/pl_drawing_tools.h>
 #include <tools/pl_edit_tool.h>
 #include <tools/pl_point_editor.h>
-#include <tools/pl_picker_tool.h>
 #include <invoke_pl_editor_dialog.h>
 #include <tools/pl_editor_control.h>
 
 
 BEGIN_EVENT_TABLE( PL_EDITOR_FRAME, EDA_DRAW_FRAME )
     EVT_CLOSE( PL_EDITOR_FRAME::OnCloseWindow )
+    EVT_MENU( wxID_CLOSE, PL_EDITOR_FRAME::OnExit )
+    EVT_MENU( wxID_EXIT, PL_EDITOR_FRAME::OnExit )
+
     EVT_MENU( wxID_FILE, PL_EDITOR_FRAME::Files_io )
 
     EVT_MENU_RANGE( ID_FILE1, ID_FILEMAX, PL_EDITOR_FRAME::OnFileHistory )
@@ -177,6 +180,9 @@ PL_EDITOR_FRAME::PL_EDITOR_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     m_auimgr.Update();
 
+    // Add the exit key handler
+    InitExitKey();
+
     wxPoint originCoord = ReturnCoordOriginCorner();
     SetGridOrigin( originCoord );
 
@@ -212,7 +218,7 @@ void PL_EDITOR_FRAME::setupTools()
     m_toolManager->RegisterTool( new PL_DRAWING_TOOLS );
     m_toolManager->RegisterTool( new PL_EDIT_TOOL );
     m_toolManager->RegisterTool( new PL_POINT_EDITOR );
-    m_toolManager->RegisterTool( new PL_PICKER_TOOL );
+    m_toolManager->RegisterTool( new PICKER_TOOL );
     m_toolManager->InitTools();
 
     // Run the selection tool, it is supposed to be always active
@@ -237,7 +243,17 @@ bool PL_EDITOR_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, i
 }
 
 
-void PL_EDITOR_FRAME::OnCloseWindow( wxCloseEvent& Event )
+void PL_EDITOR_FRAME::OnExit( wxCommandEvent& aEvent )
+{
+    if( aEvent.GetId() == wxID_EXIT )
+        Kiway().OnKiCadExit();
+
+    if( aEvent.GetId() == wxID_CLOSE || Kiface().IsSingle() )
+        Close( false );
+}
+
+
+void PL_EDITOR_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
 {
     if( GetScreen()->IsModify() )
     {
@@ -247,7 +263,7 @@ void PL_EDITOR_FRAME::OnCloseWindow( wxCloseEvent& Event )
         if( !HandleUnsavedChanges( this, wxString::Format( msg, filename.GetFullName() ),
                                    [&]()->bool { return saveCurrentPageLayout(); } ) )
         {
-            Event.Veto();
+            aEvent.Veto();
             return;
         }
     }
@@ -255,7 +271,6 @@ void PL_EDITOR_FRAME::OnCloseWindow( wxCloseEvent& Event )
     // do not show the window because we do not want any paint event
     Show( false );
 
-    // was: Pgm().SaveCurrentSetupValues( m_configSettings );
     wxConfigSaveSetups( Kiface().KifaceSettings(), m_configSettings );
 
     // On Linux, m_propertiesPagelayout must be destroyed
@@ -376,17 +391,35 @@ double PL_EDITOR_FRAME::BestZoom()
 static const wxChar propertiesFrameWidthKey[] = wxT( "PropertiesFrameWidth" );
 static const wxChar cornerOriginChoiceKey[] = wxT( "CornerOriginChoice" );
 static const wxChar blackBgColorKey[] = wxT( "BlackBgColor" );
+static const wxChar lastUsedPaperSizeKey[] = wxT( "LastUsedPaperSize" );
+static const wxChar lastUsedCustomWidthKey[] = wxT( "LastUsedCustomWidth" );
+static const wxChar lastUsedCustomHeightKey[] = wxT( "LastUsedCustomHeight" );
+static const wxChar lastUsedPortraitKey[] = wxT( "LastUsedWasPortrait" );
 
 
 void PL_EDITOR_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
     EDA_DRAW_FRAME::LoadSettings( aCfg );
 
-    aCfg->Read( propertiesFrameWidthKey, &m_propertiesFrameWidth, 150);
+    aCfg->Read( propertiesFrameWidthKey, &m_propertiesFrameWidth, 150 );
     aCfg->Read( cornerOriginChoiceKey, &m_originSelectChoice );
-    bool tmp;
-    aCfg->Read( blackBgColorKey, &tmp, false );
-    SetDrawBgColor( tmp ? BLACK : WHITE );
+
+    bool flag;
+    aCfg->Read( blackBgColorKey, &flag, false );
+    SetDrawBgColor( flag ? BLACK : WHITE );
+
+    int i;
+    aCfg->Read( lastUsedCustomWidthKey, &i, 17000 );
+    PAGE_INFO::SetCustomWidthMils( i );
+    aCfg->Read( lastUsedCustomHeightKey, &i, 11000 );
+    PAGE_INFO::SetCustomHeightMils( i );
+
+    PAGE_INFO pageInfo = GetPageSettings();
+    wxString msg;
+    aCfg->Read( lastUsedPaperSizeKey, &msg, "A3" );
+    aCfg->Read( lastUsedPortraitKey, &flag, false );
+    pageInfo.SetType( msg, flag );
+    SetPageSettings( pageInfo );
 }
 
 
@@ -399,8 +432,11 @@ void PL_EDITOR_FRAME::SaveSettings( wxConfigBase* aCfg )
     aCfg->Write( propertiesFrameWidthKey, m_propertiesFrameWidth);
     aCfg->Write( cornerOriginChoiceKey, m_originSelectChoice );
     aCfg->Write( blackBgColorKey, GetDrawBgColor() == BLACK );
+    aCfg->Write( lastUsedPaperSizeKey, GetPageSettings().GetType() );
+    aCfg->Write( lastUsedPortraitKey, GetPageSettings().IsPortrait() );
+    aCfg->Write( lastUsedCustomWidthKey, PAGE_INFO::GetCustomWidthMils() );
+    aCfg->Write( lastUsedCustomHeightKey, PAGE_INFO::GetCustomHeightMils() );
 
-    // was: wxGetApp().SaveCurrentSetupValues( GetConfigurationSettings() );
     wxConfigSaveSetups( aCfg, GetConfigurationSettings() );
 }
 
@@ -591,7 +627,7 @@ void PL_EDITOR_FRAME::UpdateStatusBar()
     case INCHES:         SetStatusText( _("inches"), 6 );   break;
     case MILLIMETRES:    SetStatusText( _("mm"), 6 );       break;
     case UNSCALED_UNITS: SetStatusText( wxEmptyString, 6 ); break;
-    case DEGREES:        wxASSERT( false );                 break;
+    default:             wxASSERT( false );                 break;
     }
 
     wxString line;
@@ -737,3 +773,4 @@ const wxString PL_EDITOR_FRAME::GetZoomLevelIndicator() const
 {
     return EDA_DRAW_FRAME::GetZoomLevelIndicator();
 }
+

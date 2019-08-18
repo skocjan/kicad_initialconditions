@@ -142,9 +142,20 @@ MODULE::MODULE( const MODULE& aModule ) :
 
 MODULE::~MODULE()
 {
+    // Clean up the owned elements
     delete m_Reference;
     delete m_Value;
     delete m_initial_comments;
+
+    for( auto p : m_pads )
+        delete p;
+
+    m_pads.clear();
+
+    for( auto d : m_drawings )
+        delete d;
+
+    m_drawings.clear();
 }
 
 
@@ -261,6 +272,7 @@ void MODULE::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode )
     }
     }
 
+    aBoardItem->ClearEditFlags();
     aBoardItem->SetParent( this );
 }
 
@@ -309,53 +321,6 @@ void MODULE::Remove( BOARD_ITEM* aBoardItem )
         wxFAIL_MSG( msg );
     }
     }
-}
-
-
-void MODULE::CopyNetlistSettings( MODULE* aModule, bool aCopyLocalSettings )
-{
-    // Don't do anything foolish like trying to copy to yourself.
-    wxCHECK_RET( aModule != NULL && aModule != this, wxT( "Cannot copy to NULL or yourself." ) );
-
-    // Not sure what to do with the value field.  Use netlist for now.
-    aModule->SetPosition( GetPosition() );
-
-    if( aModule->GetLayer() != GetLayer() )
-        aModule->Flip( aModule->GetPosition() );
-
-    if( aModule->GetOrientation() != GetOrientation() )
-        aModule->Rotate( aModule->GetPosition(), GetOrientation() );
-
-    aModule->SetLocked( IsLocked() );
-
-    if( aCopyLocalSettings )
-    {
-        aModule->SetLocalSolderMaskMargin( GetLocalSolderMaskMargin() );
-        aModule->SetLocalClearance( GetLocalClearance() );
-        aModule->SetLocalSolderPasteMargin( GetLocalSolderPasteMargin() );
-        aModule->SetLocalSolderPasteMarginRatio( GetLocalSolderPasteMarginRatio() );
-        aModule->SetZoneConnection( GetZoneConnection() );
-        aModule->SetThermalWidth( GetThermalWidth() );
-        aModule->SetThermalGap( GetThermalGap() );
-    }
-
-    for( auto pad : aModule->Pads() )
-    {
-        // Fix me: if aCopyLocalSettings == true, for "multiple" pads
-        // (set of pads having the same name/number) this is broken
-        // because we copy settings from the first pad found.
-        // When old and new footprints have very few differences, a better
-        // algo can be used.
-        D_PAD* oldPad = FindPadByName( pad->GetName() );
-
-        if( oldPad )
-            oldPad->CopyNetlistSettings( pad, aCopyLocalSettings );
-    }
-
-    // Not sure about copying description, keywords, 3D models or any other
-    // local user changes to footprint.  Stick with the new footprint settings
-    // called out in the footprint loaded in the netlist.
-    aModule->CalculateBoundingBox();
 }
 
 
@@ -495,7 +460,7 @@ void MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >&
 {
     wxString msg;
 
-    aList.push_back( MSG_PANEL_ITEM( m_Reference->GetShownText(), m_Value->GetShownText(), DARKCYAN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( m_Reference->GetShownText(), m_Value->GetShownText(), DARKCYAN ) );
 
     // Display last date the component was edited (useful in Module Editor).
     wxDateTime date( static_cast<time_t>( m_LastEditTime ) );
@@ -506,18 +471,18 @@ void MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >&
     else
         msg = _( "Unknown" );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Last Change" ), msg, BROWN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Last Change" ), msg, BROWN ) );
 
     // display schematic path
-    aList.push_back( MSG_PANEL_ITEM( _( "Netlist Path" ), m_Path, BROWN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Netlist Path" ), m_Path, BROWN ) );
 
     // display the board side placement
-    aList.push_back( MSG_PANEL_ITEM( _( "Board Side" ),
-                     IsFlipped()? _( "Back (Flipped)" ) : _( "Front" ), RED ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Board Side" ),
+                        IsFlipped()? _( "Back (Flipped)" ) : _( "Front" ), RED ) );
 
 
     msg.Printf( wxT( "%zu" ), m_pads.size() );
-    aList.push_back( MSG_PANEL_ITEM( _( "Pads" ), msg, BLUE ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Pads" ), msg, BLUE ) );
 
     msg = wxT( ".." );
 
@@ -527,10 +492,10 @@ void MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >&
     if( m_ModuleStatus & MODULE_is_PLACED )
         msg[1] = 'P';
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Status" ), msg, MAGENTA ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Status" ), msg, MAGENTA ) );
 
     msg.Printf( wxT( "%.1f" ), GetOrientationDegrees() );
-    aList.push_back( MSG_PANEL_ITEM( _( "Rotation" ), msg, BROWN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Rotation" ), msg, BROWN ) );
 
     // Controls on right side of the dialog
     switch( m_Attributs & 255 )
@@ -552,8 +517,8 @@ void MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >&
         break;
     }
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Attributes" ), msg, BROWN ) );
-    aList.push_back( MSG_PANEL_ITEM( _( "Footprint" ), FROM_UTF8( m_fpid.Format().c_str() ), BLUE ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Attributes" ), msg, BROWN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Footprint" ), FROM_UTF8( m_fpid.Format().c_str() ), BLUE ) );
 
     if( m_3D_Drawings.empty() )
         msg = _( "No 3D shape" );
@@ -562,12 +527,12 @@ void MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >&
 
     // Search the first active 3D shape in list
 
-    aList.push_back( MSG_PANEL_ITEM( _( "3D-Shape" ), msg, RED ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "3D-Shape" ), msg, RED ) );
 
     wxString doc, keyword;
-    doc.Printf( _( "Doc: %s" ), GetChars( m_Doc ) );
-    keyword.Printf( _( "Key Words: %s" ), GetChars( m_KeyWord ) );
-    aList.push_back( MSG_PANEL_ITEM( doc, keyword, BLACK ) );
+    doc.Printf( _( "Doc: %s" ), m_Doc );
+    keyword.Printf( _( "Key Words: %s" ), m_KeyWord );
+    aList.emplace_back( MSG_PANEL_ITEM( doc, keyword, BLACK ) );
 }
 
 
@@ -580,10 +545,7 @@ bool MODULE::HitTest( const wxPoint& aPosition, int aAccuracy ) const
 
 bool MODULE::HitTestAccurate( const wxPoint& aPosition, int aAccuracy ) const
 {
-    SHAPE_POLY_SET shape = GetBoundingPoly();
-
-    shape.Inflate( aAccuracy, 4 );
-    return shape.Contains( aPosition, -1, true );
+    return GetBoundingPoly().Collide( aPosition, aAccuracy );
 }
 
 
@@ -623,7 +585,7 @@ D_PAD* MODULE::FindPadByName( const wxString& aPadName ) const
 {
     for( auto pad : m_pads )
     {
-        if( pad->GetName().CmpNoCase( aPadName ) == 0 )    // why case insensitive?
+        if( pad->GetName() == aPadName )
             return pad;
     }
 
@@ -1009,11 +971,16 @@ void MODULE::Rotate( const wxPoint& aRotCentre, double aAngle )
 }
 
 
-void MODULE::Flip( const wxPoint& aCentre )
+void MODULE::Flip( const wxPoint& aCentre, bool aFlipLeftRight )
 {
     // Move module to its final position:
     wxPoint finalPos = m_Pos;
-    MIRROR( finalPos.y, aCentre.y );     /// Mirror the Y position
+
+    if( aFlipLeftRight )
+        MIRROR( finalPos.x, aCentre.x );     /// Mirror the X position
+    else
+        MIRROR( finalPos.y, aCentre.y );     /// Mirror the Y position
+
     SetPosition( finalPos );
 
     // Flip layer
@@ -1023,13 +990,13 @@ void MODULE::Flip( const wxPoint& aCentre )
     m_Orient = -m_Orient;
     NORMALIZE_ANGLE_POS( m_Orient );
 
-    // Mirror pads to other side of board about the x axis, i.e. vertically.
+    // Mirror pads to other side of board.
     for( auto pad : m_pads )
-        pad->Flip( m_Pos );
+        pad->Flip( m_Pos, aFlipLeftRight );
 
     // Mirror reference and value.
-    m_Reference->Flip( m_Pos );
-    m_Value->Flip( m_Pos );
+    m_Reference->Flip( m_Pos, aFlipLeftRight );
+    m_Value->Flip( m_Pos, aFlipLeftRight );
 
     // Reverse mirror module graphics and texts.
     for( auto item : m_drawings )
@@ -1037,11 +1004,11 @@ void MODULE::Flip( const wxPoint& aCentre )
         switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
-            ( (EDGE_MODULE*) item )->Flip( m_Pos );
+            static_cast<EDGE_MODULE*>( item )->Flip( m_Pos, aFlipLeftRight );
             break;
 
         case PCB_MODULE_TEXT_T:
-            static_cast<TEXTE_MODULE*>( item )->Flip( m_Pos );
+            static_cast<TEXTE_MODULE*>( item )->Flip( m_Pos, aFlipLeftRight );
             break;
 
         default:

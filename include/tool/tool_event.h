@@ -41,6 +41,7 @@
 
 class TOOL_ACTION;
 class TOOL_MANAGER;
+class TOOL_BASE;
 
 /**
  * Internal (GUI-independent) event definitions.
@@ -183,12 +184,10 @@ public:
         m_mouseButtons( 0 ),
         m_keyCode( 0 ),
         m_modifiers( 0 ),
-        m_param( aParameter )
+        m_param( aParameter ),
+        m_firstResponder( nullptr )
     {
-        m_hasPosition = ( aCategory == TC_MOUSE || aCategory == TC_COMMAND );
-
-        // By default only MESSAGEs are passed to multiple recipients
-        m_passEvent = ( aCategory == TC_MESSAGE );
+        init();
     }
 
     TOOL_EVENT( TOOL_EVENT_CATEGORY aCategory, TOOL_ACTIONS aAction, int aExtraParam,
@@ -199,7 +198,8 @@ public:
         m_mouseButtons( 0 ),
         m_keyCode( 0 ),
         m_modifiers( 0 ),
-        m_param( aParameter )
+        m_param( aParameter ),
+        m_firstResponder( nullptr )
     {
         if( aCategory == TC_MOUSE )
         {
@@ -219,10 +219,7 @@ public:
             m_modifiers = aExtraParam & MD_MODIFIER_MASK;
         }
 
-        // By default only MESSAGEs are passed to multiple recipients
-        m_passEvent = ( aCategory == TC_MESSAGE );
-
-        m_hasPosition = ( aCategory == TC_MOUSE || aCategory == TC_COMMAND );
+        init();
     }
 
     TOOL_EVENT( TOOL_EVENT_CATEGORY aCategory, TOOL_ACTIONS aAction,
@@ -234,15 +231,13 @@ public:
         m_mouseButtons( 0 ),
         m_keyCode( 0 ),
         m_modifiers( 0 ),
-        m_param( aParameter )
+        m_param( aParameter ),
+        m_firstResponder( nullptr )
     {
         if( aCategory == TC_COMMAND || aCategory == TC_MESSAGE )
             m_commandStr = aExtraParam;
 
-        // By default only MESSAGEs are passed to multiple recipients
-        m_passEvent = ( aCategory == TC_MESSAGE );
-
-        m_hasPosition = ( aCategory == TC_MOUSE || aCategory == TC_COMMAND );
+        init();
     }
 
     ///> Returns the category (eg. mouse/keyboard/action) of an event..
@@ -261,6 +256,9 @@ public:
     ///> or hotkey-based command events)
     bool HasPosition() const { return m_hasPosition; }
     void SetHasPosition( bool aHasPosition ) { m_hasPosition = aHasPosition; }
+
+    TOOL_BASE* FirstResponder() const { return m_firstResponder; }
+    void SetFirstResponder( TOOL_BASE* aTool ) { m_firstResponder = aTool; }
 
     ///> Returns information about difference between current mouse cursor position and the place
     ///> where dragging has started.
@@ -294,17 +292,22 @@ public:
 
     bool IsDrag( int aButtonMask = BUT_ANY ) const
     {
-        return m_actions == TA_MOUSE_DRAG && ( m_mouseButtons & aButtonMask ) == aButtonMask;
+        return m_actions == TA_MOUSE_DRAG && ( m_mouseButtons & aButtonMask ) == m_mouseButtons;
     }
 
     bool IsMouseUp( int aButtonMask = BUT_ANY ) const
     {
-        return m_actions == TA_MOUSE_UP && ( m_mouseButtons & aButtonMask ) == aButtonMask;
+        return m_actions == TA_MOUSE_UP && ( m_mouseButtons & aButtonMask ) == m_mouseButtons;
     }
 
     bool IsMotion() const
     {
         return m_actions == TA_MOUSE_MOTION;
+    }
+
+    bool IsMouseAction() const
+    {
+        return ( m_actions & TA_MOUSE );
     }
 
     bool IsCancel() const
@@ -385,6 +388,37 @@ public:
     bool IsAction( const TOOL_ACTION* aAction ) const;
 
     /**
+     * Function IsCancelInteractive()
+     *
+     * Indicates the event should restart/end an ongoing interactive tool's event loop (eg esc
+     * key, click cancel, start different tool).
+     */
+    bool IsCancelInteractive();
+
+    /**
+     * Function IsSelectionEvent()
+     *
+     * Indicates an selection-changed notification event.
+     */
+    bool IsSelectionEvent();
+
+    /**
+     * Function IsPointEditor
+     *
+     * Indicates if the event is from one of the point editors.  Usually used to allow the
+     * point editor to activate itself without de-activating the current drawing tool.
+     */
+    bool IsPointEditor();
+
+    /**
+     * Function IsMoveTool
+     *
+     * Indicates if the event is from one of the move tools.  Usually used to allow move to
+     * be done without de-activating the current drawing tool.
+     */
+    bool IsMoveTool();
+
+    /**
      * Function Parameter()
      * Returns a non-standard parameter assigned to the event. Its meaning depends on the
      * target tool.
@@ -430,6 +464,8 @@ public:
 
 private:
     friend class TOOL_DISPATCHER;
+
+    void init();
 
     void setMouseDragOrigin( const VECTOR2D& aP )
     {
@@ -501,6 +537,9 @@ private:
 
     ///> Generic parameter used for passing non-standard data.
     void* m_param;
+
+    ///> The first tool to receive the event
+    TOOL_BASE* m_firstResponder;
 
     OPT<int> m_commandId;
     OPT<std::string> m_commandStr;
@@ -642,34 +681,6 @@ inline const TOOL_EVENT_LIST operator||( const TOOL_EVENT& aEvent,
 
     l.Add( aEvent );
     return l;
-}
-
-
-/**
- * Namespace TOOL_EVT_UTILS
- *
- * Utility functions for dealing with various tool events. These are
- * free functions, so they interface with any classes exclusively via
- * the public interfaces, so they don't need to be subsumed into the
- * "helped" classes.
- */
-namespace TOOL_EVT_UTILS
-{
-    /**
-     * Function IsCancelInteractive()
-     *
-     * Indicates the event should restart/end an ongoing interactive tool's
-     * event loop (eg esc key, click cancel, start different tool)
-     */
-    bool IsCancelInteractive( const TOOL_EVENT& aEvt );
-
-    /**
-     * Function IsSelectionEvent()
-     *
-     * Indicates an selection-changed notification event.
-     */
-    bool IsSelectionEvent( const TOOL_EVENT& aEvt );
-
 }
 
 

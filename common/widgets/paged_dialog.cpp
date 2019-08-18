@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -141,9 +141,14 @@ bool PAGED_DIALOG::TransferDataToWindow()
 {
     finishInitialization();
 
+    // Call TransferDataToWindow() only once:
+    // this is enough on wxWidgets 3.1
     if( !DIALOG_SHIM::TransferDataToWindow() )
         return false;
 
+    // On wxWidgets 3.0, TransferDataFromWindow() is not called recursively
+    // so we have to call it for each page
+#if !wxCHECK_VERSION( 3, 1, 0 )
     for( size_t i = 0; i < m_treebook->GetPageCount(); ++i )
     {
         wxWindow* page = m_treebook->GetPage( i );
@@ -151,6 +156,7 @@ bool PAGED_DIALOG::TransferDataToWindow()
         if( !page->TransferDataToWindow() )
             return false;
     }
+#endif
 
     // Search for a page matching the lastParentPageTitle/lastPageTitle hierarchy
     wxString lastPage = g_lastPage[ m_title ];
@@ -184,9 +190,14 @@ bool PAGED_DIALOG::TransferDataToWindow()
 
 bool PAGED_DIALOG::TransferDataFromWindow()
 {
+    // Call TransferDataFromWindow() only once:
+    // this is enough on wxWidgets 3.1
     if( !DIALOG_SHIM::TransferDataFromWindow() )
         return false;
 
+    // On wxWidgets 3.0, TransferDataFromWindow() is not called recursively
+    // so we have to call it for each page
+#if !wxCHECK_VERSION( 3, 1, 0 )
     for( size_t i = 0; i < m_treebook->GetPageCount(); ++i )
     {
         wxWindow* page = m_treebook->GetPage( i );
@@ -194,6 +205,7 @@ bool PAGED_DIALOG::TransferDataFromWindow()
         if( !page->TransferDataFromWindow() )
             return false;
     }
+#endif
 
     return true;
 }

@@ -220,7 +220,7 @@ public:
     /**
      * Create or update the left vertical toolbar (option toolbar
      */
-    void ReCreateOptToolbar();
+    void ReCreateOptToolbar() override;
 
     void ReCreateMenuBar() override;
     void OnUpdateSelectZoom( wxUpdateUIEvent& aEvent );
@@ -586,8 +586,8 @@ public:
         // currently: do nothing in GerbView.
     }
 
-    ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas
-    virtual void ActivateGalCanvas() override;
+    ///> @copydoc EDA_DRAW_FRAME::ActivateGalCanvas
+    void ActivateGalCanvas() override;
 
     /**
      * Allows Gerbview to install its preferences panels into the preferences dialog.
@@ -597,7 +597,7 @@ public:
     /**
      * Called after the preferences dialog is run.
      */
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
 
     void SyncToolbars() override;
 

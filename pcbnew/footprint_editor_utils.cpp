@@ -146,16 +146,6 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     switch( id )
     {
-    case ID_TOOLBARH_PCB_SELECT_LAYER:
-        break;
-
-    default:
-        SetNoToolSelected();
-        break;
-    }
-
-    switch( id )
-    {
     case ID_MODEDIT_NEW_MODULE:
         {
             LIB_ID selected = m_treePane->GetLibTree()->GetSelectedLibId();
@@ -265,6 +255,9 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MODEDIT_SAVE:
+        if( !GetBoard()->GetFirstModule() )     // no loaded footprint
+            break;
+
         if( GetTargetFPID() == GetLoadedFPID() )
         {
             if( SaveFootprint( GetBoard()->GetFirstModule() ) )

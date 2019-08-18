@@ -75,16 +75,13 @@ private:
 };
 
 
-extern void CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer, const D_PAD& aPad,
-        int aThermalGap, int aCopperThickness, int aMinThicknessValue, int aError,
-        double aThermalRot );
-
-static double s_thermalRot = 450;   // angle of stubs in thermal reliefs for round pads
+static const double s_RoundPadThermalSpokeAngle = 450;
 static const bool s_DumpZonesWhenFilling = false;
 
 
 ZONE_FILLER::ZONE_FILLER(  BOARD* aBoard, COMMIT* aCommit ) :
-    m_board( aBoard ), m_commit( aCommit ), m_progressReporter( nullptr )
+    m_board( aBoard ), m_brdOutlinesValid( false ), m_commit( aCommit ),
+    m_progressReporter( nullptr )
 {
 }
 
@@ -94,9 +91,11 @@ ZONE_FILLER::~ZONE_FILLER()
 }
 
 
-void ZONE_FILLER::SetProgressReporter( WX_PROGRESS_REPORTER* aReporter )
+void ZONE_FILLER::InstallNewProgressReporter( wxWindow* aParent, const wxString& aTitle,
+                                              int aNumPhases )
 {
-    m_progressReporter = aReporter;
+    m_uniqueReporter = std::make_unique<WX_PROGRESS_REPORTER>( aParent, aTitle, aNumPhases );
+    m_progressReporter = m_uniqueReporter.get();
 }
 
 
@@ -107,9 +106,7 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE_CONTAINER*>& aZones, bool aCheck 
     bool filledPolyWithOutline = not m_board->GetDesignSettings().m_ZoneUseNoOutlineInFill;
 
     if( ADVANCED_CFG::GetCfg().m_forceThickOutlinesInZones )
-    {
         filledPolyWithOutline = true;
-    }
 
     std::unique_lock<std::mutex> lock( connectivity->GetLock(), std::try_to_lock );
 
@@ -121,6 +118,10 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE_CONTAINER*>& aZones, bool aCheck 
         m_progressReporter->Report( aCheck ? _( "Checking zone fills..." ) : _( "Building zone fills..." ) );
         m_progressReporter->SetMaxProgress( toFill.size() );
     }
+
+    // The board outlines is used to clip solid areas inside the board (when outlines are valid)
+    m_boardOutline.RemoveAllContours();
+    m_brdOutlinesValid = m_board->GetBoardPolygonOutlines( m_boardOutline );
 
     for( auto zone : aZones )
     {
@@ -206,8 +207,6 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE_CONTAINER*>& aZones, bool aCheck 
 
     // Now remove insulated copper islands and islands outside the board edge
     bool outOfDate = false;
-    SHAPE_POLY_SET boardOutline;
-    bool clip_to_brd_outlines = m_board->GetBoardPolygonOutlines( boardOutline );
 
     for( auto& zone : toFill )
     {
@@ -231,12 +230,13 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE_CONTAINER*>& aZones, bool aCheck 
         // but they can have some areas outside the board cutouts.
         // A filled area outside the board cutouts has all points outside cutouts,
         // so we only need to check one point for each filled polygon.
-        else if( clip_to_brd_outlines )
+        // Note also non copper zones are already clipped
+        else if( m_brdOutlinesValid && zone.m_zone->IsOnCopperLayer() )
         {
-             for( int idx = 0; idx < poly.OutlineCount(); )
+            for( int idx = 0; idx < poly.OutlineCount(); )
             {
                 if( poly.Polygon( idx ).empty() ||
-                    !boardOutline.Contains( poly.Polygon( idx ).front().CPoint( 0 ) ) )
+                    !m_boardOutline.Contains( poly.Polygon( idx ).front().CPoint( 0 ) ) )
                 {
                     poly.DeletePolygon( idx );
                 }
@@ -342,196 +342,232 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE_CONTAINER*>& aZones, bool aCheck 
 }
 
 
-void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
-        SHAPE_POLY_SET& aFeatures ) const
+/**
+ * Return true if the given pad has a thermal connection with the given zone.
+ */
+bool hasThermalConnection( D_PAD* pad, const ZONE_CONTAINER* aZone )
 {
-    aFeatures.RemoveAllContours();
+    // Rejects non-standard pads with tht-only thermal reliefs
+    if( aZone->GetPadConnection( pad ) == PAD_ZONE_CONN_THT_THERMAL
+        && pad->GetAttribute() != PAD_ATTRIB_STANDARD )
+    {
+        return false;
+    }
 
-    int zone_clearance = aZone->GetClearance();
-    int edgeClearance = m_board->GetDesignSettings().m_CopperEdgeClearance;
-    int zone_to_edgecut_clearance = std::max( aZone->GetZoneClearance(), edgeClearance );
+    if( aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THERMAL
+        && aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THT_THERMAL )
+    {
+        return false;
+    }
 
-    // dist_high_def can be used to define a high definition arc to polygon approximation:
-    // (shorter than m_board->GetDesignSettings().m_MaxError and is a better wording here)
-    int dist_high_def = m_board->GetDesignSettings().m_MaxError;
+    if( pad->GetNetCode() != aZone->GetNetCode() || pad->GetNetCode() <= 0 )
+        return false;
 
-    // dist_low_def can be used to define a low definition arc to polygon approximation:
-    // when converting some pad shapes that can accept lower resolution),
-    // vias and track ends to polygons.
-    // rect pads use dist_low_def to reduce the number of segments. For these shapes a low def
-    // gives a good shape, because the arc is small (90 degrees) and a small part of the shape.
-    int dist_low_def = std::min( ARC_LOW_DEF, int( dist_high_def*1.5 ) );   // Reasonable value
+    EDA_RECT item_boundingbox = pad->GetBoundingBox();
+    int thermalGap = aZone->GetThermalReliefGap( pad );
+    item_boundingbox.Inflate( thermalGap, thermalGap );
 
-    // When removing holes, the holes must be expanded by outline_half_thickness
-    // to take in account the thickness of the zone outlines
-    int outline_half_thickness = aZone->GetMinThickness() / 2;
-    zone_clearance += outline_half_thickness;
-    zone_to_edgecut_clearance += outline_half_thickness;
+    return item_boundingbox.Intersects( aZone->GetBoundingBox() );
+}
 
-    /* store holes (i.e. tracks and pads areas as polygons outlines)
-     * in a polygon list
-     */
 
-    /* items outside the zone bounding box are skipped
-     * the bounding box is the zone bounding box + the biggest clearance found in Netclass list
-     */
-    EDA_RECT    item_boundingbox;
-    EDA_RECT    zone_boundingbox = aZone->GetBoundingBox();
-    int biggest_clearance = m_board->GetDesignSettings().GetBiggestClearanceValue();
-    biggest_clearance = std::max( biggest_clearance, zone_clearance );
-    zone_boundingbox.Inflate( biggest_clearance );
+/**
+ * Setup aDummyPad to have the same size and shape of aPad's hole.  This allows us to create
+ * thermal reliefs and clearances for holes using the pad code.
+ */
+static void setupDummyPadForHole( const D_PAD* aPad, D_PAD& aDummyPad )
+{
+    aDummyPad.SetNetCode( aPad->GetNetCode() );
+    aDummyPad.SetSize( aPad->GetDrillSize() );
+    aDummyPad.SetOrientation( aPad->GetOrientation() );
+    aDummyPad.SetShape( aPad->GetDrillShape() == PAD_DRILL_SHAPE_OBLONG ? PAD_SHAPE_OVAL
+                                                                        : PAD_SHAPE_CIRCLE );
+    aDummyPad.SetPosition( aPad->GetPosition() );
+}
 
-    /*
-     * First : Add pads. Note: pads having the same net as zone are left in zone.
-     * Thermal shapes will be created later if necessary
-     */
 
-    /* Use a dummy pad to calculate hole clearance when a pad is not on all copper layers
-     * and this pad has a hole
-     * This dummy pad has the size and shape of the hole
-     * Therefore, this dummy pad is a circle or an oval.
-     * A pad must have a parent because some functions expect a non null parent
-     * to find the parent board, and some other data
-     */
-    MODULE  dummymodule( m_board );   // Creates a dummy parent
+/**
+ * Add a knockout for a pad.  The knockout is 'aGap' larger than the pad (which might be
+ * either the thermal clearance or the electrical clearance).
+ */
+void ZONE_FILLER::addKnockout( D_PAD* aPad, int aGap, SHAPE_POLY_SET& aHoles )
+{
+    if( aPad->GetShape() == PAD_SHAPE_CUSTOM )
+    {
+        // the pad shape in zone can be its convex hull or the shape itself
+        SHAPE_POLY_SET outline( aPad->GetCustomShapeAsPolygon() );
+        int numSegs = std::max( GetArcToSegmentCount( aGap, m_high_def, 360.0 ), 6 );
+        double correction = GetCircletoPolyCorrectionFactor( numSegs );
+        outline.Inflate( KiROUND( aGap * correction ), numSegs );
+        aPad->CustomShapeAsPolygonToBoardPosition( &outline, aPad->GetPosition(),
+                                                   aPad->GetOrientation() );
+
+        if( aPad->GetCustomShapeInZoneOpt() == CUST_PAD_SHAPE_IN_ZONE_CONVEXHULL )
+        {
+            std::vector<wxPoint> convex_hull;
+            BuildConvexHull( convex_hull, outline );
+
+            aHoles.NewOutline();
+
+            for( const wxPoint& pt : convex_hull )
+                aHoles.Append( pt );
+        }
+        else
+            aHoles.Append( outline );
+    }
+    else
+    {
+        // Optimizing polygon vertex count: the high definition is used for round
+        // and oval pads (pads with large arcs) but low def for other shapes (with
+        // small arcs)
+        if( aPad->GetShape() == PAD_SHAPE_CIRCLE || aPad->GetShape() == PAD_SHAPE_OVAL ||
+          ( aPad->GetShape() == PAD_SHAPE_ROUNDRECT && aPad->GetRoundRectRadiusRatio() > 0.4 ) )
+            aPad->TransformShapeWithClearanceToPolygon( aHoles, aGap, m_high_def );
+        else
+            aPad->TransformShapeWithClearanceToPolygon( aHoles, aGap, m_low_def );
+    }
+}
+
+
+/**
+ * Add a knockout for a graphic item.  The knockout is 'aGap' larger than the item (which
+ * might be either the electrical clearance or the board edge clearance).
+ */
+void ZONE_FILLER::addKnockout( BOARD_ITEM* aItem, int aGap, bool aIgnoreLineWidth,
+                               SHAPE_POLY_SET& aHoles )
+{
+    switch( aItem->Type() )
+    {
+    case PCB_LINE_T:
+    {
+        DRAWSEGMENT* seg = (DRAWSEGMENT*) aItem;
+        seg->TransformShapeWithClearanceToPolygon( aHoles, aGap, m_high_def, aIgnoreLineWidth );
+        break;
+    }
+    case PCB_TEXT_T:
+    {
+        TEXTE_PCB* text = (TEXTE_PCB*) aItem;
+        text->TransformBoundingBoxWithClearanceToPolygon( &aHoles, aGap );
+        break;
+    }
+    case PCB_MODULE_EDGE_T:
+    {
+        EDGE_MODULE* edge = (EDGE_MODULE*) aItem;
+        edge->TransformShapeWithClearanceToPolygon( aHoles, aGap, m_high_def, aIgnoreLineWidth );
+        break;
+    }
+    case PCB_MODULE_TEXT_T:
+    {
+        TEXTE_MODULE* text = (TEXTE_MODULE*) aItem;
+
+        if( text->IsVisible() )
+            text->TransformBoundingBoxWithClearanceToPolygon( &aHoles, aGap );
+
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+
+/**
+ * Removes thermal reliefs from the shape for any pads connected to the zone.  Does NOT add
+ * in spokes, which must be done later.
+ */
+void ZONE_FILLER::knockoutThermalReliefs( const ZONE_CONTAINER* aZone, SHAPE_POLY_SET& aFill )
+{
+    SHAPE_POLY_SET holes;
+
+    // Use a dummy pad to calculate relief when a pad has a hole but is not on the zone's
+    // copper layer.  The dummy pad has the size and shape of the original pad's hole. We have
+    // to give it a parent because some functions expect a non-null parent to find clearance
+    // data, etc.
+    MODULE  dummymodule( m_board );
     D_PAD   dummypad( &dummymodule );
 
     for( auto module : m_board->Modules() )
     {
         for( auto pad : module->Pads() )
         {
+            if( !hasThermalConnection( pad, aZone ) )
+                continue;
+
+            // If the pad isn't on the current layer but has a hole, knock out a thermal relief
+            // for the hole.
             if( !pad->IsOnLayer( aZone->GetLayer() ) )
             {
-                /* Test for pads that are on top or bottom only and have a hole.
-                 * There are curious pads but they can be used for some components that are
-                 * inside the board (in fact inside the hole. Some photo diodes and Leds are
-                 * like this)
-                 */
                 if( pad->GetDrillSize().x == 0 && pad->GetDrillSize().y == 0 )
                     continue;
 
-                // Use a dummy pad to calculate a hole shape that have the same dimension as
-                // the pad hole
-                dummypad.SetSize( pad->GetDrillSize() );
-                dummypad.SetOrientation( pad->GetOrientation() );
-                dummypad.SetShape( pad->GetDrillShape() == PAD_DRILL_SHAPE_OBLONG ?
-                        PAD_SHAPE_OVAL : PAD_SHAPE_CIRCLE );
-                dummypad.SetPosition( pad->GetPosition() );
-
+                setupDummyPadForHole( pad, dummypad );
                 pad = &dummypad;
             }
 
-            // Note: netcode <=0 means not connected item
-            if( ( pad->GetNetCode() != aZone->GetNetCode() ) || ( pad->GetNetCode() <= 0 ) )
+            addKnockout( pad, aZone->GetThermalReliefGap( pad ), holes );
+        }
+    }
+
+    holes.Simplify( SHAPE_POLY_SET::PM_FAST );
+    aFill.BooleanSubtract( holes, SHAPE_POLY_SET::PM_FAST );
+}
+
+
+/**
+ * Removes clearance from the shape for copper items which share the zone's layer but are
+ * not connected to it.
+ */
+void ZONE_FILLER::buildCopperItemClearances( const ZONE_CONTAINER* aZone, SHAPE_POLY_SET& aHoles )
+{
+    int zone_clearance = aZone->GetClearance();
+    int edgeClearance = m_board->GetDesignSettings().m_CopperEdgeClearance;
+    int zone_to_edgecut_clearance = std::max( aZone->GetZoneClearance(), edgeClearance );
+
+    // items outside the zone bounding box are skipped
+    // the bounding box is the zone bounding box + the biggest clearance found in Netclass list
+    EDA_RECT zone_boundingbox = aZone->GetBoundingBox();
+    int biggest_clearance = m_board->GetDesignSettings().GetBiggestClearanceValue();
+    biggest_clearance = std::max( biggest_clearance, zone_clearance );
+    zone_boundingbox.Inflate( biggest_clearance );
+
+    // Use a dummy pad to calculate hole clearance when a pad has a hole but is not on the
+    // zone's copper layer.  The dummy pad has the size and shape of the original pad's hole.
+    // We have to give it a parent because some functions expect a non-null parent to find
+    // clearance data, etc.
+    MODULE  dummymodule( m_board );
+    D_PAD   dummypad( &dummymodule );
+
+    // Add non-connected pad clearances
+    //
+    for( auto module : m_board->Modules() )
+    {
+        for( auto pad : module->Pads() )
+        {
+            if( !pad->IsOnLayer( aZone->GetLayer() ) )
             {
-                int item_clearance = pad->GetClearance() + outline_half_thickness;
-                item_boundingbox = pad->GetBoundingBox();
-                item_boundingbox.Inflate( item_clearance );
+                if( pad->GetDrillSize().x == 0 && pad->GetDrillSize().y == 0 )
+                    continue;
 
-                if( item_boundingbox.Intersects( zone_boundingbox ) )
-                {
-                    int clearance = std::max( zone_clearance, item_clearance );
-
-                    // PAD_SHAPE_CUSTOM can have a specific keepout, to avoid to break the shape
-                    if( pad->GetShape() == PAD_SHAPE_CUSTOM
-                        && pad->GetCustomShapeInZoneOpt() == CUST_PAD_SHAPE_IN_ZONE_CONVEXHULL )
-                    {
-                        // the pad shape in zone can be its convex hull or
-                        // the shape itself
-                        SHAPE_POLY_SET outline( pad->GetCustomShapeAsPolygon() );
-                        int numSegs = std::max(
-                                GetArcToSegmentCount( clearance, dist_high_def, 360.0 ), 6 );
-                        double correction = GetCircletoPolyCorrectionFactor( numSegs );
-                        outline.Inflate( KiROUND( clearance * correction ), numSegs );
-                        pad->CustomShapeAsPolygonToBoardPosition(
-                                &outline, pad->GetPosition(), pad->GetOrientation() );
-
-                        if( pad->GetCustomShapeInZoneOpt() == CUST_PAD_SHAPE_IN_ZONE_CONVEXHULL )
-                        {
-                            std::vector<wxPoint> convex_hull;
-                            BuildConvexHull( convex_hull, outline );
-
-                            aFeatures.NewOutline();
-
-                            for( unsigned ii = 0; ii < convex_hull.size(); ++ii )
-                                aFeatures.Append( convex_hull[ii] );
-                        }
-                        else
-                            aFeatures.Append( outline );
-                    }
-                    else
-                    {
-                        // Optimizing polygon vertex count: the high definition is used for round and
-                        // oval pads (pads with large arcs) but low def for other shapes (with smal arcs)
-                        if( pad->GetShape() == PAD_SHAPE_CIRCLE ||
-                            pad->GetShape() == PAD_SHAPE_OVAL )
-                            pad->TransformShapeWithClearanceToPolygon( aFeatures, clearance,
-                                                                       dist_high_def );
-                        else
-                            pad->TransformShapeWithClearanceToPolygon( aFeatures, clearance,
-                                                                       dist_low_def );
-                    }
-                }
-
-                continue;
+                setupDummyPadForHole( pad, dummypad );
+                pad = &dummypad;
             }
 
-            // Pads are removed from zone if the setup is PAD_ZONE_CONN_NONE
-            // or if they have a custom shape and not PAD_ZONE_CONN_FULL,
-            // because a thermal relief will break
-            // the shape
-            if( aZone->GetPadConnection( pad ) == PAD_ZONE_CONN_NONE
-                || ( pad->GetShape() == PAD_SHAPE_CUSTOM && aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_FULL ) )
+            if( pad->GetNetCode() != aZone->GetNetCode()
+                  || pad->GetNetCode() <= 0
+                  || aZone->GetPadConnection( pad ) == PAD_ZONE_CONN_NONE )
             {
-                int gap = zone_clearance;
-                int thermalGap = aZone->GetThermalReliefGap( pad );
-                gap = std::max( gap, thermalGap );
-                item_boundingbox = pad->GetBoundingBox();
-                item_boundingbox.Inflate( gap );
+                int gap = std::max( zone_clearance, pad->GetClearance() );
+                EDA_RECT item_boundingbox = pad->GetBoundingBox();
+                item_boundingbox.Inflate( pad->GetClearance() );
 
                 if( item_boundingbox.Intersects( zone_boundingbox ) )
-                {
-                    // PAD_SHAPE_CUSTOM has a specific keepout, to avoid to break the shape
-                    // the pad shape in zone can be its convex hull or the shape itself
-                    if( pad->GetShape() == PAD_SHAPE_CUSTOM
-                        && pad->GetCustomShapeInZoneOpt() == CUST_PAD_SHAPE_IN_ZONE_CONVEXHULL )
-                    {
-                        // the pad shape in zone can be its convex hull or
-                        // the shape itself
-                        int numSegs = std::max(
-                                GetArcToSegmentCount( gap, dist_high_def, 360.0 ), 6 );
-                        double correction = GetCircletoPolyCorrectionFactor( numSegs );
-                        SHAPE_POLY_SET outline( pad->GetCustomShapeAsPolygon() );
-                        outline.Inflate( KiROUND( gap * correction ), numSegs );
-                        pad->CustomShapeAsPolygonToBoardPosition(
-                                &outline, pad->GetPosition(), pad->GetOrientation() );
-
-                        std::vector<wxPoint> convex_hull;
-                        BuildConvexHull( convex_hull, outline );
-
-                        aFeatures.NewOutline();
-
-                        for( unsigned ii = 0; ii < convex_hull.size(); ++ii )
-                            aFeatures.Append( convex_hull[ii] );
-                    }
-                    else
-                    {
-                        if( pad->GetShape() == PAD_SHAPE_CIRCLE ||
-                            pad->GetShape() == PAD_SHAPE_OVAL )
-                            pad->TransformShapeWithClearanceToPolygon( aFeatures, gap,
-                                                                       dist_high_def );
-                        else
-                            pad->TransformShapeWithClearanceToPolygon( aFeatures, gap,
-                                                                       dist_low_def );
-                    }
-                }
+                    addKnockout( pad, gap, aHoles );
             }
         }
     }
 
-    /* Add holes (i.e. tracks and vias areas as polygons outlines)
-     * in cornerBufferPolysToSubstract
-     */
+    // Add non-connected track clearances
+    //
     for( auto track : m_board->Tracks() )
     {
         if( !track->IsOnLayer( aZone->GetLayer() ) )
@@ -540,20 +576,16 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
         if( track->GetNetCode() == aZone->GetNetCode()  && ( aZone->GetNetCode() != 0) )
             continue;
 
-        int item_clearance = track->GetClearance() + outline_half_thickness;
-        item_boundingbox = track->GetBoundingBox();
+        int gap = std::max( zone_clearance, track->GetClearance() );
+        EDA_RECT item_boundingbox = track->GetBoundingBox();
 
         if( item_boundingbox.Intersects( zone_boundingbox ) )
-        {
-            int clearance = std::max( zone_clearance, item_clearance );
-            track->TransformShapeWithClearanceToPolygon( aFeatures, clearance,
-                                                         dist_low_def );
-        }
+            track->TransformShapeWithClearanceToPolygon( aHoles, gap, m_low_def );
     }
 
-    /* Add graphic items that are on copper layers.  These have no net, so we just
-     * use the zone clearance (or edge clearance).
-     */
+    // Add graphic item clearances.  They are by definition unconnected, and have no clearance
+    // definitions of their own.
+    //
     auto doGraphicItem = [&]( BOARD_ITEM* aItem )
     {
         // A item on the Edge_Cuts is always seen as on any layer:
@@ -564,48 +596,17 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
             return;
 
         bool ignoreLineWidth = false;
-        int zclearance = zone_clearance;
+        int gap = zone_clearance;
 
         if( aItem->IsOnLayer( Edge_Cuts ) )
         {
-            // use only the m_ZoneClearance, not the clearance using
-            // the netclass value, because we do not have a copper item
-            zclearance = zone_to_edgecut_clearance;
+            gap = zone_to_edgecut_clearance;
 
             // edge cuts by definition don't have a width
             ignoreLineWidth = true;
         }
 
-        switch( aItem->Type() )
-        {
-        case PCB_LINE_T:
-            static_cast<DRAWSEGMENT*>( aItem )->TransformShapeWithClearanceToPolygon(
-                    aFeatures, zclearance, m_board->GetDesignSettings().m_MaxError,
-                    ignoreLineWidth );
-            break;
-
-        case PCB_TEXT_T:
-            static_cast<TEXTE_PCB*>( aItem )->TransformBoundingBoxWithClearanceToPolygon(
-                    &aFeatures, zclearance );
-            break;
-
-        case PCB_MODULE_EDGE_T:
-            static_cast<EDGE_MODULE*>( aItem )->TransformShapeWithClearanceToPolygon(
-                    aFeatures, zclearance, m_board->GetDesignSettings().m_MaxError,
-                    ignoreLineWidth );
-            break;
-
-        case PCB_MODULE_TEXT_T:
-            if( static_cast<TEXTE_MODULE*>( aItem )->IsVisible() )
-            {
-                static_cast<TEXTE_MODULE*>( aItem )->TransformBoundingBoxWithClearanceToPolygon(
-                        &aFeatures, zclearance );
-            }
-            break;
-
-        default:
-            break;
-        }
+        addKnockout( aItem, gap, ignoreLineWidth, aHoles );
     };
 
     for( auto module : m_board->Modules() )
@@ -620,8 +621,8 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
     for( auto item : m_board->Drawings() )
         doGraphicItem( item );
 
-    /* Add zones outlines having an higher priority and keepout
-     */
+    // Add zones outlines having an higher priority and keepout
+    //
     for( int ii = 0; ii < m_board->GetAreaCount(); ii++ )
     {
         ZONE_CONTAINER* zone = m_board->GetArea( ii );
@@ -637,288 +638,234 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
             continue;
 
         // A highter priority zone or keepout area is found: remove this area
-        item_boundingbox = zone->GetBoundingBox();
+        EDA_RECT item_boundingbox = zone->GetBoundingBox();
 
         if( !item_boundingbox.Intersects( zone_boundingbox ) )
             continue;
 
-        // Add the zone outline area.
-        // However if the zone has the same net as the current zone,
-        // do not add any clearance.
-        // the zone will be connected to the current zone, but filled areas
-        // will use different parameters (clearance, thermal shapes )
-        bool    same_net = aZone->GetNetCode() == zone->GetNetCode();
-        bool    use_net_clearance = true;
-        int     min_clearance = zone_clearance;
-
-        // Do not forget to make room to draw the thick outlines
-        // of the hole created by the area of the zone to remove
-        int holeclearance = zone->GetClearance() + outline_half_thickness;
+        // Add the zone outline area.  Don't use any clearance for keepouts, or for zones with
+        // the same net (they will be connected but will honor their own clearance, thermal
+        // connections, etc.).
+        bool sameNet = aZone->GetNetCode() == zone->GetNetCode();
+        bool useNetClearance = true;
+        int  minClearance = zone_clearance;
 
         // The final clearance is obviously the max value of each zone clearance
-        min_clearance = std::max( min_clearance, holeclearance );
+        minClearance = std::max( minClearance, zone->GetClearance() );
 
-        if( zone->GetIsKeepout() || same_net )
+        if( zone->GetIsKeepout() || sameNet )
         {
-            // Just take in account the fact the outline has a thickness, so
-            // the actual area to substract is inflated to take in account this fact
-            min_clearance = outline_half_thickness;
-            use_net_clearance = false;
+            minClearance = 0;
+            useNetClearance = false;
         }
 
-        zone->TransformOutlinesShapeWithClearanceToPolygon(
-                aFeatures, min_clearance, use_net_clearance );
+        zone->TransformOutlinesShapeWithClearanceToPolygon( aHoles, minClearance, useNetClearance );
     }
 
-    /* Remove thermal symbols
-     */
-    for( auto module : m_board->Modules() )
-    {
-        for( auto pad : module->Pads() )
-        {
-            // Rejects non-standard pads with tht-only thermal reliefs
-            if( aZone->GetPadConnection( pad ) == PAD_ZONE_CONN_THT_THERMAL
-                && pad->GetAttribute() != PAD_ATTRIB_STANDARD )
-                continue;
-
-            if( aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THERMAL
-                && aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THT_THERMAL )
-                continue;
-
-            if( !pad->IsOnLayer( aZone->GetLayer() ) )
-                continue;
-
-            if( pad->GetNetCode() != aZone->GetNetCode() )
-                continue;
-
-            if( pad->GetNetCode() <= 0 )
-                continue;
-
-            item_boundingbox = pad->GetBoundingBox();
-            int thermalGap = aZone->GetThermalReliefGap( pad );
-            item_boundingbox.Inflate( thermalGap, thermalGap );
-
-            if( item_boundingbox.Intersects( zone_boundingbox ) )
-            {
-                CreateThermalReliefPadPolygon( aFeatures, *pad, thermalGap,
-                        aZone->GetThermalReliefCopperBridge( pad ), aZone->GetMinThickness(),
-                        m_board->GetDesignSettings().m_MaxError, s_thermalRot );
-            }
-        }
-    }
+    aHoles.Simplify( SHAPE_POLY_SET::PM_FAST );
 }
 
+
 /**
- * Function ComputeRawFilledAreas
- * Supports a min thickness area constraint.
- * Add non copper areas polygons (pads and tracks with clearance)
- * to the filled copper area found
- * in BuildFilledPolysListData after calculating filled areas in a zone
- * Non filled copper areas are pads and track and their clearance areas
- * The filled copper area must be computed just before.
- * BuildFilledPolysListData() call this function just after creating the
- *  filled copper area polygon (without clearance areas)
- * to do that this function:
- * 1 - Creates the main outline (zone outline) using a correction to shrink the resulting area
- *     with m_ZoneMinThickness/2 value.
- *     The result is areas with a margin of m_ZoneMinThickness/2
- *     When drawing outline with segments having a thickness of m_ZoneMinThickness, the
- *      outlines will match exactly the initial outlines
- * 3 - Add all non filled areas (pads, tracks) in group B with a clearance of m_Clearance +
- *     m_ZoneMinThickness/2
- *     in a buffer
- *   - If Thermal shapes are wanted, add non filled area, in order to create these thermal shapes
- * 4 - calculates the polygon A - B
- * 5 - put resulting list of polygons (filled areas) in m_FilledPolysList
- *     This zone contains pads with the same net.
- * 6 - Remove insulated copper islands
- * 7 - If Thermal shapes are wanted, remove unconnected stubs in thermal shapes:
- *     creates a buffer of polygons corresponding to stubs to remove
- *     sub them to the filled areas.
- *     Remove new insulated copper islands
+ * 1 - Creates the main zone outline using a correction to shrink the resulting area by
+ *     m_ZoneMinThickness / 2.  The result is areas with a margin of m_ZoneMinThickness / 2
+ *     so that when drawing outline with segments having a thickness of m_ZoneMinThickness the
+ *     outlines will match exactly the initial outlines
+ * 2 - Knocks out thermal reliefs around thermally-connected pads
+ * 3 - Builds a set of thermal spoke for the whole zone
+ * 4 - Knocks out unconnected copper items, deleting any affected spokes
+ * 5 - Removes unconnected copper islands, deleting any affected spokes
+ * 6 - Adds in the remaining spokes
  */
-void ZONE_FILLER::computeRawFilledAreas( const ZONE_CONTAINER* aZone,
-        const SHAPE_POLY_SET& aSmoothedOutline,
-        SHAPE_POLY_SET& aRawPolys,
-        SHAPE_POLY_SET& aFinalPolys ) const
+void ZONE_FILLER::computeRawFilledArea( const ZONE_CONTAINER* aZone,
+                                        const SHAPE_POLY_SET& aSmoothedOutline,
+                                        std::set<VECTOR2I>* aPreserveCorners,
+                                        SHAPE_POLY_SET& aRawPolys,
+                                        SHAPE_POLY_SET& aFinalPolys )
 {
-    int outline_half_thickness = aZone->GetMinThickness() / 2;
+    m_high_def = m_board->GetDesignSettings().m_MaxError;
+    m_low_def = std::min( ARC_LOW_DEF, int( m_high_def*1.5 ) );   // Reasonable value
+
+    // Features which are min_width should survive pruning; features that are *less* than
+    // min_width should not.  Therefore we subtract epsilon from the min_width when
+    // deflating/inflating.
+    int half_min_width = aZone->GetMinThickness() / 2;
+    int epsilon = Millimeter2iu( 0.001 );
+    int numSegs = std::max( GetArcToSegmentCount( half_min_width, m_high_def, 360.0 ), 6 );
+
+    SHAPE_POLY_SET::CORNER_STRATEGY cornerStrategy = SHAPE_POLY_SET::CHOP_ACUTE_CORNERS;
+
+    if( aZone->GetCornerSmoothingType() == ZONE_SETTINGS::SMOOTHING_FILLET )
+        cornerStrategy = SHAPE_POLY_SET::ROUND_ACUTE_CORNERS;
+
+    std::deque<SHAPE_LINE_CHAIN> thermalSpokes;
+    SHAPE_POLY_SET clearanceHoles;
 
     std::unique_ptr<SHAPE_FILE_IO> dumper( new SHAPE_FILE_IO(
                     s_DumpZonesWhenFilling ? "zones_dump.txt" : "", SHAPE_FILE_IO::IOM_APPEND ) );
 
+    aRawPolys = aSmoothedOutline;
+
     if( s_DumpZonesWhenFilling )
         dumper->BeginGroup( "clipper-zone" );
 
-    SHAPE_POLY_SET solidAreas = aSmoothedOutline;
-
-    int numSegs = std::max(
-            GetArcToSegmentCount( outline_half_thickness, m_board->GetDesignSettings().m_MaxError,
-                    360.0 ), 6 );
-    double correction = GetCircletoPolyCorrectionFactor( numSegs );
-
-    solidAreas.Inflate( -outline_half_thickness, numSegs );
-    solidAreas.Simplify( SHAPE_POLY_SET::PM_FAST );
-
-    SHAPE_POLY_SET holes;
+    knockoutThermalReliefs( aZone, aRawPolys );
 
     if( s_DumpZonesWhenFilling )
-        dumper->Write( &solidAreas, "solid-areas" );
+        dumper->Write( &aRawPolys, "solid-areas-minus-thermal-reliefs" );
 
-    buildZoneFeatureHoleList( aZone, holes );
-
-    if( s_DumpZonesWhenFilling )
-        dumper->Write( &holes, "feature-holes" );
-
-    holes.Simplify( SHAPE_POLY_SET::PM_FAST );
+    buildCopperItemClearances( aZone, clearanceHoles );
 
     if( s_DumpZonesWhenFilling )
-        dumper->Write( &holes, "feature-holes-postsimplify" );
+        dumper->Write( &aRawPolys, "clearance holes" );
 
-    // Generate the filled areas (currently, without thermal shapes, which will
-    // be created later).
-    // Use SHAPE_POLY_SET::PM_STRICTLY_SIMPLE to generate strictly simple polygons
-    // needed by Gerber files and Fracture()
-    solidAreas.BooleanSubtract( holes, SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
+    buildThermalSpokes( aZone, thermalSpokes );
+
+    // Create a temporary zone that we can hit-test spoke-ends against.  It's only temporary
+    // because the "real" subtract-clearance-holes has to be done after the spokes are added.
+    static const bool USE_BBOX_CACHES = true;
+    SHAPE_POLY_SET testAreas = aRawPolys;
+    testAreas.BooleanSubtract( clearanceHoles, SHAPE_POLY_SET::PM_FAST );
+
+    // Prune features that don't meet minimum-width criteria
+    if( half_min_width - epsilon > epsilon )
+    {
+        testAreas.Deflate( half_min_width - epsilon, numSegs, cornerStrategy );
+        testAreas.Inflate( half_min_width - epsilon, numSegs, cornerStrategy );
+    }
+
+    // Spoke-end-testing is hugely expensive so we generate cached bounding-boxes to speed
+    // things up a bit.
+    testAreas.BuildBBoxCaches();
+
+    for( const SHAPE_LINE_CHAIN& spoke : thermalSpokes )
+    {
+        const VECTOR2I& testPt = spoke.CPoint( 3 );
+
+        // Hit-test against zone body
+        if( testAreas.Contains( testPt, -1, 1, USE_BBOX_CACHES ) )
+        {
+            aRawPolys.AddOutline( spoke );
+            continue;
+        }
+
+        // Hit-test against other spokes
+        for( const SHAPE_LINE_CHAIN& other : thermalSpokes )
+        {
+            if( &other != &spoke && other.PointInside( testPt, 1, USE_BBOX_CACHES  ) )
+            {
+                aRawPolys.AddOutline( spoke );
+                break;
+            }
+        }
+    }
+
+    // Ensure previous changes (adding thermal stubs) do not add
+    // filled areas outside the zone boundary
+    aRawPolys.BooleanIntersection( aSmoothedOutline, SHAPE_POLY_SET::PM_FAST );
+    aRawPolys.Simplify( SHAPE_POLY_SET::PM_FAST );
+
+    if( s_DumpZonesWhenFilling )
+        dumper->Write( &aRawPolys, "solid-areas-with-thermal-spokes" );
+
+    aRawPolys.BooleanSubtract( clearanceHoles, SHAPE_POLY_SET::PM_FAST );
+    // Prune features that don't meet minimum-width criteria
+    if( half_min_width - epsilon > epsilon )
+        aRawPolys.Deflate( half_min_width - epsilon, numSegs, cornerStrategy );
+
+    if( s_DumpZonesWhenFilling )
+        dumper->Write( &aRawPolys, "solid-areas-before-hatching" );
 
     // Now remove the non filled areas due to the hatch pattern
     if( aZone->GetFillMode() == ZFM_HATCH_PATTERN )
-        addHatchFillTypeOnZone( aZone, solidAreas );
+        addHatchFillTypeOnZone( aZone, aRawPolys );
 
     if( s_DumpZonesWhenFilling )
-        dumper->Write( &solidAreas, "solid-areas-minus-holes" );
+        dumper->Write( &aRawPolys, "solid-areas-after-hatching" );
 
-    if( !aZone->IsOnCopperLayer() )
+    // Re-inflate after pruning of areas that don't meet minimum-width criteria
+    if( aZone->GetFilledPolysUseThickness() )
     {
-        SHAPE_POLY_SET areas_fractured = solidAreas;
-        areas_fractured.Fracture( SHAPE_POLY_SET::PM_FAST );
+        // If we're stroking the zone with a min_width stroke then this will naturally
+        // inflate the zone by half_min_width
+    }
+    else if( half_min_width - epsilon > epsilon )
+    {
+        aRawPolys.Simplify( SHAPE_POLY_SET::PM_FAST );
+        aRawPolys.Inflate( half_min_width - epsilon, numSegs, cornerStrategy );
 
-        if( s_DumpZonesWhenFilling )
-            dumper->Write( &areas_fractured, "areas_fractured" );
-
-        aFinalPolys = areas_fractured;
-        aRawPolys = aFinalPolys;
-
-        if( s_DumpZonesWhenFilling )
-            dumper->EndGroup();
-
-        return;
+        // If we've deflated/inflated by something near our corner radius then we will have
+        // ended up with too-sharp corners.  Apply outline smoothing again.
+        if( aZone->GetMinThickness() > (int)aZone->GetCornerRadius() )
+            aRawPolys.BooleanIntersection( aSmoothedOutline, SHAPE_POLY_SET::PM_FAST );
     }
 
-    // Test thermal stubs connections and add polygons to remove unconnected stubs.
-    // (this is a refinement for thermal relief shapes)
-    // Note: we are using not fractured solid area polygons, to avoid a side effect of extra segments
-    // created by Fracture(): if a tested point used in buildUnconnectedThermalStubsPolygonList
-    // is on a extra segment, the tested point is seen outside the solid area, but it is inside.
-    // This is not a bug, just the fact when a point is on a polygon outline, it is hard to say
-    // if it is inside or outside the polygon.
-    SHAPE_POLY_SET thermalHoles;
+    aRawPolys.Fracture( SHAPE_POLY_SET::PM_FAST );
 
-    if( aZone->GetNetCode() > 0 )
-    {
-        buildUnconnectedThermalStubsPolygonList(
-                thermalHoles, aZone, solidAreas, correction, s_thermalRot );
-    }
+    if( s_DumpZonesWhenFilling )
+        dumper->Write( &aRawPolys, "areas_fractured" );
 
-    // remove copper areas corresponding to not connected stubs
-    if( !thermalHoles.IsEmpty() )
-    {
-        thermalHoles.Simplify( SHAPE_POLY_SET::PM_FAST );
-        // Remove unconnected stubs. Use SHAPE_POLY_SET::PM_STRICTLY_SIMPLE to
-        // generate strictly simple polygons
-        // needed by Gerber files and Fracture()
-        solidAreas.BooleanSubtract( thermalHoles, SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
-
-        if( s_DumpZonesWhenFilling )
-            dumper->Write( &thermalHoles, "thermal-holes" );
-
-        // put these areas in m_FilledPolysList
-        SHAPE_POLY_SET th_fractured = solidAreas;
-
-        // Inflate polygon to recreate the polygon (without the too narrow areas)
-        // if the filled polygons have a outline thickness = 0
-        int inflate_value = aZone->GetFilledPolysUseThickness() ? 0 :outline_half_thickness;
-
-        if( inflate_value <= Millimeter2iu( 0.001 ) )    // avoid very small outline thickness
-            inflate_value = 0;
-
-        if( inflate_value )
-        {
-            th_fractured.Simplify( SHAPE_POLY_SET::PM_FAST );
-            th_fractured.Inflate( outline_half_thickness, 16 );
-        }
-
-        th_fractured.Fracture( SHAPE_POLY_SET::PM_FAST );
-
-        if( s_DumpZonesWhenFilling )
-            dumper->Write( &th_fractured, "th_fractured" );
-
-        aFinalPolys = th_fractured;
-    }
-    else
-    {
-        SHAPE_POLY_SET areas_fractured = solidAreas;
-
-        // Inflate polygon to recreate the polygon (without the too narrow areas)
-        // if the filled polygons have a outline thickness = 0
-        int inflate_value = aZone->GetFilledPolysUseThickness() ? 0 : outline_half_thickness;
-
-        if( inflate_value <= Millimeter2iu( 0.001 ) )    // avoid very small outline thickness
-            inflate_value = 0;
-
-        if( inflate_value )
-        {
-            areas_fractured.Simplify( SHAPE_POLY_SET::PM_FAST );
-            areas_fractured.Inflate( outline_half_thickness, 16 );
-        }
-
-        areas_fractured.Fracture( SHAPE_POLY_SET::PM_FAST );
-
-        if( s_DumpZonesWhenFilling )
-            dumper->Write( &areas_fractured, "areas_fractured" );
-
-        aFinalPolys = areas_fractured;
-    }
-
-    aRawPolys = aFinalPolys;
+    aFinalPolys = aRawPolys;
 
     if( s_DumpZonesWhenFilling )
         dumper->EndGroup();
 }
 
-/* Build the filled solid areas data from real outlines (stored in m_Poly)
+
+/*
+ * Build the filled solid areas data from real outlines (stored in m_Poly)
  * The solid areas can be more than one on copper layers, and do not have holes
  * ( holes are linked by overlapping segments to the main outline)
  */
 bool ZONE_FILLER::fillSingleZone( ZONE_CONTAINER* aZone, SHAPE_POLY_SET& aRawPolys,
-                                  SHAPE_POLY_SET& aFinalPolys ) const
+                                  SHAPE_POLY_SET& aFinalPolys )
 {
     SHAPE_POLY_SET smoothedPoly;
+    std::set<VECTOR2I> colinearCorners;
+    aZone->GetColinearCorners( m_board, colinearCorners );
 
-    /* convert outlines + holes to outlines without holes (adding extra segments if necessary)
+    /*
+     * convert outlines + holes to outlines without holes (adding extra segments if necessary)
      * m_Poly data is expected normalized, i.e. NormalizeAreaOutlines was used after building
      * this zone
      */
-    if ( !aZone->BuildSmoothedPoly( smoothedPoly ) )
+    if ( !aZone->BuildSmoothedPoly( smoothedPoly, &colinearCorners ) )
         return false;
 
     if( aZone->IsOnCopperLayer() )
     {
-        computeRawFilledAreas( aZone, smoothedPoly, aRawPolys, aFinalPolys );
+        computeRawFilledArea( aZone, smoothedPoly, &colinearCorners, aRawPolys, aFinalPolys );
     }
     else
     {
-        int numSegs = std::max(
-                GetArcToSegmentCount( aZone->GetMinThickness() / 2,
-                        m_board->GetDesignSettings().m_MaxError, 360.0 ), 6 );
-        aFinalPolys.Inflate( -aZone->GetMinThickness() / 2, numSegs );
+        // Features which are min_width should survive pruning; features that are *less* than
+        // min_width should not.  Therefore we subtract epsilon from the min_width when
+        // deflating/inflating.
+        int half_min_width = aZone->GetMinThickness() / 2;
+        int epsilon = Millimeter2iu( 0.001 );
+        int numSegs = std::max( GetArcToSegmentCount( half_min_width, m_high_def, 360.0 ), 6 );
+
+        if( m_brdOutlinesValid )
+            smoothedPoly.BooleanIntersection( m_boardOutline, SHAPE_POLY_SET::PM_FAST );
+
+        smoothedPoly.Deflate( half_min_width - epsilon, numSegs );
 
         // Remove the non filled areas due to the hatch pattern
         if( aZone->GetFillMode() == ZFM_HATCH_PATTERN )
             addHatchFillTypeOnZone( aZone, smoothedPoly );
 
+        // Re-inflate after pruning of areas that don't meet minimum-width criteria
+        if( aZone->GetFilledPolysUseThickness() )
+        {
+            // If we're stroking the zone with a min_width stroke then this will naturally
+            // inflate the zone by half_min_width
+        }
+        else if( half_min_width - epsilon > epsilon )
+            smoothedPoly.Deflate( -( half_min_width - epsilon ), numSegs );
+
         aRawPolys = smoothedPoly;
         aFinalPolys = smoothedPoly;
+
         aFinalPolys.Fracture( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
     }
 
@@ -928,181 +875,126 @@ bool ZONE_FILLER::fillSingleZone( ZONE_CONTAINER* aZone, SHAPE_POLY_SET& aRawPol
 
 
 /**
- * Function buildUnconnectedThermalStubsPolygonList
- * Creates a set of polygons corresponding to stubs created by thermal shapes on pads
- * which are not connected to a zone (dangling bridges)
- * @param aCornerBuffer = a SHAPE_POLY_SET where to store polygons
- * @param aZone = a pointer to the ZONE_CONTAINER  to examine.
- * @param aArcCorrection = arc correction factor.
- * @param aRoundPadThermalRotation = the rotation in 1.0 degree for thermal stubs in round pads
+ * Function buildThermalSpokes
  */
-
-void ZONE_FILLER::buildUnconnectedThermalStubsPolygonList( SHAPE_POLY_SET& aCornerBuffer,
-                                              const ZONE_CONTAINER*       aZone,
-                                              const SHAPE_POLY_SET&       aRawFilledArea,
-                                              double                aArcCorrection,
-                                              double                aRoundPadThermalRotation ) const
+void ZONE_FILLER::buildThermalSpokes( const ZONE_CONTAINER* aZone,
+                                      std::deque<SHAPE_LINE_CHAIN>& aSpokesList )
 {
-    SHAPE_LINE_CHAIN spokes;
-    BOX2I itemBB;
-    VECTOR2I ptTest[4];
-    auto zoneBB = aRawFilledArea.BBox();
-
-
-    int      zone_clearance = aZone->GetZoneClearance();
-
-    int      biggest_clearance = m_board->GetDesignSettings().GetBiggestClearanceValue();
+    auto zoneBB = aZone->GetBoundingBox();
+    int  zone_clearance = aZone->GetZoneClearance();
+    int  biggest_clearance = m_board->GetDesignSettings().GetBiggestClearanceValue();
     biggest_clearance = std::max( biggest_clearance, zone_clearance );
     zoneBB.Inflate( biggest_clearance );
 
-    // half size of the pen used to draw/plot zones outlines
-    int pen_radius = aZone->GetMinThickness() / 2;
+    // Is a point on the boundary of the polygon inside or outside?  This small epsilon lets
+    // us avoid the question.
+    int epsilon = KiROUND( IU_PER_MM * 0.04 );  // about 1.5 mil
 
     for( auto module : m_board->Modules() )
     {
         for( auto pad : module->Pads() )
         {
-            // Rejects non-standard pads with tht-only thermal reliefs
-            if( aZone->GetPadConnection( pad ) == PAD_ZONE_CONN_THT_THERMAL
-             && pad->GetAttribute() != PAD_ATTRIB_STANDARD )
+            if( !hasThermalConnection( pad, aZone ) )
                 continue;
 
-            if( aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THERMAL
-             && aZone->GetPadConnection( pad ) != PAD_ZONE_CONN_THT_THERMAL )
-                continue;
-
+            // We currently only connect to pads, not pad holes
             if( !pad->IsOnLayer( aZone->GetLayer() ) )
                 continue;
 
-            if( pad->GetNetCode() != aZone->GetNetCode() )
-                continue;
-
-            // Calculate thermal bridge half width
-            int thermalBridgeWidth = aZone->GetThermalReliefCopperBridge( pad )
-                                     - aZone->GetMinThickness();
-            if( thermalBridgeWidth <= 0 )
-                continue;
-
-            // we need the thermal bridge half width
-            // with a small extra size to be sure we create a stub
-            // slightly larger than the actual stub
-            thermalBridgeWidth = ( thermalBridgeWidth + 4 ) / 2;
-
             int thermalReliefGap = aZone->GetThermalReliefGap( pad );
 
-            itemBB = pad->GetBoundingBox();
-            itemBB.Inflate( thermalReliefGap );
+            // Calculate thermal bridge half width
+            int spoke_w = aZone->GetThermalReliefCopperBridge( pad );
+            // Avoid spoke_w bigger than the smaller pad size, because
+            // it is not possible to create stubs bigger than the pad.
+            // Possible refinement: have a separate size for vertical and horizontal stubs
+            spoke_w = std::min( spoke_w, pad->GetSize().x );
+            spoke_w = std::min( spoke_w, pad->GetSize().y );
+
+            int spoke_half_w = spoke_w / 2;
+
+            // Quick test here to possibly save us some work
+            BOX2I itemBB = pad->GetBoundingBox();
+            itemBB.Inflate( thermalReliefGap + epsilon );
+
             if( !( itemBB.Intersects( zoneBB ) ) )
                 continue;
 
-            // Thermal bridges are like a segment from a starting point inside the pad
-            // to an ending point outside the pad
+            // Thermal spokes consist of segments from the pad center to points just outside
+            // the thermal relief.
+            //
+            // We use the bounding-box to lay out the spokes, but for this to work the
+            // bounding box has to be built at the same rotation as the spokes.
 
-            // calculate the ending point of the thermal pad, outside the pad
-            VECTOR2I endpoint;
-            endpoint.x = ( pad->GetSize().x / 2 ) + thermalReliefGap;
-            endpoint.y = ( pad->GetSize().y / 2 ) + thermalReliefGap;
+            wxPoint shapePos = pad->ShapePos();
+            wxPoint padPos = pad->GetPosition();
+            double padAngle = pad->GetOrientation();
+            pad->SetOrientation( 0.0 );
+            pad->SetPosition( { 0, 0 } );
+            BOX2I reliefBB = pad->GetBoundingBox();
+            pad->SetPosition( padPos );
+            pad->SetOrientation( padAngle );
 
-            // Calculate the starting point of the thermal stub
-            // inside the pad
-            VECTOR2I startpoint;
-            int copperThickness = aZone->GetThermalReliefCopperBridge( pad )
-                                  - aZone->GetMinThickness();
+            reliefBB.Inflate( thermalReliefGap + epsilon );
 
-            if( copperThickness < 0 )
-                copperThickness = 0;
-
-            // Leave a small extra size to the copper area inside to pad
-            copperThickness += KiROUND( IU_PER_MM * 0.04 );
-
-            startpoint.x = std::min( pad->GetSize().x, copperThickness );
-            startpoint.y = std::min( pad->GetSize().y, copperThickness );
-
-            startpoint.x /= 2;
-            startpoint.y /= 2;
-
-            // This is a CIRCLE pad tweak
-            // for circle pads, the thermal stubs orientation is 45 deg
-            double fAngle = pad->GetOrientation();
+            // For circle pads, the thermal spoke orientation is 45 deg
             if( pad->GetShape() == PAD_SHAPE_CIRCLE )
-            {
-                endpoint.x     = KiROUND( endpoint.x * aArcCorrection );
-                endpoint.y     = endpoint.x;
-                fAngle = aRoundPadThermalRotation;
-            }
+                padAngle = s_RoundPadThermalSpokeAngle;
 
-            // contour line width has to be taken into calculation to avoid "thermal stub bleed"
-            endpoint.x += pen_radius;
-            endpoint.y += pen_radius;
-            // compute north, south, west and east points for zone connection.
-            ptTest[0] = VECTOR2I( 0, endpoint.y );       // lower point
-            ptTest[1] = VECTOR2I( 0, -endpoint.y );      // upper point
-            ptTest[2] = VECTOR2I( endpoint.x, 0 );       // right point
-            ptTest[3] = VECTOR2I( -endpoint.x, 0 );      // left point
-
-            // Test all sides
             for( int i = 0; i < 4; i++ )
             {
-                // rotate point
-                RotatePoint( ptTest[i], fAngle );
-
-                // translate point
-                ptTest[i] += pad->ShapePos();
-
-                if( aRawFilledArea.Contains( ptTest[i] ) )
-                    continue;
-
-                spokes.Clear();
-
-                // polygons are rectangles with width of copper bridge value
+                SHAPE_LINE_CHAIN spoke;
                 switch( i )
                 {
                 case 0:       // lower stub
-                    spokes.Append( -thermalBridgeWidth, endpoint.y );
-                    spokes.Append( +thermalBridgeWidth, endpoint.y );
-                    spokes.Append( +thermalBridgeWidth, startpoint.y );
-                    spokes.Append( -thermalBridgeWidth, startpoint.y );
+                    spoke.Append( +spoke_half_w,       -spoke_half_w );
+                    spoke.Append( -spoke_half_w,       -spoke_half_w );
+                    spoke.Append( -spoke_half_w,       reliefBB.GetBottom() );
+                    spoke.Append( 0,                   reliefBB.GetBottom() );  // test pt
+                    spoke.Append( +spoke_half_w,       reliefBB.GetBottom() );
                     break;
 
                 case 1:       // upper stub
-                    spokes.Append( -thermalBridgeWidth, -endpoint.y );
-                    spokes.Append( +thermalBridgeWidth, -endpoint.y );
-                    spokes.Append( +thermalBridgeWidth, -startpoint.y );
-                    spokes.Append( -thermalBridgeWidth, -startpoint.y );
+                    spoke.Append( +spoke_half_w,       spoke_half_w );
+                    spoke.Append( -spoke_half_w,       spoke_half_w );
+                    spoke.Append( -spoke_half_w,       reliefBB.GetTop() );
+                    spoke.Append( 0,                   reliefBB.GetTop() );     // test pt
+                    spoke.Append( +spoke_half_w,       reliefBB.GetTop() );
                     break;
 
                 case 2:       // right stub
-                    spokes.Append( endpoint.x, -thermalBridgeWidth );
-                    spokes.Append( endpoint.x, thermalBridgeWidth );
-                    spokes.Append( +startpoint.x, thermalBridgeWidth );
-                    spokes.Append( +startpoint.x, -thermalBridgeWidth );
+                    spoke.Append( -spoke_half_w,       spoke_half_w );
+                    spoke.Append( -spoke_half_w,       -spoke_half_w );
+                    spoke.Append( reliefBB.GetRight(), -spoke_half_w );
+                    spoke.Append( reliefBB.GetRight(), 0 );                     // test pt
+                    spoke.Append( reliefBB.GetRight(), spoke_half_w );
                     break;
 
                 case 3:       // left stub
-                    spokes.Append( -endpoint.x, -thermalBridgeWidth );
-                    spokes.Append( -endpoint.x, thermalBridgeWidth );
-                    spokes.Append( -startpoint.x, thermalBridgeWidth );
-                    spokes.Append( -startpoint.x, -thermalBridgeWidth );
+                    spoke.Append( spoke_half_w,        spoke_half_w );
+                    spoke.Append( spoke_half_w,        -spoke_half_w );
+                    spoke.Append( reliefBB.GetLeft(),  -spoke_half_w );
+                    spoke.Append( reliefBB.GetLeft(),  0 );                     // test pt
+                    spoke.Append( reliefBB.GetLeft(),  spoke_half_w );
                     break;
                 }
 
-                aCornerBuffer.NewOutline();
-
-                // add computed polygon to list
-                for( int ic = 0; ic < spokes.PointCount(); ic++ )
+                for( int j = 0; j < spoke.PointCount(); j++ )
                 {
-                    auto cpos = spokes.CPoint( ic );
-                    RotatePoint( cpos, fAngle );                               // Rotate according to module orientation
-                    cpos += pad->ShapePos();                              // Shift origin to position
-                    aCornerBuffer.Append( cpos );
+                    RotatePoint( spoke.Point( j ), padAngle );
+                    spoke.Point( j ) += shapePos;
                 }
+
+                spoke.SetClosed( true );
+                spoke.GenerateBBoxCache();
+                aSpokesList.push_back( std::move( spoke ) );
             }
         }
     }
 }
 
 
-void ZONE_FILLER::addHatchFillTypeOnZone( const ZONE_CONTAINER* aZone, SHAPE_POLY_SET& aRawPolys ) const
+void ZONE_FILLER::addHatchFillTypeOnZone( const ZONE_CONTAINER* aZone, SHAPE_POLY_SET& aRawPolys )
 {
     // Build grid:
 
@@ -1224,7 +1116,7 @@ void ZONE_FILLER::addHatchFillTypeOnZone( const ZONE_CONTAINER* aZone, SHAPE_POL
     // Clamp holes to the area of filled zones with a outline thickness
     // > aZone->GetMinThickness() to be sure the thermal pads can be built
     int outline_margin = std::max( (aZone->GetMinThickness()*10)/9, linethickness/2 );
-    filledPolys.Inflate( -outline_margin, 16 );
+    filledPolys.Deflate( outline_margin, 16 );
     holes.BooleanIntersection( filledPolys, SHAPE_POLY_SET::PM_FAST );
 
     if( orientation != 0.0 )

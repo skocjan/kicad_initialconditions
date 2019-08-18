@@ -425,10 +425,6 @@ class CINFO3D_VISU
     // Helper functions to create the board
     COBJECT2D *createNewTrack( const TRACK* aTrack , int aClearanceValue ) const;
 
-    void createNewPad( const D_PAD* aPad,
-                       CGENERICCONTAINER2D *aDstContainer,
-                       wxSize aInflateValue ) const;
-
     void createNewPadWithClearance( const D_PAD *aPad,
                                     CGENERICCONTAINER2D *aDstContainer,
                                     wxSize aClearanceValue ) const;
@@ -547,9 +543,6 @@ private:
 
     /// 3d bouding box of the pcb board in 3d units
     CBBOX   m_boardBoudingBox;
-
-    /// 2d bouding box of the pcb board in 3d units
-    CBBOX2D m_board2dBBox3DU;
 
     /// It contains polygon contours for each layer
     MAP_POLY          m_layers_poly;

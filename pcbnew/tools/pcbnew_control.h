@@ -78,10 +78,6 @@ public:
     int GridSetOrigin( const TOOL_EVENT& aEvent );
     int GridResetOrigin( const TOOL_EVENT& aEvent );
 
-    // UI-level access (including undo) to setting the grid origin
-    static bool SetGridOrigin( KIGFX::VIEW* aView, PCB_BASE_FRAME* aFrame,
-                               BOARD_ITEM* originViewItem, const VECTOR2D& aPoint );
-
     // Low-level access (below undo) to setting the grid origin
     static void DoSetGridOrigin( KIGFX::VIEW* aView, PCB_BASE_FRAME* aFrame,
                                  BOARD_ITEM* originViewItem, const VECTOR2D& aPoint );
@@ -115,6 +111,8 @@ private:
 
     ///> Grid origin marker.
     std::unique_ptr<KIGFX::ORIGIN_VIEWITEM> m_gridOrigin;
+
+    BOARD_ITEM* m_pickerItem;
 
     ///> Applies the legacy canvas grid settings for GAL.
     void updateGrid();

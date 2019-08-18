@@ -105,8 +105,7 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
     fileMenu->AddItem( ACTIONS::print,              haveFootprintCondition );
 
     fileMenu->AddSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm, SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddClose( _( "Footprint Editor" ) );
 
     fileMenu->Resolve();
 
@@ -121,7 +120,7 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
         return GetScreen() && GetScreen()->GetRedoCommandCount() > 0;
     };
     auto noActiveToolCondition = [ this ] ( const SELECTION& aSelection ) {
-        return GetToolId() == ID_NO_TOOL_SELECTED;
+        return ToolStackIsEmpty();
     };
 
     editMenu->AddItem( ACTIONS::undo,                     enableUndoCondition );
@@ -131,7 +130,8 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
     editMenu->AddItem( ACTIONS::cut,                      SELECTION_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::copy,                     SELECTION_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::paste,                    noActiveToolCondition );
-    editMenu->AddItem( PCB_ACTIONS::deleteFootprint,      footprintTargettedCondition );
+    editMenu->AddItem( ACTIONS::doDelete,                 SELECTION_CONDITIONS::NotEmpty );
+    editMenu->AddItem( ACTIONS::duplicate,                SELECTION_CONDITIONS::NotEmpty );
 
     editMenu->AddSeparator();
     editMenu->AddItem( PCB_ACTIONS::footprintProperties,  haveFootprintCondition );
@@ -227,14 +227,14 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
 
     placeMenu->AddItem( PCB_ACTIONS::placePad,    haveFootprintCondition );
 
-    placeMenu->AppendSeparator();
+    placeMenu->AddSeparator();
     placeMenu->AddItem( PCB_ACTIONS::placeText,   haveFootprintCondition );
     placeMenu->AddItem( PCB_ACTIONS::drawArc,     haveFootprintCondition );
     placeMenu->AddItem( PCB_ACTIONS::drawCircle,  haveFootprintCondition );
     placeMenu->AddItem( PCB_ACTIONS::drawLine,    haveFootprintCondition );
     placeMenu->AddItem( PCB_ACTIONS::drawPolygon, haveFootprintCondition );
 
-    placeMenu->AppendSeparator();
+    placeMenu->AddSeparator();
     placeMenu->AddItem( PCB_ACTIONS::setAnchor,   haveFootprintCondition );
     placeMenu->AddItem( ACTIONS::gridSetOrigin,   haveFootprintCondition );
 

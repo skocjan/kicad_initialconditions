@@ -199,6 +199,14 @@ void SCH_LINE::Show( int nestLevel, std::ostream& os ) const
 #endif
 
 
+void SCH_LINE::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    aCount     = 2;
+    aLayers[0] = m_Layer;
+    aLayers[1] = LAYER_SELECTION_SHADOWS;
+}
+
+
 const EDA_RECT SCH_LINE::GetBoundingBox() const
 {
     int      width = 25;
@@ -291,6 +299,8 @@ int SCH_LINE::GetDefaultWidth() const
 {
     if( m_Layer == LAYER_BUS )
         return GetDefaultBusThickness();
+    else if( m_Layer == LAYER_WIRE )
+        return GetDefaultWireThickness();
 
     return GetDefaultLineThickness();
 }
@@ -309,11 +319,8 @@ int SCH_LINE::GetPenSize() const
 {
     if( m_size > 0 )
         return m_size;
-
-    if( m_Layer == LAYER_BUS )
-        return GetDefaultBusThickness();
-
-    return GetDefaultLineThickness();
+    
+    return GetDefaultWidth();
 }
 
 

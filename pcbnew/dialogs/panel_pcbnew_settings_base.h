@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 23 2019)
+// C++ code generated with wxFormBuilder (version May 13 2019)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -43,10 +43,9 @@ class PANEL_PCBNEW_SETTINGS_BASE : public wxPanel
 
 		wxRadioBox* m_PolarDisplay;
 		wxRadioBox* m_UnitsSelection;
-		wxCheckBox* m_Show_Page_Limits;
 		wxCheckBox* m_Segments_45_Only_Ctrl;
 		wxCheckBox* m_UseEditKeyForWidth;
-		wxCheckBox* m_dragSelects;
+		wxCheckBox* m_FlipLeftRight;
 		wxStaticText* m_staticTextRotationAngle;
 		wxTextCtrl* m_RotationAngle;
 		wxStaticText* m_staticText2;
@@ -58,6 +57,7 @@ class PANEL_PCBNEW_SETTINGS_BASE : public wxPanel
 		wxCheckBox* m_showGlobalRatsnest;
 		wxCheckBox* m_showSelectedRatsnest;
 		wxCheckBox* m_OptDisplayCurvedRatsnestLines;
+		wxCheckBox* m_Show_Page_Limits;
 
 	public:
 

@@ -27,12 +27,10 @@
 #include <fctsys.h>
 #include <tool/conditional_menu.h>
 #include <eda_3d_viewer.h>
-#include <3d_canvas/cinfo3d_visu.h>
 #include <menus_helpers.h>
 #include <3d_viewer_id.h>
 #include <3d_actions.h>
 #include <tool/tool_manager.h>
-#include <tool/conditional_menu.h>
 #include <tool/common_control.h>
 #include "help_common_strings.h"
 
@@ -56,8 +54,7 @@ void EDA_3D_VIEWER::CreateMenuBar()
                        export_xpm,                     SELECTION_CONDITIONS::ShowAlways );
 
     fileMenu->AddSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm, SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddClose( _( "3D Viewer" ) );
 
     fileMenu->Resolve();
 
@@ -107,7 +104,7 @@ void EDA_3D_VIEWER::CreateMenuBar()
     viewMenu->AddItem( ID_ROTATE3D_Z_POS, _( "Rotate Z Counterclockwise\tZ" ), "",
                        rotate_pos_z_xpm,               SELECTION_CONDITIONS::ShowAlways );
 
-    viewMenu->AppendSeparator();
+    viewMenu->AddSeparator();
     viewMenu->AddItem( ID_MOVE3D_LEFT, _( "Move Left\tLeft" ), "",
                        left_xpm,                       SELECTION_CONDITIONS::ShowAlways );
 
@@ -168,7 +165,7 @@ void EDA_3D_VIEWER::CreateMenuBar()
     auto showAxesCondition = [ this ] ( const SELECTION& aSel ) {
         return m_settings.GetFlag( FL_AXIS );
     };
-    
+
     prefsMenu->AddItem( ID_TOOL_SET_VISIBLE_ITEMS, _( "Display Options" ), "",
                         read_setup_xpm,                SELECTION_CONDITIONS::ShowAlways );
 
@@ -282,7 +279,7 @@ void EDA_3D_VIEWER::CreateMenuBar()
                            setcolor_board_body_xpm,            SELECTION_CONDITIONS::ShowAlways );
 
     prefsMenu->AddMenu( colorSubmenu );
-    
+
     prefsMenu->AddCheckItem( ID_MENU3D_AXIS_ONOFF, _( "Show 3D &Axis" ), "",
                              axis3d_front_xpm,                 showAxesCondition );
 
@@ -307,25 +304,32 @@ void EDA_3D_VIEWER::CreateMenuBar()
         return m_settings.GridGet() == GRID3D_1MM;
     };
 
-    gridSubmenu->AddItem( ID_MENU3D_GRID_NOGRID, _( "No 3D Grid" ), "",
-                          nullptr,                             noGridCondition );
-    gridSubmenu->AddItem( ID_MENU3D_GRID_10_MM, _( "3D Grid 10mm" ), "",
-                          nullptr,                             grid10mmCondition );
-    gridSubmenu->AddItem( ID_MENU3D_GRID_5_MM, _( "3D Grid 5mm" ), "",
-                          nullptr,                             grid5mmCondition );
-    gridSubmenu->AddItem( ID_MENU3D_GRID_2P5_MM, _( "3D Grid 2.5mm" ), "",
-                          nullptr,                             grid2p5mmCondition );
-    gridSubmenu->AddItem( ID_MENU3D_GRID_1_MM, _( "3D Grid 1mm" ), "",
-                          nullptr,                             grid_1mmCondition );
-    
+    gridSubmenu->AddCheckItem( ID_MENU3D_GRID_NOGRID, _( "No 3D Grid" ), "",
+                               nullptr, noGridCondition );
+    gridSubmenu->AddCheckItem( ID_MENU3D_GRID_10_MM, _( "3D Grid 10mm" ), "",
+                               nullptr, grid10mmCondition );
+    gridSubmenu->AddCheckItem( ID_MENU3D_GRID_5_MM, _( "3D Grid 5mm" ), "",
+                               nullptr, grid5mmCondition );
+    gridSubmenu->AddCheckItem( ID_MENU3D_GRID_2P5_MM, _( "3D Grid 2.5mm" ), "",
+                               nullptr, grid2p5mmCondition );
+    gridSubmenu->AddCheckItem( ID_MENU3D_GRID_1_MM, _( "3D Grid 1mm" ), "",
+                               nullptr, grid_1mmCondition );
+
     prefsMenu->AddMenu( gridSubmenu,                           SELECTION_CONDITIONS::ShowAlways );
-    
-    prefsMenu->AppendSeparator();
+
+    prefsMenu->AddSeparator();
     prefsMenu->AddItem( ID_MENU3D_RESET_DEFAULTS, _( "Reset to Default Settings" ), "",
                         tools_xpm,                             SELECTION_CONDITIONS::ShowAlways );
 
+#ifdef __APPLE__    // Note: will get moved to Apple menu by wxWidgets
+    prefsMenu->AddItem( wxID_PREFERENCES,
+                        _( "Preferences...\tCTRL+," ),
+                        _( "Show preferences for all open tools" ),
+                        preference_xpm,                        SELECTION_CONDITIONS::ShowAlways );
+#endif
+
     prefsMenu->Resolve();
-    
+
     //-- Menubar -------------------------------------------------------------
     //
     menuBar->Append( fileMenu, _( "&File" ) );

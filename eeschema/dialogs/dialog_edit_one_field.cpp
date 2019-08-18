@@ -1,8 +1,3 @@
-/**
- * @file dialog_edit_one_field.cpp
- * @brief dialog to editing a field ( not a graphic text) in current component.
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -37,42 +32,12 @@
 #include <sch_component.h>
 #include <class_libentry.h>
 #include <lib_field.h>
-#include <sch_component.h>
 #include <template_fieldnames.h>
 #include <class_library.h>
 #include <sch_validators.h>
 
 #include <dialog_edit_one_field.h>
-
-
-// These should probably moved into some other file as helpers.
-EDA_TEXT_HJUSTIFY_T IntToEdaTextHorizJustify( int aHorizJustify )
-{
-    wxASSERT( aHorizJustify >= GR_TEXT_HJUSTIFY_LEFT && aHorizJustify <= GR_TEXT_HJUSTIFY_RIGHT );
-
-    if( aHorizJustify > GR_TEXT_HJUSTIFY_RIGHT )
-        return GR_TEXT_HJUSTIFY_RIGHT;
-
-    if( aHorizJustify < GR_TEXT_HJUSTIFY_LEFT )
-        return GR_TEXT_HJUSTIFY_LEFT;
-
-    return (EDA_TEXT_HJUSTIFY_T) aHorizJustify;
-}
-
-
-EDA_TEXT_VJUSTIFY_T IntToEdaTextVertJustify( int aVertJustify )
-{
-    wxASSERT( aVertJustify >= GR_TEXT_VJUSTIFY_TOP && aVertJustify <= GR_TEXT_VJUSTIFY_BOTTOM );
-
-    if( aVertJustify > GR_TEXT_VJUSTIFY_BOTTOM )
-        return GR_TEXT_VJUSTIFY_BOTTOM;
-
-    if( aVertJustify < GR_TEXT_VJUSTIFY_TOP )
-        return GR_TEXT_VJUSTIFY_TOP;
-
-    return (EDA_TEXT_VJUSTIFY_T) aVertJustify;
-}
-
+#include <sch_text.h>
 
 DIALOG_EDIT_ONE_FIELD::DIALOG_EDIT_ONE_FIELD( SCH_BASE_FRAME* aParent, const wxString& aTitle,
                                               const EDA_TEXT* aTextItem ) :
@@ -151,6 +116,16 @@ void DIALOG_EDIT_ONE_FIELD::OnTextValueSelectButtonClick( wxCommandEvent& aEvent
 
 void DIALOG_EDIT_ONE_FIELD::OnSetFocusText( wxFocusEvent& event )
 {
+#ifdef __WXGTK__
+    // Force an update of the text control before setting the text selection
+    // This is needed because GTK seems to ignore the selection on first update
+    //
+    // Note that we can't do this on OSX as it tends to provoke Apple's
+    // "[NSAlert runModal] may not be invoked inside of transaction begin/commit pair"
+    // bug.  See: https://bugs.launchpad.net/kicad/+bug/1837225
+    m_TextValue->Update();
+#endif
+
     if( m_fieldId == REFERENCE )
         SelectReferenceNumber( static_cast<wxTextEntry*>( m_TextValue ) );
     else
@@ -221,8 +196,8 @@ void DIALOG_EDIT_ONE_FIELD::updateText( EDA_TEXT* aText )
     aText->SetTextAngle( m_isVertical ? TEXT_ANGLE_VERT : TEXT_ANGLE_HORIZ );
     aText->SetItalic( m_isItalic );
     aText->SetBold( m_isBold );
-    aText->SetHorizJustify( IntToEdaTextHorizJustify( m_horizontalJustification - 1 ) );
-    aText->SetVertJustify( IntToEdaTextVertJustify( m_verticalJustification - 1 ) );
+    aText->SetHorizJustify( EDA_TEXT::MapHorizJustify( m_horizontalJustification - 1 ) );
+    aText->SetVertJustify( EDA_TEXT::MapVertJustify( m_verticalJustification - 1 ) );
 }
 
 
@@ -285,10 +260,10 @@ void DIALOG_SCH_EDIT_ONE_FIELD::UpdateField( SCH_FIELD* aField, SCH_SHEET_PATH* 
     if( ( aField->GetTextAngle() == TEXT_ANGLE_VERT ) != m_isVertical )
         positioningModified = true;
 
-    if( aField->GetHorizJustify() != IntToEdaTextHorizJustify( m_horizontalJustification - 1 ) )
+    if( aField->GetHorizJustify() != EDA_TEXT::MapHorizJustify( m_horizontalJustification - 1 ) )
         positioningModified = true;
 
-    if( aField->GetVertJustify() != IntToEdaTextVertJustify( m_verticalJustification - 1 ) )
+    if( aField->GetVertJustify() != EDA_TEXT::MapVertJustify( m_verticalJustification - 1 ) )
         positioningModified = true;
 
     aField->SetText( m_text );

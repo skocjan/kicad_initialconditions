@@ -42,7 +42,6 @@
 #include <tool/action_manager.h>
 #include <tool/tool_dispatcher.h>
 #include <tool/actions.h>
-#include <wx/clipbrd.h>
 #include <ws_draw_item.h>
 #include <page_info.h>
 #include <title_block.h>
@@ -52,18 +51,19 @@
 #include <tool/grid_menu.h>
 #include <tool/common_tools.h>
 
-/**
- * Definition for enabling and disabling scroll bar setting trace output.  See the
- * wxWidgets documentation on useing the WXTRACE environment variable.
- */
-static const wxString traceScrollSettings( wxT( "KicadScrollSettings" ) );
-
 
 ///@{
 /// \ingroup config
-static const wxString FirstRunShownKeyword( wxT( "FirstRunShown" ) );
+static const wxChar FirstRunShownKeyword[] =        wxT( "FirstRunShown" );
 
+static const wxChar FindReplaceFlagsEntry[] =       wxT( "LastFindReplaceFlags" );
+static const wxChar FindStringEntry[] =             wxT( "LastFindString" );
+static const wxChar ReplaceStringEntry[] =          wxT( "LastReplaceString" );
+static const wxChar FindStringHistoryEntry[] =      wxT( "FindStringHistoryList%d" );
+static const wxChar ReplaceStringHistoryEntry[] =   wxT( "ReplaceStringHistoryList%d" );
 ///@}
+
+#define FR_HISTORY_LIST_CNT     10   ///< Maximum size of the find/replace history stacks.
 
 /**
  * Integer to set the maximum number of undo items on the stack. If zero,
@@ -92,14 +92,14 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
     m_auxiliaryToolBar    = NULL;
     m_gridSelectBox       = NULL;
     m_zoomSelectBox       = NULL;
+    m_firstRunDialogSetting = 0;
+    m_UndoRedoCountMax    = DEFAULT_MAX_UNDO_ITEMS;
 
     m_canvasType          = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
-    m_canvas           = NULL;
+    m_canvas              = NULL;
     m_toolDispatcher      = NULL;
     m_messagePanel        = NULL;
     m_currentScreen       = NULL;
-    m_toolId              = ID_NO_TOOL_SELECTED;
-    m_lastDrawToolId      = ID_NO_TOOL_SELECTED;
     m_showBorderAndTitleBlock = false;  // true to display reference sheet.
     m_LastGridSizeId      = 0;
     m_drawGrid            = true;       // hide/Show grid. default = show
@@ -111,6 +111,7 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
     m_zoomLevelCoeff      = 1.0;
     m_userUnits           = MILLIMETRES;
     m_PolarCoords         = false;
+    m_findReplaceData     = new wxFindReplaceData( wxFR_DOWN );
 
     m_auimgr.SetFlags(wxAUI_MGR_DEFAULT);
 
@@ -143,7 +144,7 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
         // units display, Inches is bigger than mm
         GetTextSize( _( "Inches" ), stsbar ).x + 10,
 
-            // Size for the "Current Tool" panel; longest string from SetToolID()
+            // Size for the "Current Tool" panel; longest string from SetTool()
         GetTextSize( wxT( "Add layer alignment target" ), stsbar ).x + 10,
     };
 
@@ -181,6 +182,8 @@ EDA_DRAW_FRAME::~EDA_DRAW_FRAME()
     delete m_currentScreen;
     m_currentScreen = NULL;
 
+    delete m_findReplaceData;
+
     m_auimgr.UnInit();
 
     ReleaseFile();
@@ -208,9 +211,9 @@ void EDA_DRAW_FRAME::unitsChangeRefresh()
 }
 
 
-void EDA_DRAW_FRAME::CommonSettingsChanged()
+void EDA_DRAW_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    EDA_BASE_FRAME::CommonSettingsChanged();
+    EDA_BASE_FRAME::CommonSettingsChanged( aEnvVarsChanged );
 
     wxConfigBase*         settings = Pgm().CommonSettings();
     KIGFX::VIEW_CONTROLS* viewControls = GetCanvas()->GetViewControls();
@@ -248,7 +251,7 @@ void EDA_DRAW_FRAME::OnUpdateSelectGrid( wxUpdateUIEvent& aEvent )
 {
     // No need to update the grid select box if it doesn't exist or the grid setting change
     // was made using the select box.
-    if( m_gridSelectBox == NULL || m_auxiliaryToolBar == NULL )
+    if( m_gridSelectBox == NULL )
         return;
 
     int select = wxNOT_FOUND;
@@ -309,6 +312,15 @@ void EDA_DRAW_FRAME::OnSelectGrid( wxCommandEvent& event )
 }
 
 
+void EDA_DRAW_FRAME::InitExitKey()
+{
+    wxAcceleratorEntry entries[1];
+    entries[0].Set( wxACCEL_CTRL, int( 'Q' ), wxID_EXIT );
+    wxAcceleratorTable accel( 1, entries );
+    SetAcceleratorTable( accel );
+}
+
+
 /*
  * Respond to selections in the toolbar zoom popup
  */
@@ -361,7 +373,7 @@ void EDA_DRAW_FRAME::AddStandardSubMenus( TOOL_MENU& aToolMenu )
 
 void EDA_DRAW_FRAME::DisplayToolMsg( const wxString& msg )
 {
-    SetStatusText( msg, 5 );
+    SetStatusText( msg, 6 );
 }
 
 
@@ -419,90 +431,6 @@ void EDA_DRAW_FRAME::OnSize( wxSizeEvent& SizeEv )
 }
 
 
-void EDA_DRAW_FRAME::SetTool( const std::string& actionName )
-{
-    if( !m_toolStack.empty() )
-        m_toolStack.pop_back();
-
-    PushTool( actionName );
-}
-
-
-void EDA_DRAW_FRAME::PushTool( const std::string& actionName )
-{
-    m_toolStack.push_back( actionName );
-
-    // Human cognitive stacking is very shallow; deeper tool stacks just get annoying
-    if( m_toolStack.size() > 3 )
-        m_toolStack.pop_front();
-
-    TOOL_ACTION* action = m_toolManager->GetActionManager()->FindAction( actionName );
-
-    if( action )
-        DisplayToolMsg( action->GetLabel() );
-    else
-        DisplayToolMsg( actionName );
-}
-
-
-void EDA_DRAW_FRAME::PopTool()
-{
-    m_toolStack.pop_back();
-
-    if( !m_toolStack.empty() )
-    {
-        TOOL_ACTION* action = m_toolManager->GetActionManager()->FindAction( m_toolStack.back() );
-
-        if( action )
-        {
-            // Pop the action as running it will push it back onto the stack
-            m_toolStack.pop_back();
-
-            TOOL_EVENT evt = action->MakeEvent();
-            evt.SetHasPosition( false );
-            GetToolManager()->PostEvent( evt );
-        }
-    }
-    else
-        DisplayToolMsg( ACTIONS::selectionTool.GetName() );
-}
-
-
-void EDA_DRAW_FRAME::ClearToolStack()
-{
-    m_toolStack.clear();
-    DisplayToolMsg( ACTIONS::selectionTool.GetName() );
-}
-
-
-void EDA_DRAW_FRAME::SetToolID( int aId, int aCursor, const wxString& aToolMsg )
-{
-    // Keep default cursor in toolbars
-    SetCursor( wxNullCursor );
-
-    // Change GAL canvas cursor if requested.
-    if( aCursor >= 0 )
-        GetCanvas()->SetCurrentCursor( aCursor );
-
-    DisplayToolMsg( aToolMsg );
-
-    if( aId < 0 )
-        return;
-
-    wxCHECK2_MSG( aId >= ID_NO_TOOL_SELECTED, aId = ID_NO_TOOL_SELECTED,
-                  wxString::Format( wxT( "Current tool ID cannot be set to %d." ), aId ) );
-
-    m_toolId = aId;
-}
-
-
-void EDA_DRAW_FRAME::SetNoToolSelected()
-{
-    // Select the ID_NO_TOOL_SELECTED id tool (Idle tool)
-    SetToolID( ID_NO_TOOL_SELECTED, GetCanvas()->GetDefaultCursor(), wxEmptyString );
-}
-
-
 void EDA_DRAW_FRAME::UpdateStatusBar()
 {
     SetStatusText( GetZoomLevelIndicator(), 1 );
@@ -555,6 +483,30 @@ void EDA_DRAW_FRAME::LoadSettings( wxConfigBase* aCfg )
     aCfg->Read( baseCfgName + FirstRunShownKeyword, &m_firstRunDialogSetting, 0L );
 
     m_galDisplayOptions.ReadConfig( *cmnCfg, *aCfg, baseCfgName, this );
+
+    long tmp;
+    aCfg->Read( FindReplaceFlagsEntry, &tmp, (long) wxFR_DOWN );
+    m_findReplaceData->SetFlags( (wxUint32) tmp & ~FR_REPLACE_ITEM_FOUND );
+    m_findReplaceData->SetFindString( aCfg->Read( FindStringEntry, wxEmptyString ) );
+    m_findReplaceData->SetReplaceString( aCfg->Read( ReplaceStringEntry, wxEmptyString ) );
+
+    // Load the find and replace string history list.
+    for( int i = 0; i < FR_HISTORY_LIST_CNT; ++i )
+    {
+        wxString tmpHistory;
+        wxString entry;
+        entry.Printf( FindStringHistoryEntry, i );
+        tmpHistory = aCfg->Read( entry, wxEmptyString );
+
+        if( !tmpHistory.IsEmpty() )
+            m_findStringHistoryList.Add( tmpHistory );
+
+        entry.Printf( ReplaceStringHistoryEntry, i );
+        tmpHistory = aCfg->Read( entry, wxEmptyString );
+
+        if( !tmpHistory.IsEmpty() )
+            m_replaceStringHistoryList.Add( tmpHistory );
+    }
 }
 
 
@@ -573,6 +525,28 @@ void EDA_DRAW_FRAME::SaveSettings( wxConfigBase* aCfg )
         aCfg->Write( baseCfgName + MaxUndoItemsEntry, long( GetScreen()->GetMaxUndoItems() ) );
 
     m_galDisplayOptions.WriteConfig( *aCfg, baseCfgName );
+
+    // Save find dialog session setting.
+    aCfg->Write( FindReplaceFlagsEntry, (long) m_findReplaceData->GetFlags() );
+    aCfg->Write( FindStringEntry, m_findReplaceData->GetFindString() );
+    aCfg->Write( ReplaceStringEntry, m_findReplaceData->GetReplaceString() );
+
+    // Save the find and replace string history list.
+    unsigned i;
+    wxString tmpHistory;
+    wxString entry;     // invoke constructor outside of any loops
+
+    for( i = 0; i < m_findStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
+    {
+        entry.Printf( FindStringHistoryEntry, i );
+        aCfg->Write( entry, m_findStringHistoryList[ i ] );
+    }
+
+    for( i = 0; i < m_replaceStringHistoryList.GetCount() && i < FR_HISTORY_LIST_CNT; i++ )
+    {
+        entry.Printf( ReplaceStringHistoryEntry, i );
+        aCfg->Write( entry, m_replaceStringHistoryList[ i ] );
+    }
 }
 
 
@@ -623,9 +597,6 @@ void EDA_DRAW_FRAME::ActivateGalCanvas()
 {
     GetCanvas()->SetEvtHandlerEnabled( true );
     GetCanvas()->StartDrawing();
-
-    // Reset current tool on switch();
-    SetNoToolSelected();
 }
 
 
@@ -876,3 +847,21 @@ bool EDA_DRAW_FRAME::LibraryFileBrowser( bool doOpen, wxFileName& aFilename,
 }
 
 
+void EDA_DRAW_FRAME::RecreateToolbars()
+{
+    // Rebuild all toolbars, and update the checked state of check tools
+    if( m_mainToolBar )
+        ReCreateHToolbar();
+
+    if( m_drawToolBar )         // Drawing tools (typically on right edge of window)
+        ReCreateVToolbar();
+
+    if( m_optionsToolBar )      // Options (typically on left edge of window)
+        ReCreateOptToolbar();
+
+    if( m_auxiliaryToolBar )    // Additional tools under main toolbar
+       ReCreateOptToolbar();
+
+    // Update the checked state of tools
+    SyncToolbars();
+}

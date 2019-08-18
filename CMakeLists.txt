@@ -100,27 +100,59 @@ option( KICAD_BUILD_QA_TESTS
     "Build software Quality assurance unit tests (default ON)"
     ON )
 
+option( BUILD_GITHUB_PLUGIN
+    "Build the GITHUB_PLUGIN for pcbnew."
+    ON )
+
+option( KICAD_SPICE
+    "Build KiCad with internal Spice simulator."
+    ON )
+
+# Not supported by all platforms (for instance mingw)
+option( KICAD_SANITIZE
+    "Build KiCad with sanitizer options. WARNING: Not compatible with gold linker"
+    OFF )
+
+option( KICAD_STDLIB_DEBUG
+    "Build KiCad with libstdc++ debug flags enabled."
+    OFF )
+
+option( KICAD_STDLIB_LIGHT_DEBUG
+    "Build KiCad with libstdc++ with -Wp,-D_GLIBCXX_ASSERTIONS flag enabled. Not as intrusive as KICAD_STDLIB_DEBUG"
+    OFF )
+
+option( KICAD_BUILD_PARALLEL_CL_MP
+    "Build in parallel using the /MP compiler option (default OFF for safety reasons)"
+    OFF )
+
+option( KICAD_USE_VALGRIND
+    "Build KiCad with valgrind stack tracking enabled."
+    OFF )
+
 # when option KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES is enabled:
 # PYTHON_EXECUTABLE can be defined when invoking cmake
 # ( use -DPYTHON_EXECUTABLE=<python path>/python.exe or python2 )
 # when not defined by user, the default is python.exe under Windows and python2 for others
 # python binary file should be in exec path.
 
-# KICAD_SCRIPTING_MODULES requires KICAD_SCRIPTING enable it here if KICAD_SCRIPTING_MODULES is ON
-if ( KICAD_SCRIPTING_MODULES AND NOT KICAD_SCRIPTING )
-    message(STATUS "Changing KICAD_SCRIPTING to ON as needed by KICAD_SCRIPTING_MODULES")
-    set ( KICAD_SCRIPTING ON )
+# KICAD_SCRIPTING controls the entire python scripting system. If it is off, no other scripting
+# functions are available.
+if ( NOT KICAD_SCRIPTING )
+    message( STATUS "KICAD_SCRIPTING is OFF: Disabling all python scripting support" )
+    set( KICAD_SCRIPTING_MODULES OFF )
+    set( KICAD_SCRIPTING_ACTION_MENU OFF )
+    set( KICAD_SCRIPTING_PYTHON3 OFF )
+    set( KICAD_SCRIPTING_WXPYTHON OFF )
+    set( KICAD_SCRIPTING_WXPYTHON_PHOENIX OFF)
 endif()
 
-# same with KICAD_SCRIPTING_ACTION_MENUS
-if ( KICAD_SCRIPTING_ACTION_MENU AND NOT KICAD_SCRIPTING )
-    message(STATUS "Changing KICAD_SCRIPTING to ON as needed by KICAD_SCRIPTING_ACTION_MENU")
-    set ( KICAD_SCRIPTING ON )
+# KICAD_SCRIPTING_WXPYTHON_PHOENIX requires enabling the KICAD_SCRIPTING_WXPYTHON flag
+# so that the wxWidgets library is properly versioned
+if ( KICAD_SCRIPTING AND NOT KICAD_SCRIPTING_WXPYTHON AND KICAD_SCRIPTING_WXPYTHON_PHOENIX )
+    message( STATUS
+        "KICAD_SCRIPTING_WXPYTHON_PHOENIX has been requested, setting KICAD_SCRIPTING_WXPYTHON to ON")
+    set( KICAD_SCRIPTING_WXPYTHON ON)
 endif()
-
-option( BUILD_GITHUB_PLUGIN "Build the GITHUB_PLUGIN for pcbnew." ON )
-
-option( KICAD_SPICE "Build KiCad with internal Spice simulator." ON )
 
 # Global setting: exports are explicit
 set( CMAKE_CXX_VISIBILITY_PRESET "hidden" )
@@ -129,10 +161,14 @@ set( CMAKE_VISIBILITY_INLINES_HIDDEN ON )
 # Global setting: build everything position independent
 set( CMAKE_POSITION_INDEPENDENT_CODE ON )
 
-# Global setting: Use C++11
-set(CMAKE_CXX_STANDARD 11)
+# Global setting: Use C++14
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Enable additional valgrind instrumentation for stack tracking in libcontext
+if( KICAD_USE_VALGRIND )
+    add_definitions( -DKICAD_USE_VALGRIND )
+endif()
 
 # CMP0063: CMake < 3.3 does not handle hidden visibility for static libraries,
 # and 3.3 is backwards compatible when the minimum version is smaller than 3.3.
@@ -186,12 +222,12 @@ endif()
 if( CMAKE_VERSION VERSION_LESS 3.1 AND ( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
     include(CheckCXXCompilerFlag)
 
-    CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+    CHECK_CXX_COMPILER_FLAG("-std=gnu++14" COMPILER_SUPPORTS_CXX14)
 
-    if(COMPILER_SUPPORTS_CXX11)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    if(COMPILER_SUPPORTS_CXX14)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++14")
     else()
-        message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+        message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support. Please use a different C++ compiler.")
     endif()
 endif()
 
@@ -234,6 +270,10 @@ if( WIN32 )
     # define UNICODE and_UNICODE definition on Windows. KiCad uses unicode.
     # Both definitions are required
     add_definitions(-DUNICODE -D_UNICODE)
+
+    # In fully standards-compliant mode, M_PI et al. are defined only if
+    # _USE_MATH_DEFINES is set.
+    add_definitions( -D_USE_MATH_DEFINES )
 endif()
 
 
@@ -303,6 +343,21 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
         set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3 -DDEBUG -Wno-deprecated-declarations" )
     endif()
 
+    if( KICAD_SANITIZE )
+        add_definitions( -DKICAD_SANITIZE )
+        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_SANITIZE_VECTOR -fsanitize=address -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer" )
+    endif()
+
+    if( KICAD_STDLIB_DEBUG )
+        add_definitions( -DKICAD_STDLIB_DEBUG )
+        set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG" )
+    elseif( KICAD_STDLIB_LIGHT_DEBUG )
+        # useless if KICAD_STDLIB_DEBUG is ON.
+        # this option makes some controls to trap out of bound memory access.
+        add_definitions( -DKICAD_STDLIB_LIGHT_DEBUG )
+        set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wp,-D_GLIBCXX_ASSERTIONS" )
+    endif()
+
     if( MINGW )
         set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-s" )
 
@@ -345,6 +400,38 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
     endif()
 
 endif( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
+
+if( MSVC )
+    # Disallow implicit linking for Boost
+    add_definitions( -DBOOST_ALL_NO_LIB )
+    # Disable MSVC's deprecation warnings
+    add_definitions( -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -D_SCL_SECURE_NO_WARNINGS )
+    # Hide Windows's min() and max() macros
+    add_definitions( -DNOMINMAX )
+    # source and execution charset are UTF-8
+    string( APPEND CMAKE_CXX_FLAGS " /utf-8" )
+    # C4290: throw() is interpreted as declspec(nothrow)
+    string( APPEND CMAKE_CXX_FLAGS " /wd4290" )
+    # C4800: non-bool is explicitly cast to bool, forcing value of 0 or 1
+    string( APPEND CMAKE_CXX_FLAGS " /wd4800" )
+    # /Zi: create PDB
+    string( APPEND CMAKE_CXX_FLAGS " /Zi" )
+    # /GF: enable string pooling
+    string( APPEND CMAKE_CXX_FLAGS_RELEASE " /GF" )
+    foreach( type EXE SHARED MODULE)
+        # /DEBUG: create PDB
+        string( APPEND CMAKE_${type}_LINKER_FLAGS " /DEBUG" )
+        # /OPT:REF: omit unreferenced code
+        string( APPEND CMAKE_${type}_LINKER_FLAGS_RELEASE " /OPT:REF" )
+        # /OPT:ICF: fold common data
+        string( APPEND CMAKE_${type}_LINKER_FLAGS_RELEASE " /OPT:ICF" )
+    endforeach()
+
+    # Let cl.exe parallelize builds
+    if( KICAD_BUILD_PARALLEL_CL_MP )
+        string( APPEND CMAKE_CXX_FLAGS " /MP" )
+    endif()
+endif()
 
 if( KICAD_SCRIPTING )
     add_definitions( -DKICAD_SCRIPTING )
@@ -549,11 +636,6 @@ endif()
 # Find GLM library, required
 #
 find_package( GLM 0.9.5.1 REQUIRED )
-if( GLM_VERSION MATCHES "0.9.9.3" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    MESSAGE( FATAL_ERROR "\nGLM version ${GLM_VERSION} is incompatible with KiCad using GCC.\n"
-                         "Please downgrade to GLM version 0.9.9.2 or older or use clang instead" )
-endif()
-
 add_definitions( -DGLM_FORCE_CTOR_INIT )
 
 #
@@ -627,8 +709,9 @@ set( INC_AFTER
     ${CMAKE_BINARY_DIR}
     )
 
-
+#
 # Find Python and other scripting resources
+#
 if( KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES )
 
     # SWIG 3.0 or later require for C++11 support.
@@ -686,18 +769,35 @@ if( KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES )
         find_package( PythonLibs 2.6 REQUIRED )
     endif()
 
-    if( KICAD_SCRIPTING_WXPYTHON )
-        find_package( wxPython REQUIRED )
-        message( STATUS "Found ${WXPYTHON_FLAVOR} "
-            "${WXPYTHON_VERSION}/${WXPYTHON_TOOLKIT} "
-            "(wxWidgets ${WXPYTHON_WXVERSION})" )
-    endif()
-
     # Infrequently needed headers go at end of search paths, append to INC_AFTER which
     # although is used for all components, should be a harmless hit for something like eeschema
     # so long as unused search paths are at the end like this.
     set( INC_AFTER ${INC_AFTER} ${PYTHON_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/scripting )
 endif()
+
+# Find the wxPython installation if requested
+if( KICAD_SCRIPTING_WXPYTHON )
+    find_package( wxPython REQUIRED )
+
+    if( KICAD_SCRIPTING_WXPYTHON_PHOENIX AND WXPYTHON_VERSION VERSION_LESS 4.0.0 )
+        message( FATAL_ERROR
+            "Unable to find wxPython Phoenix,"
+            " instead found wxPython Classic ${WXPYTHON_VERSION}" )
+    endif()
+
+    # The test VERSION_GREATER_EQUAL is only available in cmake >3.7, so use the max possible
+    # version for the 3.0 line as the basis of the comparison
+    if( NOT KICAD_SCRIPTING_WXPYTHON_PHOENIX AND WXPYTHON_VERSION VERSION_GREATER 3.9.999 )
+        message( FATAL_ERROR
+            "Unable to find wxPython Classic,"
+            " instead found wxPython Phoenix ${WXPYTHON_VERSION}" )
+    endif()
+
+    message( STATUS "Found ${WXPYTHON_FLAVOR} "
+        "${WXPYTHON_VERSION}/${WXPYTHON_TOOLKIT} "
+        "(wxWidgets ${WXPYTHON_WXVERSION})" )
+endif()
+
 
 #
 # Find wxWidgets library, required

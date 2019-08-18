@@ -75,7 +75,8 @@
 
 BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_CLOSE( FOOTPRINT_EDIT_FRAME::OnCloseWindow )
-    EVT_MENU( wxID_EXIT, FOOTPRINT_EDIT_FRAME::CloseModuleEditor )
+    EVT_MENU( wxID_CLOSE, FOOTPRINT_EDIT_FRAME::CloseModuleEditor )
+    EVT_MENU( wxID_EXIT, FOOTPRINT_EDIT_FRAME::OnExitKiCad )
 
     EVT_SIZE( FOOTPRINT_EDIT_FRAME::OnSize )
 
@@ -219,6 +220,7 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent,
     GetToolManager()->RunAction( ACTIONS::gridPreset, true, m_LastGridSizeId );
     GetToolManager()->RunAction( ACTIONS::zoomFitScreen, false );
     updateTitle();
+    InitExitKey();
 
     Raise();            // On some window managers, this is needed
     Show( true );
@@ -378,8 +380,6 @@ void FOOTPRINT_EDIT_FRAME::SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSett
 const PCB_PLOT_PARAMS& FOOTPRINT_EDIT_FRAME::GetPlotSettings() const
 {
     // get the settings from the parent editor, not our BOARD.
-
-    // @todo(DICK) change the routing to some default or the board directly, parent may not exist
     PCB_BASE_FRAME* parentFrame = (PCB_BASE_FRAME*) Kiway().Player( FRAME_PCB, true );
     wxASSERT( parentFrame );
 
@@ -390,8 +390,6 @@ const PCB_PLOT_PARAMS& FOOTPRINT_EDIT_FRAME::GetPlotSettings() const
 void FOOTPRINT_EDIT_FRAME::SetPlotSettings( const PCB_PLOT_PARAMS& aSettings )
 {
     // set the settings into parent editor, not our BOARD.
-
-    // @todo(DICK) change the routing to some default or the board directly, parent may not exist
     PCB_BASE_FRAME* parentFrame = (PCB_BASE_FRAME*) Kiway().Player( FRAME_PCB, true );
     wxASSERT( parentFrame );
 
@@ -452,7 +450,7 @@ void FOOTPRINT_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
     if( GetScreen()->IsModify() && GetBoard()->GetFirstModule() )
     {
         wxString footprintName = GetBoard()->GetFirstModule()->GetFPID().GetLibItemName();
-        wxString msg = _( "Save changes to \"%s\" before closing? " );
+        wxString msg = _( "Save changes to \"%s\" before closing?" );
 
         if( !HandleUnsavedChanges( this, wxString::Format( msg, footprintName ),
                     [&]() -> bool { return SaveFootprint( GetBoard()->GetFirstModule() ); } ) )
@@ -474,6 +472,12 @@ void FOOTPRINT_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 
     //close the editor
     Destroy();
+}
+
+
+void FOOTPRINT_EDIT_FRAME::OnExitKiCad( wxCommandEvent& event )
+{
+    Kiway().OnKiCadExit();
 }
 
 
@@ -752,7 +756,7 @@ void FOOTPRINT_EDIT_FRAME::OnUpdateLayerAlpha( wxUpdateUIEvent & )
 }
 
 
-void FOOTPRINT_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent, 
+void FOOTPRINT_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent,
                                                PANEL_HOTKEYS_EDITOR* aHotkeysPanel )
 {
     wxTreebook* book = aParent->GetTreebook();
@@ -760,7 +764,7 @@ void FOOTPRINT_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent,
     book->AddPage( new PANEL_MODEDIT_SETTINGS( this, aParent ), _( "Footprint Editor" ) );
     book->AddSubPage( new PANEL_MODEDIT_DISPLAY_OPTIONS( this, aParent ), _( "Display Options" ) );
     book->AddSubPage( new PANEL_MODEDIT_DEFAULTS( this, aParent ), _( "Default Values" ) );
-    
+
     aHotkeysPanel->AddHotKeys( GetToolManager() );
 }
 
@@ -790,10 +794,13 @@ void FOOTPRINT_EDIT_FRAME::setupTools()
     m_toolManager->RegisterTool( new PCBNEW_PICKER_TOOL );
     m_toolManager->RegisterTool( new POSITION_RELATIVE_TOOL );
 
+    m_toolManager->GetTool<PCBNEW_PICKER_TOOL>()->SetEditModules( true );
+    m_toolManager->GetTool<PCBNEW_CONTROL>()->SetEditModules( true );
     m_toolManager->GetTool<PAD_TOOL>()->SetEditModules( true );
     m_toolManager->GetTool<SELECTION_TOOL>()->SetEditModules( true );
     m_toolManager->GetTool<EDIT_TOOL>()->SetEditModules( true );
     m_toolManager->GetTool<DRAWING_TOOL>()->SetEditModules( true );
+    m_toolManager->GetTool<POINT_EDITOR>()->SetEditModules( true );
 
     m_toolManager->InitTools();
 
@@ -814,9 +821,12 @@ void FOOTPRINT_EDIT_FRAME::ActivateGalCanvas()
 }
 
 
-void FOOTPRINT_EDIT_FRAME::CommonSettingsChanged()
+void FOOTPRINT_EDIT_FRAME::CommonSettingsChanged( bool aEnvVarsChanged )
 {
-    PCB_BASE_EDIT_FRAME::CommonSettingsChanged();
+    PCB_BASE_EDIT_FRAME::CommonSettingsChanged( aEnvVarsChanged );
+
+    if( aEnvVarsChanged )
+        SyncLibraryTree( true );
 
     Layout();
     SendSizeEvent();

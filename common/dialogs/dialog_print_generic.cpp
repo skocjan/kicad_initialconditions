@@ -21,7 +21,7 @@
 #include <confirm.h>
 #include <eda_draw_frame.h>
 #include <printout.h>
-#include <enabler.h>
+#include <pgm_base.h>
 
 // Define min and max reasonable values for print scale
 static constexpr double MIN_SCALE = 0.01;
@@ -30,7 +30,9 @@ static constexpr double MAX_SCALE = 100.0;
 DIALOG_PRINT_GENERIC::DIALOG_PRINT_GENERIC( EDA_DRAW_FRAME* aParent, PRINTOUT_SETTINGS* aSettings )
     : DIALOG_PRINT_GENERIC_BASE( aParent ), m_config( nullptr ), m_settings( aSettings )
 {
-    m_scaleValidator.SetRange( MIN_SCALE, MAX_SCALE );
+    // Note: for the validator, min value is 0.0, to allow typing values like 0.5
+    // that start by 0
+    m_scaleValidator.SetRange( 0.0, MAX_SCALE );
     m_scaleCustomText->SetValidator( m_scaleValidator );
 
     // We use a sdbSizer to get platform-dependent ordering of the action buttons, but
@@ -84,7 +86,7 @@ void DIALOG_PRINT_GENERIC::saveSettings()
 }
 
 
-double DIALOG_PRINT_GENERIC::getScaleValue() const
+double DIALOG_PRINT_GENERIC::getScaleValue()
 {
     if( m_scale1->GetValue() )
         return 1.0;
@@ -94,9 +96,30 @@ double DIALOG_PRINT_GENERIC::getScaleValue() const
 
     if( m_scaleCustom->GetValue() )
     {
-        double scale;
+        double scale = 1.0;;
 
-        wxCHECK( m_scaleCustomText->GetValue().ToDouble( &scale ), 1.0 );
+        if( !m_scaleCustomText->GetValue().ToDouble( &scale ) )
+        {
+            DisplayInfoMessage( nullptr, _( "Warning: Bad scale number" ) );
+            scale = 1.0;
+        }
+
+        if( scale > MAX_SCALE )
+        {
+            scale = MAX_SCALE;
+            setScaleValue( scale );
+            DisplayInfoMessage( nullptr,
+                wxString::Format( _( "Warning: Scale option set to a very large value.\n"
+                                     " Clamped to %f" ), scale ) );
+        }
+        else if( scale < MIN_SCALE )
+        {
+            scale = MIN_SCALE;
+            setScaleValue( scale );
+            DisplayInfoMessage( nullptr,
+                wxString::Format( _( "Warning: Scale option set to a very small value.\n"
+                                     " Clamped to %f" ), scale ) );
+        }
         return scale;
     }
 
@@ -118,14 +141,11 @@ void DIALOG_PRINT_GENERIC::setScaleValue( double aValue )
     }
     else
     {
+        // Silently clamp the value (it comes from the config file).
         if( aValue > MAX_SCALE )
-        {
-            DisplayInfoMessage( nullptr, _( "Warning: Scale option set to a very large value" ) );
-        }
+            aValue = MAX_SCALE;
         else if( aValue < MIN_SCALE )
-        {
-            DisplayInfoMessage( nullptr, _( "Warning: Scale option set to a very small value" ) );
-        }
+            aValue = MIN_SCALE;
 
         m_scaleCustom->SetValue( true );
         m_scaleCustomText->SetValue( wxString::Format( wxT( "%f" ), aValue ) );
@@ -202,6 +222,12 @@ void DIALOG_PRINT_GENERIC::onPrintPreview( wxCommandEvent& event )
 
 void DIALOG_PRINT_GENERIC::onPrintButtonClick( wxCommandEvent& event )
 {
+    if( Pgm().m_Printing )
+    {
+        DisplayError( this, _( "Previous print job not yet complete." ) );
+        return;
+    }
+
     m_settings->m_pageCount = 0;    // it needs to be set by a derived dialog
     saveSettings();
 
@@ -217,19 +243,19 @@ void DIALOG_PRINT_GENERIC::onPrintButtonClick( wxCommandEvent& event )
     wxPrinter printer( &printDialogData );
     auto printout = std::unique_ptr<wxPrintout>( createPrintout( _( "Print" ) ) );
 
-    // Disable 'Print' button to prevent issuing another print
-    // command before the previous one is finished (causes problems on Windows)
-    ENABLER printBtnDisable( *m_sdbSizer1OK, false );
-
-    if( !printer.Print( this, printout.get(), true ) )
+    Pgm().m_Printing = true;
     {
-        if( wxPrinter::GetLastError() == wxPRINTER_ERROR )
-            DisplayError( this, _( "There was a problem printing." ) );
+        if( !printer.Print( this, printout.get(), true ) )
+        {
+            if( wxPrinter::GetLastError() == wxPRINTER_ERROR )
+                DisplayError( this, _( "There was a problem printing." ) );
+        }
+        else
+        {
+            *s_PrintData = printer.GetPrintDialogData().GetPrintData();
+        }
     }
-    else
-    {
-        *s_PrintData = printer.GetPrintDialogData().GetPrintData();
-    }
+    Pgm().m_Printing = false;
 }
 
 

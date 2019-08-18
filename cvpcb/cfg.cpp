@@ -26,20 +26,11 @@
  * @file cfg.cpp
  */
 
-#include <fctsys.h>
-#include <kiface_i.h>
-#include <fp_lib_table.h>
-#include <id.h>
-#include <common.h>
-#include <gestfich.h>
 #include <config_params.h>
-#include <wildcards_and_files_ext.h>
-#include <fp_lib_table.h>
-#include <confirm.h>
+#include <kiface_i.h>
+#include <project.h>
 
-#include <cvpcb.h>
 #include <cvpcb_mainframe.h>
-#include <display_footprints_frame.h>
 
 
 PARAM_CFG_ARRAY& CVPCB_MAINFRAME::GetProjectFileParameters()

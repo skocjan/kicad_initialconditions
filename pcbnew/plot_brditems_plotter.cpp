@@ -86,8 +86,7 @@ void BRDITEMS_PLOTTER::PlotPad( D_PAD* aPad, COLOR4D aColor, EDA_DRAW_MODE_T aPl
         // Some pads are mechanical pads ( through hole or smd )
         // when this is the case, they have no pad name and/or are not plated.
         // In this case gerber files have slightly different attributes.
-        if( aPad->GetAttribute() == PAD_ATTRIB_HOLE_NOT_PLATED ||
-            aPad->GetName().IsEmpty() )
+        if( aPad->GetAttribute() == PAD_ATTRIB_HOLE_NOT_PLATED || aPad->GetName().IsEmpty() )
             gbr_metadata.m_NetlistMetadata.m_NotInNet = true;
 
         if( !isOnExternalCopperLayer || !isPadOnBoardTechLayers )
@@ -224,6 +223,7 @@ bool BRDITEMS_PLOTTER::PlotAllTextsModule( MODULE* aModule )
     TEXTE_MODULE* textModule = &aModule->Reference();
     LAYER_NUM     textLayer = textModule->GetLayer();
 
+    // Reference and value are specfic items, not in graphic items list
     if( GetPlotReference() && m_layerMask[textLayer]
         && ( textModule->IsVisible() || GetPlotInvisibleText() ) )
     {
@@ -506,13 +506,13 @@ void BRDITEMS_PLOTTER::Plot_1_EdgeModule( EDGE_MODULE* aEdge )
     case S_POLYGON:
         if( aEdge->IsPolyShapeValid() )
         {
-            const std::vector<wxPoint>& polyPoints = aEdge->BuildPolyPointsList();
+            const std::vector<wxPoint> &polyPoints = aEdge->BuildPolyPointsList();
 
             // We must compute true coordinates from m_PolyList
             // which are relative to module position, orientation 0
-            MODULE* module = aEdge->GetParentModule();
+            MODULE *module = aEdge->GetParentModule();
 
-            std::vector< wxPoint > cornerList;
+            std::vector<wxPoint> cornerList;
 
             cornerList.reserve( polyPoints.size() );
 
@@ -531,17 +531,31 @@ void BRDITEMS_PLOTTER::Plot_1_EdgeModule( EDGE_MODULE* aEdge )
             {
                 for( size_t i = 1; i < cornerList.size(); i++ )
                 {
-                    m_plotter->ThickSegment( cornerList[i-1], cornerList[i], thickness,
-                                             GetPlotMode(), &gbr_metadata );
+                    m_plotter->ThickSegment( cornerList[i - 1], cornerList[i], thickness,
+                            GetPlotMode(), &gbr_metadata );
                 }
 
                 m_plotter->ThickSegment( cornerList.back(), cornerList.front(), thickness,
-                                         GetPlotMode(), &gbr_metadata );
+                        GetPlotMode(), &gbr_metadata );
 
             }
             else
             {
-                m_plotter->PlotPoly( cornerList, FILLED_SHAPE, thickness, &gbr_metadata );
+                // This must be simplified and fractured to prevent overlapping polygons
+                // from generating invalid Gerber files
+
+                SHAPE_LINE_CHAIN line( cornerList );
+                SHAPE_POLY_SET tmpPoly;
+
+                line.SetClosed( true );
+                tmpPoly.AddOutline( line );
+                tmpPoly.Fracture( SHAPE_POLY_SET::PM_FAST );
+
+                for( int jj = 0; jj < tmpPoly.OutlineCount(); ++jj )
+                {
+                    SHAPE_LINE_CHAIN &poly = tmpPoly.Outline( jj );
+                    m_plotter->PlotPoly( poly, FILLED_SHAPE, thickness, &gbr_metadata );
+                }
             }
         }
     break;
@@ -612,11 +626,8 @@ void BRDITEMS_PLOTTER::PlotTextePcb( TEXTE_PCB* pt_texte )
 }
 
 
-void BRDITEMS_PLOTTER::PlotFilledAreas( ZONE_CONTAINER* aZone )
+void BRDITEMS_PLOTTER::PlotFilledAreas( ZONE_CONTAINER* aZone, SHAPE_POLY_SET& polysList )
 {
-    //Plot areas (given by .m_FilledPolysList member) in a zone
-    const SHAPE_POLY_SET& polysList = aZone->GetFilledPolysList();
-
     if( polysList.IsEmpty() )
         return;
 
@@ -753,7 +764,7 @@ void BRDITEMS_PLOTTER::PlotDrawSegment( DRAWSEGMENT* aSeg )
         {
             if( !aSeg->IsPolygonFilled() )
             {
-                for( auto it = aSeg->GetPolyShape().IterateSegments( 0 ); it; it++ )
+                for( auto it = aSeg->GetPolyShape().CIterateSegments( 0 ); it; it++ )
                 {
                     auto seg = it.Get();
                     m_plotter->ThickSegment( wxPoint( seg.A ), wxPoint( seg.B ),

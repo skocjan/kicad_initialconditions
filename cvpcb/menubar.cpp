@@ -22,15 +22,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <pgm_base.h>
 #include <bitmaps.h>
-#include <tool/conditional_menu.h>
-#include <tool/actions.h>
-#include <tool/tool_manager.h>
-#include <tool/common_control.h>
-#include "cvpcb_id.h"
-#include "cvpcb_mainframe.h"
 #include <menus_helpers.h>
+#include <tool/actions.h>
+#include <tool/common_control.h>
+#include <tool/conditional_menu.h>
+#include <tool/tool_manager.h>
+
+#include <cvpcb_mainframe.h>
+#include <tools/cvpcb_actions.h>
 
 
 void CVPCB_MAINFRAME::ReCreateMenuBar()
@@ -45,30 +45,46 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
     //
     CONDITIONAL_MENU*   fileMenu = new CONDITIONAL_MENU( false, tool );
 
-    fileMenu->AddItem( ID_SAVE_PROJECT,
-                       _( "&Save Schematic\tCtrl+S" ),
-                       _( "Save footprint associations in schematic symbol footprint fields" ),
-                       save_xpm,                        SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddItem( CVPCB_ACTIONS::saveAssociations, SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddSeparator();
+    fileMenu->AddClose( _( "Assign Footprints" ) );
 
     fileMenu->Resolve();
 
     //-- Preferences menu -----------------------------------------------
     //
+    CONDITIONAL_MENU* editMenu = new CONDITIONAL_MENU( false, tool );
+
+    auto enableUndoCondition = [ this ] ( const SELECTION& sel )
+    {
+        return m_undoList.size() > 0;
+    };
+    auto enableRedoCondition = [ this ] ( const SELECTION& sel )
+    {
+        return m_redoList.size() > 0;
+    };
+
+    editMenu->AddItem( ACTIONS::undo,  enableUndoCondition );
+    editMenu->AddItem( ACTIONS::redo,  enableRedoCondition );
+    editMenu->AddSeparator();
+    editMenu->AddItem( ACTIONS::cut,   SELECTION_CONDITIONS::ShowAlways );
+    editMenu->AddItem( ACTIONS::copy,  SELECTION_CONDITIONS::ShowAlways );
+    editMenu->AddItem( ACTIONS::paste, SELECTION_CONDITIONS::ShowAlways );
+
+    editMenu->Resolve();
+
+    //-- Preferences menu -----------------------------------------------
+    //
     CONDITIONAL_MENU* prefsMenu = new CONDITIONAL_MENU( false, tool );
 
-    prefsMenu->AddItem( ACTIONS::configurePaths,        SELECTION_CONDITIONS::ShowAlways );
-    prefsMenu->AddItem( ACTIONS::showFootprintLibTable, SELECTION_CONDITIONS::ShowAlways );
+    prefsMenu->AddItem( ACTIONS::configurePaths,         SELECTION_CONDITIONS::ShowAlways );
+    prefsMenu->AddItem( ACTIONS::showFootprintLibTable,  SELECTION_CONDITIONS::ShowAlways );
     prefsMenu->AddItem( wxID_PREFERENCES,
                         _( "Preferences...\tCTRL+," ),
                         _( "Show preferences for all open tools" ),
-                        preference_xpm,                 SELECTION_CONDITIONS::ShowAlways );
-
+                        preference_xpm,                  SELECTION_CONDITIONS::ShowAlways );
     prefsMenu->AddSeparator();
-    prefsMenu->AddItem( ID_CVPCB_EQUFILES_LIST_EDIT,
-                        _( "Footprint &Association Files..." ),
-                        _( "Configure footprint association file (.equ) list.  These files are "
-                           "used to automatically assign footprint names from symbol values." ),
-                        library_table_xpm,              SELECTION_CONDITIONS::ShowAlways );
+    prefsMenu->AddItem( CVPCB_ACTIONS::showEquFileTable, SELECTION_CONDITIONS::ShowAlways );
 
     prefsMenu->AddSeparator();
     AddMenuLanguageList( prefsMenu, tool );
@@ -78,6 +94,7 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
     //-- Menubar -------------------------------------------------------------
     //
     menuBar->Append( fileMenu, _( "&File" ) );
+    menuBar->Append( editMenu, _( "&Edit" ) );
     menuBar->Append( prefsMenu, _( "&Preferences" ) );
     AddStandardHelpMenu( menuBar );
 

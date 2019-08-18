@@ -44,13 +44,18 @@ public:
     /// @copydoc TOOL_INTERACTIVE::Reset()
     void Reset( RESET_REASON aReason ) override;
 
-    // Zone actions
+    void CheckAllZones( wxWindow* aCaller );
+    void FillAllZones( wxWindow* aCaller );
+
     int ZoneFill( const TOOL_EVENT& aEvent );
     int ZoneFillAll( const TOOL_EVENT& aEvent );
     int ZoneUnfill( const TOOL_EVENT& aEvent );
     int ZoneUnfillAll( const TOOL_EVENT& aEvent );
 
 private:
+    ///> Refocuses on an idle event (used after the Progress Reporter messes up the focus)
+    void singleShotRefocus( wxIdleEvent& );
+
     ///> Sets up handlers for various events.
     void setTransitions() override;
 };

@@ -32,10 +32,10 @@
 #include <gal/gal_display_options.h>
 #include <gal/color4d.h>
 #include <class_draw_panel_gal.h>
+#include <wx/fdrepdlg.h>
 #include "hotkeys_basic.h"
 
 class wxSingleInstanceChecker;
-class EDA_HOTKEY;
 class ACTION_TOOLBAR;
 class TOOL_MENU;
 
@@ -82,60 +82,52 @@ namespace KIGFX
  */
 class EDA_DRAW_FRAME : public KIWAY_PLAYER
 {
-    ///< Id of active button on the vertical toolbar.
-    int                 m_toolId;
-
-    BASE_SCREEN*        m_currentScreen;      ///< current used SCREEN
-
-    EDA_DRAW_PANEL_GAL* m_canvas;
+    BASE_SCREEN*                m_currentScreen;      ///< current used SCREEN
+    EDA_DRAW_PANEL_GAL*         m_canvas;
 
     ///< GAL display options - this is the frame's interface to setting GAL display options
     KIGFX::GAL_DISPLAY_OPTIONS  m_galDisplayOptions;
 
 protected:
-    wxSocketServer*                          m_socketServer;
-    std::vector<wxSocketBase*>               m_sockets;         ///< interprocess communication
+    wxSocketServer*             m_socketServer;
+    std::vector<wxSocketBase*>  m_sockets;         ///< interprocess communication
 
     std::unique_ptr<wxSingleInstanceChecker> m_file_checker;    ///< prevents opening same file multiple times.
 
-    int              m_LastGridSizeId;      // the command id offset (>= 0) of the last selected grid
-                                            // 0 is for the grid corresponding to
-                                            // a wxCommand ID = ID_POPUP_GRID_LEVEL_1000.
-    bool             m_drawGrid;            // hide/Show grid
-    bool             m_showPageLimits;      ///< true to display the page limits
-    COLOR4D          m_gridColor;           ///< Grid color
-    COLOR4D          m_drawBgColor;         ///< the background color of the draw canvas
-                                            ///< BLACK for Pcbnew, BLACK or WHITE for eeschema
-    double           m_zoomLevelCoeff;      ///< a suitable value to convert the internal zoom scaling factor
-                                            // to a zoom level value which rougly gives 1.0 when the board/schematic
-                                            // is at scale = 1
-    int              m_UndoRedoCountMax;    ///< default Undo/Redo command Max depth, to be handed
+    int                m_LastGridSizeId;    // The command id offset (>= 0) of the last selected
+                                            // grid 0 is for the grid corresponding to a
+                                            // wxCommand ID = ID_POPUP_GRID_LEVEL_1000.
+    bool               m_drawGrid;          // Hide/Show grid
+    bool               m_showPageLimits;    // True to display the page limits
+    COLOR4D            m_gridColor;         // Grid color
+    COLOR4D            m_drawBgColor;       // The background color of the draw canvas; BLACK for
+                                            // Pcbnew, BLACK or WHITE for eeschema
+    double             m_zoomLevelCoeff;    // A suitable value to convert the internal zoom
+                                            // scaling factor to a zoom level value which rougly
+                                            // gives 1.0 when the board/schematic is at scale = 1
+    int                m_UndoRedoCountMax;  // Default Undo/Redo command Max depth, to be handed
                                             // to screens
-    bool             m_PolarCoords;         //< for those frames that support polar coordinates
+    bool               m_PolarCoords;       // For those frames that support polar coordinates
 
-    TOOL_DISPATCHER* m_toolDispatcher;
+    TOOL_DISPATCHER*   m_toolDispatcher;
 
-    /// Tool ID of previously active draw tool bar button.
-    int              m_lastDrawToolId;  // JEY TODO: remove this; it doesn't work in modern toolset anyway
+    bool               m_showBorderAndTitleBlock;  // Show the worksheet (border and title block).
+    long               m_firstRunDialogSetting;    // Show first run dialog on startup
 
-    std::deque<std::string> m_toolStack;    // stack of user-level "tools".  Used to temporarily
-                                            // invoke an immediate-mode action.  Note that these
-                                            // are "tools" in the UI sense, which are actually
-                                            // TOOL_ACTIONs internally
+    wxChoice*          m_gridSelectBox;
+    wxChoice*          m_zoomSelectBox;
 
-    bool             m_showBorderAndTitleBlock;   /// Show the worksheet (border and title block).
-    long             m_firstRunDialogSetting;     /// Show first run dialog on startup
+    ACTION_TOOLBAR*    m_mainToolBar;
+    ACTION_TOOLBAR*    m_auxiliaryToolBar;  // Additional tools under main toolbar
+    ACTION_TOOLBAR*    m_drawToolBar;       // Drawing tools (typically on right edge of window)
+    ACTION_TOOLBAR*    m_optionsToolBar;    // Options (typically on left edge of window)
 
-    wxChoice*        m_gridSelectBox;
-    wxChoice*        m_zoomSelectBox;
+    wxFindReplaceData* m_findReplaceData;
+    wxArrayString      m_findStringHistoryList;
+    wxArrayString      m_replaceStringHistoryList;
 
-    ACTION_TOOLBAR*  m_mainToolBar;
-    ACTION_TOOLBAR*  m_auxiliaryToolBar;    // Additional tools under main toolbar
-    ACTION_TOOLBAR*  m_drawToolBar;         // Drawing tools (typically on right edge of window)
-    ACTION_TOOLBAR*  m_optionsToolBar;      // Options (typically on left edge of window)
-
-    EDA_MSG_PANEL*   m_messagePanel;
-    int              m_MsgFrameHeight;
+    EDA_MSG_PANEL*     m_messagePanel;
+    int                m_MsgFrameHeight;
 
     /// The current canvas type
     EDA_DRAW_PANEL_GAL::GAL_TYPE    m_canvasType;
@@ -146,7 +138,14 @@ protected:
 
     void unitsChangeRefresh() override;
 
-    void CommonSettingsChanged() override;
+    void CommonSettingsChanged( bool aEnvVarsChanged ) override;
+
+    /**
+     * Sets the common key-pair for exiting the application (Ctrl-Q) and ties it
+     * to the wxID_EXIT event id.  This is useful in sub-applications to pass the event
+     * up to a non-owning window
+     */
+    void InitExitKey();
 
     /**
      * @param doOpen if true runs an Open Library browser, otherwise New Library
@@ -194,6 +193,9 @@ public:
      * Release the current file marked in use.  See m_file_checker.
      */
     void ReleaseFile();
+
+    wxFindReplaceData& GetFindReplaceData() { return *m_findReplaceData; }
+    wxArrayString& GetFindHistoryList() { return m_findStringHistoryList; }
 
     virtual void SetPageSettings( const PAGE_INFO& aPageSettings ) = 0;
     virtual const PAGE_INFO& GetPageSettings() const = 0;
@@ -293,86 +295,18 @@ public:
     void ReCreateMenuBar() override { }
     virtual void ReCreateHToolbar() = 0;
     virtual void ReCreateVToolbar() = 0;
+    virtual void ReCreateOptToolbar() = 0;
     virtual void ReCreateAuxiliaryToolbar() { }
 
-    /**
-     * The definition of "tool" is different at the user level.  The implementation uses
-     * a single TOOL_BASE derived class to implement several user "tools", such as rectangle
-     * and circle, or wire and bus.  So each user-level tool is actually a TOOL_ACTION.
+    /*
+     * These 4 functions provide a basic way to show/hide grid and /get/set grid color.
+     * These parameters are saved in KiCad config for each main frame.
      */
-    virtual void SetTool( const std::string& actionName );
-    virtual void PushTool( const std::string& actionName );
-    virtual void PopTool();
+    virtual bool IsGridVisible() const { return m_drawGrid; }
+    virtual void SetGridVisibility( bool aVisible ) { m_drawGrid = aVisible; }
 
-    /**
-     * The selection tool runs underneath the tool stack, so clearing the stack is equivalent
-     * to selecting the selection tool.
-     */
-    virtual void ClearToolStack();
-
-    /**
-     * Set the tool command ID to \a aId and sets the cursor to \a aCursor.
-     *
-     * The command ID must be greater or equal ::ID_NO_TOOL_SELECTED.  If the command
-     * ID is less than ::ID_NO_TOOL_SELECTED, the tool command ID is set to
-     * ::ID_NO_TOOL_SELECTED.  On debug builds, an assertion will be raised when
-     * \a aId is invalid.
-     *
-     * @param aId New tool command ID if greater than or equal to ::ID_NO_TOOL_SELECTED.
-                  If less than zero, the current tool command ID is retained.
-     * @param aCursor Sets the cursor shape if greater than or equal to zero.
-     * @param aToolMsg The tool message to set in the status bar.
-     */
-    virtual void SetToolID( int aId, int aCursor, const wxString& aToolMsg );
-
-    /**
-     * Select the ID_NO_TOOL_SELECTED id tool (Idle tool)
-     */
-    virtual void SetNoToolSelected();
-
-    /**
-     * @return the current tool ID
-     * when there is no active tool, the ID_NO_TOOL_SELECTED is returned
-     * (the id of the default Tool (idle tool) of the right vertical toolbar)
-     */
-    int GetToolId() const { return m_toolId; }
-
-    /* These 4 functions provide a basic way to show/hide grid
-     * and /get/set grid color.
-     * These parameters are saved in KiCad config for each main frame
-     */
-    /**
-     * @return true if the grid must be shown
-     */
-    virtual bool IsGridVisible() const
-    {
-        return m_drawGrid;
-    }
-
-    /**
-     * It may be overloaded by derived classes
-     * @param aVisible = true if the grid must be shown
-     */
-    virtual void SetGridVisibility( bool aVisible )
-    {
-        m_drawGrid = aVisible;
-    }
-
-    /**
-     * @return the color of the grid
-     */
-    virtual COLOR4D GetGridColor()
-    {
-        return m_gridColor;
-    }
-
-    /**
-     * @param aColor = the new color of the grid
-     */
-    virtual void SetGridColor( COLOR4D aColor )
-    {
-        m_gridColor = aColor;
-    }
+    virtual COLOR4D GetGridColor() { return m_gridColor; }
+    virtual void SetGridColor( COLOR4D aColor ) { m_gridColor = aColor; }
 
     /**
      * Command event handler for selecting grid sizes.
@@ -405,26 +339,6 @@ public:
      * Recalculate the size of toolbars and display panel when the frame size changes.
      */
     virtual void OnSize( wxSizeEvent& event );
-
-    void OnEraseBackground( wxEraseEvent& SizeEvent );
-
-    /**
-     * Change the zoom to the next one available redraws the screen
-     * and warp the mouse pointer on request.
-     *
-     * @param aCenterPoint is the reference point for zooming
-     * @param aWarpPointer = true to move the pointer to the aCenterPoint
-     */
-    void SetNextZoomAndRedraw( const wxPoint& aCenterPoint, bool aWarpPointer );
-
-    /**
-     * Change the zoom to the previous one available redraws the screen
-     * and warp the mouse pointer on request.
-     *
-     * @param aCenterPoint is the reference point for zooming
-     * @param aWarpPointer = true to move the pointer to the aCenterPoint
-     */
-    void SetPreviousZoomAndRedraw( const wxPoint& aCenterPoint, bool aWarpPointer );
 
     /**
      * Rebuild the GAL and redraws the screen.  Call when something went wrong.
@@ -476,7 +390,7 @@ public:
                          const wxString &aFilename, const wxString &aSheetLayer = wxEmptyString,
                          COLOR4D aColor = COLOR4D::UNSPECIFIED );
 
-    void            DisplayToolMsg( const wxString& msg );
+    void DisplayToolMsg( const wxString& msg ) override;
 
     /**
      * Called when modifying the page settings.
@@ -489,7 +403,7 @@ public:
      * Update the status bar information.
      *
      * The EDA_DRAW_FRAME level updates the absolute and relative coordinates and the
-     * zoom information.  If you override this virtual method, make sure to call this 
+     * zoom information.  If you override this virtual method, make sure to call this
      * subclassed method.
      */
     void UpdateStatusBar() override;
@@ -593,8 +507,13 @@ public:
     {
         GetCanvas()->Refresh();
     }
-    
+
     virtual const BOX2I GetDocumentExtents() const;
+
+    /**
+     * Rebuild all toolbars, and update the checked state of ckeck tools
+     */
+    void RecreateToolbars();
 };
 
 #endif  // DRAW_FRAME_H_

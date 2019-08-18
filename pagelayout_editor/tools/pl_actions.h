@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2019 CERN
  * Copyright (C) 2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -70,10 +71,10 @@ public:
     static TOOL_ACTION move;
 
     // Miscellaneous
-    static TOOL_ACTION deleteItemCursor;
     static TOOL_ACTION refreshPreview;
     static TOOL_ACTION toggleBackground;
     static TOOL_ACTION showInspector;
+    static TOOL_ACTION previewSettings;
 
     ///> @copydoc COMMON_ACTIONS::TranslateLegacyId()
     virtual OPT<TOOL_EVENT> TranslateLegacyId( int aId ) override { return OPT<TOOL_EVENT>(); }

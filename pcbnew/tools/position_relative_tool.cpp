@@ -122,53 +122,65 @@ int POSITION_RELATIVE_TOOL::RelativeItemSelectionMove( wxPoint aPosAnchor, wxPoi
 
 int POSITION_RELATIVE_TOOL::SelectPositionRelativeItem( const TOOL_EVENT& aEvent  )
 {
+    std::string         tool = "pcbnew.PositionRelative.selectReferenceItem";
+    PCBNEW_PICKER_TOOL* picker = m_toolMgr->GetTool<PCBNEW_PICKER_TOOL>();
+    STATUS_TEXT_POPUP   statusPopup( frame() );
+    bool                done = false;
+
     Activate();
 
-    PCBNEW_PICKER_TOOL* picker = m_toolMgr->GetTool<PCBNEW_PICKER_TOOL>();
-    STATUS_TEXT_POPUP statusPopup( frame() );
-    bool picking = true;
-
     statusPopup.SetText( _( "Select reference item..." ) );
-    picker->Activate();
 
-    picker->SetClickHandler( [&]( const VECTOR2D& aPoint ) -> bool
-            {
-                m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-                const PCBNEW_SELECTION& sel = m_selectionTool->RequestSelection(
-                        []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
-                        { EditToolSelectionFilter( aCollector, EXCLUDE_TRANSIENTS ); } );
+    picker->SetClickHandler(
+        [&]( const VECTOR2D& aPoint ) -> bool
+        {
+            m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
+            const PCBNEW_SELECTION& sel = m_selectionTool->RequestSelection(
+                []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
+                {
+                    EditToolSelectionFilter( aCollector, EXCLUDE_TRANSIENTS );
+                } );
 
-                if( sel.Empty() )
-                    return true;    // still looking for an item
+            if( sel.Empty() )
+                return true;    // still looking for an item
 
-                m_anchor_item = sel.Front();
-                statusPopup.Hide();
+            m_anchor_item = sel.Front();
+            statusPopup.Hide();
 
-                if( m_dialog )
-                    m_dialog->UpdateAnchor( sel.Front() );
+            if( m_dialog )
+                m_dialog->UpdateAnchor( sel.Front() );
 
-                picking = false;
-                return false;       // got our item; don't need any more
-            } );
+            return false;       // got our item; don't need any more
+        } );
 
-    picker->SetCancelHandler( [&]()
-            {
-                statusPopup.Hide();
+    picker->SetMotionHandler(
+        [&] ( const VECTOR2D& aPos )
+        {
+            statusPopup.Move( wxGetMousePosition() + wxPoint( 20, -50 ) );
+        } );
 
-                if( m_dialog )
-                    m_dialog->UpdateAnchor( m_anchor_item );
+    picker->SetCancelHandler(
+        [&]()
+        {
+            statusPopup.Hide();
 
-                picking = false;
-            } );
+            if( m_dialog )
+                m_dialog->UpdateAnchor( m_anchor_item );
+        } );
+
+    picker->SetFinalizeHandler(
+        [&]( const int& aFinalState )
+        {
+            done = true;
+        } );
 
     statusPopup.Move( wxGetMousePosition() + wxPoint( 20, -50 ) );
     statusPopup.Popup();
 
-    while( picking )
-    {
-        statusPopup.Move( wxGetMousePosition() + wxPoint( 20, -50 ) );
+    m_toolMgr->RunAction( ACTIONS::pickerTool, true, &tool );
+
+    while( !done )
         Wait();
-    }
 
     return 0;
 }

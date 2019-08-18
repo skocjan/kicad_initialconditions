@@ -30,34 +30,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <limits.h>
 #include <algorithm>
 #include <iterator>
-
 #include <fctsys.h>
 #include <common.h>
 #include <kicad_string.h>
 #include <pcb_base_frame.h>
 #include <msgpanel.h>
-#include <pcb_netlist.h>
 #include <reporter.h>
-#include <base_units.h>
 #include <ratsnest_data.h>
 #include <ratsnest_viewitem.h>
 #include <ws_proxy_view_item.h>
-
 #include <pcbnew.h>
 #include <collectors.h>
-
 #include <class_board.h>
 #include <class_module.h>
 #include <class_track.h>
 #include <class_zone.h>
 #include <class_marker_pcb.h>
 #include <class_drawsegment.h>
-#include <class_pcb_text.h>
 #include <class_pcb_target.h>
-#include <class_dimension.h>
 #include <connectivity/connectivity_data.h>
 
 
@@ -100,12 +92,11 @@ DELETED_BOARD_ITEM g_DeletedItem;
  */
 wxPoint BOARD_ITEM::ZeroOffset( 0, 0 );
 
-// this is a dummy colors settings (defined colors are the vdefulat values)
-// used to initialize the board.
-// these settings will be overriden later, depending on the draw frame that displays the board.
+// Dummy general settings (defined colors are the default values) used to initialize the board.
+// These settings will be overriden later, depending on the draw frame that displays the board.
 // However, when a board is created by a python script, outside a frame, the colors must be set
 // so dummyColorsSettings provide this default initialization
-static COLORS_DESIGN_SETTINGS dummyColorsSettings( FRAME_PCB );
+static PCB_GENERAL_SETTINGS dummyGeneralSettings( FRAME_PCB );
 
 BOARD::BOARD() :
     BOARD_ITEM_CONTAINER( (BOARD_ITEM*) NULL, PCB_T ),
@@ -114,7 +105,8 @@ BOARD::BOARD() :
     // we have not loaded a board yet, assume latest until then.
     m_fileFormatVersionAtLoad = LEGACY_BOARD_FILE_VERSION;
 
-    m_colorsSettings = &dummyColorsSettings;
+    m_generalSettings = &dummyGeneralSettings;
+
     m_CurrentZoneContour = NULL;            // This ZONE_CONTAINER handle the
                                             // zone contour currently in progress
 
@@ -154,8 +146,27 @@ BOARD::~BOARD()
         Delete( area_to_remove );
     }
 
+    // Clean up the owned elements
     DeleteMARKERs();
     DeleteZONEOutlines();
+
+    // Delete the modules
+    for( auto m : m_modules )
+        delete m;
+
+    m_modules.clear();
+
+    // Delete the tracks
+    for( auto t : m_tracks )
+        delete t;
+
+    m_tracks.clear();
+
+    // Delete the drawings
+    for (auto d : m_drawings )
+        delete d;
+
+    m_drawings.clear();
 
     delete m_CurrentZoneContour;
     m_CurrentZoneContour = NULL;
@@ -556,6 +567,14 @@ void BOARD::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode )
 
     case PCB_TRACE_T:
     case PCB_VIA_T:
+
+        // N.B. This inserts a small memory leak as we lose the
+        if( !IsCopperLayer( aBoardItem->GetLayer() ) )
+        {
+            wxFAIL_MSG( wxT( "BOARD::Add() Cannot place Track on non-copper layer" ) );
+            return;
+        }
+
         if( aMode == ADD_APPEND )
             m_tracks.push_back( static_cast<TRACK*>( aBoardItem ) );
         else
@@ -759,70 +778,53 @@ unsigned BOARD::GetUnconnectedNetCount() const
 
 EDA_RECT BOARD::ComputeBoundingBox( bool aBoardEdgesOnly ) const
 {
-    bool hasItems = false;
     EDA_RECT area;
     LSET visible = GetVisibleLayers();
 
     // Check segments, dimensions, texts, and fiducials
     for( auto item : m_drawings )
     {
-        if( aBoardEdgesOnly && (item->Type() != PCB_LINE_T || item->GetLayer() != Edge_Cuts ) )
+        if( aBoardEdgesOnly && ( item->GetLayer() != Edge_Cuts ) )
             continue;
 
-        if( !( item->GetLayerSet() & visible ).any() )
-            continue;
-
-        if( !hasItems )
-            area = item->GetBoundingBox();
-        else
+        if( ( item->GetLayerSet() & visible ).any() )
             area.Merge( item->GetBoundingBox() );
+    }
 
-        hasItems = true;
+    // Check modules
+    for( auto module : m_modules )
+    {
+        if( !( module->GetLayerSet() & visible ).any() )
+            continue;
+
+        if( aBoardEdgesOnly )
+        {
+            for( const auto edge : module->GraphicalItems() )
+            {
+                if( edge->GetLayer() == Edge_Cuts )
+                    area.Merge( edge->GetBoundingBox() );
+            }
+        }
+        else
+        {
+            area.Merge( module->GetBoundingBox() );
+        }
     }
 
     if( !aBoardEdgesOnly )
     {
-        // Check modules
-        for( auto module : m_modules )
-        {
-            if( !( module->GetLayerSet() & visible ).any() )
-                continue;
-
-            if( !hasItems )
-                area = module->GetBoundingBox();
-            else
-                area.Merge( module->GetBoundingBox() );
-
-            hasItems = true;
-        }
-
         // Check tracks
         for( auto track : m_tracks )
         {
-            if( !( track->GetLayerSet() & visible ).any() )
-                continue;
-
-            if( !hasItems )
-                area = track->GetBoundingBox();
-            else
+            if( ( track->GetLayerSet() & visible ).any() )
                 area.Merge( track->GetBoundingBox() );
-
-            hasItems = true;
         }
 
         // Check zones
         for( auto aZone : m_ZoneDescriptorList )
         {
-            if( !( aZone->GetLayerSet() & visible ).any() )
-                continue;
-
-            if( !hasItems )
-                area = aZone->GetBoundingBox();
-            else
+            if( ( aZone->GetLayerSet() & visible ).any() )
                 area.Merge( aZone->GetBoundingBox() );
-
-            area.Merge( aZone->GetBoundingBox() );
-            hasItems = true;
         }
     }
 

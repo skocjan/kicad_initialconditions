@@ -193,8 +193,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     fileMenu->AddMenu( submenuArchive,               SELECTION_CONDITIONS::ShowAlways );
 
     fileMenu->AddSeparator();
-    // Don't use ACTIONS::quit; wxWidgets moves this on OSX and expects to find it via wxID_EXIT
-    fileMenu->AddItem( wxID_EXIT, _( "Quit" ), "", exit_xpm, SELECTION_CONDITIONS::ShowAlways );
+    fileMenu->AddQuitOrClose( &Kiface(), _( "Pcbnew" ) );
 
     fileMenu->Resolve();
 
@@ -209,7 +208,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
         return GetScreen() && GetScreen()->GetRedoCommandCount() > 0;
     };
     auto noActiveToolCondition = [ this ] ( const SELECTION& aSelection ) {
-        return GetToolId() == ID_NO_TOOL_SELECTED;
+        return ToolStackIsEmpty();
     };
 
     editMenu->AddItem( ACTIONS::undo,                       enableUndoCondition );
@@ -219,9 +218,8 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     editMenu->AddItem( ACTIONS::cut,                        SELECTION_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::copy,                       SELECTION_CONDITIONS::NotEmpty );
     editMenu->AddItem( ACTIONS::paste,                      noActiveToolCondition );
-
-    editMenu->AddSeparator();
-    editMenu->AddItem( PCB_ACTIONS::deleteTool,             SELECTION_CONDITIONS::ShowAlways );
+    editMenu->AddItem( ACTIONS::doDelete,                   SELECTION_CONDITIONS::NotEmpty );
+    editMenu->AddItem( ACTIONS::duplicate,                  SELECTION_CONDITIONS::NotEmpty );
 
     editMenu->AddSeparator();
     editMenu->AddItem( ACTIONS::find,                       SELECTION_CONDITIONS::ShowAlways );
@@ -237,6 +235,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     editMenu->AddItem( PCB_ACTIONS::zoneUnfillAll,          SELECTION_CONDITIONS::ShowAlways );
 
     editMenu->AddSeparator();
+    editMenu->AddItem( ACTIONS::deleteTool,                 SELECTION_CONDITIONS::ShowAlways );
     editMenu->AddItem( PCB_ACTIONS::globalDeletions,        SELECTION_CONDITIONS::ShowAlways );
     editMenu->AddItem( PCB_ACTIONS::cleanupTracksAndVias,   SELECTION_CONDITIONS::ShowAlways );
 
@@ -310,7 +309,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     viewMenu->AddItem( ACTIONS::zoomTool,                      SELECTION_CONDITIONS::ShowAlways );
     viewMenu->AddItem( ACTIONS::zoomRedraw,                    SELECTION_CONDITIONS::ShowAlways );
 
-    viewMenu->AppendSeparator();
+    viewMenu->AddSeparator();
     viewMenu->AddCheckItem( ACTIONS::toggleGrid,               gridShownCondition );
     viewMenu->AddItem( ACTIONS::gridProperties,                SELECTION_CONDITIONS::ShowAlways );
     viewMenu->AddCheckItem( PCB_ACTIONS::togglePolarCoords,    polarCoordsCondition );
@@ -358,7 +357,7 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     viewMenu->AddCheckItem( PCB_ACTIONS::flipBoard,                     boardFlippedCondition );
 
 #ifdef __APPLE__
-    viewMenu->AppendSeparator();
+    viewMenu->AddSeparator();
 #endif
 
     viewMenu->Resolve();
@@ -408,8 +407,8 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     routeMenu->AddItem( PCB_ACTIONS::selectLayerPair,        SELECTION_CONDITIONS::ShowAlways );
 
     routeMenu->AddSeparator();
-    routeMenu->AddItem( PCB_ACTIONS::routerActivateSingle,   SELECTION_CONDITIONS::ShowAlways );
-    routeMenu->AddItem( PCB_ACTIONS::routerActivateDiffPair, SELECTION_CONDITIONS::ShowAlways );
+    routeMenu->AddItem( PCB_ACTIONS::routeSingleTrack,       SELECTION_CONDITIONS::ShowAlways );
+    routeMenu->AddItem( PCB_ACTIONS::routeDiffPair,          SELECTION_CONDITIONS::ShowAlways );
 
     routeMenu->AddSeparator();
     routeMenu->AddItem( PCB_ACTIONS::routerTuneSingleTrace,  SELECTION_CONDITIONS::ShowAlways );
@@ -419,12 +418,15 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     routeMenu->AddSeparator();
     routeMenu->AddItem( PCB_ACTIONS::routerSettingsDialog,   SELECTION_CONDITIONS::ShowAlways );
 
+    routeMenu->Resolve();
+
     //-- Inspect Menu --------------------------------------------------------
     //
     CONDITIONAL_MENU* inspectMenu = new CONDITIONAL_MENU( false, selTool );
 
     inspectMenu->AddItem( PCB_ACTIONS::listNets,             SELECTION_CONDITIONS::ShowAlways );
     inspectMenu->AddItem( ACTIONS::measureTool,              SELECTION_CONDITIONS::ShowAlways );
+    inspectMenu->AddItem( PCB_ACTIONS::boardStatistics,      SELECTION_CONDITIONS::ShowAlways );
 
     inspectMenu->AddSeparator();
     inspectMenu->AddItem( PCB_ACTIONS::runDRC,               SELECTION_CONDITIONS::ShowAlways );
@@ -518,5 +520,4 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     // Populate the Action Plugin sub-menu
     buildActionPluginMenus( submenuActionPlugins );
 #endif
-
 }

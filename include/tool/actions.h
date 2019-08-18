@@ -63,7 +63,7 @@ public:
 
     // Generic edit actions
     static TOOL_ACTION cancelInteractive;
-    static TOOL_ACTION updateMenu;
+    static TOOL_ACTION showContextMenu;
     static TOOL_ACTION undo;
     static TOOL_ACTION redo;
     static TOOL_ACTION cut;
@@ -71,7 +71,7 @@ public:
     static TOOL_ACTION paste;
     static TOOL_ACTION duplicate;
     static TOOL_ACTION doDelete;        // sadly 'delete' is a reserved word
-    static TOOL_ACTION activatePointEditor;
+    static TOOL_ACTION deleteTool;
 
     // Find and Replace
     static TOOL_ACTION find;
@@ -96,6 +96,9 @@ public:
     static TOOL_ACTION toggleCursor;
     static TOOL_ACTION toggleCursorStyle;
     static TOOL_ACTION highContrastMode;
+
+    static TOOL_ACTION refreshPreview;      // Similar to a synthetic mouseMoved event, but also
+                                            // used after a rotate, mirror, etc.
 
     /// Cursor control with keyboard
     static TOOL_ACTION cursorUp;
@@ -138,6 +141,7 @@ public:
     // Common Tools
     static TOOL_ACTION selectionTool;
     static TOOL_ACTION measureTool;
+    static TOOL_ACTION pickerTool;
 
     // Misc
     static TOOL_ACTION show3DViewer;
@@ -148,6 +152,10 @@ public:
     static TOOL_ACTION updatePcbFromSchematic;
     static TOOL_ACTION acceleratedGraphics;
     static TOOL_ACTION standardGraphics;
+
+    // Internal
+    static TOOL_ACTION updateMenu;
+    static TOOL_ACTION activatePointEditor;
 
     // Suite
     static TOOL_ACTION configurePaths;
@@ -169,7 +177,8 @@ public:
 
     ///> Cursor control event types
     enum CURSOR_EVENT_TYPE { CURSOR_UP, CURSOR_DOWN, CURSOR_LEFT, CURSOR_RIGHT,
-                             CURSOR_CLICK, CURSOR_DBL_CLICK, CURSOR_FAST_MOVE = 0x8000 };
+                             CURSOR_CLICK, CURSOR_DBL_CLICK, CURSOR_RIGHT_CLICK,
+                             CURSOR_FAST_MOVE = 0x8000 };
 
     ///> Remove event modifier flags
     enum class REMOVE_FLAGS { NORMAL = 0x00, ALT = 0x01, CUT = 0x02 };

@@ -29,12 +29,10 @@
 #include <kiway_express.h>
 #include <macros.h>
 #include <eda_dde.h>
-#include <sch_draw_panel.h>
-#include <tool/tool_manager.h>
 #include <sch_edit_frame.h>
 #include <general.h>
 #include <eeschema_id.h>
-#include <lib_draw_item.h>
+#include <lib_item.h>
 #include <lib_pin.h>
 #include <sch_component.h>
 #include <sch_sheet.h>
@@ -43,6 +41,121 @@
 #include <netlist_exporters/netlist_exporter_kicad.h>
 #include <tools/ee_actions.h>
 #include <tools/sch_editor_control.h>
+
+
+SCH_ITEM* SCH_EDITOR_CONTROL::FindComponentAndItem( const wxString& aReference,
+                                                    bool            aSearchHierarchy,
+                                                    SCH_SEARCH_T    aSearchType,
+                                                    const wxString& aSearchText )
+{
+    SCH_SHEET_PATH* sheetWithComponentFound = NULL;
+    SCH_ITEM*       item = NULL;
+    SCH_COMPONENT*  Component = NULL;
+    wxPoint         pos;
+    bool            notFound = true;
+    LIB_PIN*        pin = nullptr;
+    SCH_SHEET_LIST  sheetList( g_RootSheet );
+    EDA_ITEM*       foundItem = nullptr;
+
+    if( !aSearchHierarchy )
+        sheetList.push_back( *g_CurrentSheet );
+    else
+        sheetList.BuildSheetList( g_RootSheet );
+
+    for( SCH_SHEET_PATH& sheet : sheetList)
+    {
+        for( item = sheet.LastDrawList(); item && notFound; item = item->Next() )
+        {
+            if( item->Type() != SCH_COMPONENT_T )
+                continue;
+
+            SCH_COMPONENT* pSch = (SCH_COMPONENT*) item;
+
+            if( aReference.CmpNoCase( pSch->GetRef( &sheet ) ) == 0 )
+            {
+                Component = pSch;
+                sheetWithComponentFound = &sheet;
+
+                if( aSearchType == HIGHLIGHT_PIN )
+                {
+                    pos = pSch->GetPosition();  // temporary: will be changed if the pin is found.
+                    pin = pSch->GetPin( aSearchText );
+
+                    if( pin )
+                    {
+                        notFound = false;
+                        pos += pin->GetPosition();
+                        foundItem = Component;
+                    }
+                }
+                else
+                {
+                    notFound = false;
+                    pos = pSch->GetPosition();
+                    foundItem = Component;
+                }
+            }
+        }
+
+        if( notFound == false )
+            break;
+    }
+
+    if( Component )
+    {
+        if( *sheetWithComponentFound != *g_CurrentSheet )
+        {
+            sheetWithComponentFound->LastScreen()->SetZoom( m_frame->GetScreen()->GetZoom() );
+            *g_CurrentSheet = *sheetWithComponentFound;
+            m_frame->DisplayCurrentSheet();
+        }
+
+        wxPoint delta;
+        pos  -= Component->GetPosition();
+        delta = Component->GetTransform().TransformCoordinate( pos );
+        pos   = delta + Component->GetPosition();
+
+        m_frame->GetCanvas()->GetViewControls()->SetCrossHairCursorPosition( pos, false );
+        m_frame->CenterScreen( pos, false );
+    }
+
+    /* Print diag */
+    wxString msg_item;
+    wxString msg;
+
+    if( aSearchType == HIGHLIGHT_PIN )
+        msg_item.Printf( _( "pin %s" ), aSearchText );
+    else
+        msg_item = _( "component" );
+
+    if( Component )
+    {
+        if( !notFound )
+            msg.Printf( _( "%s %s found" ), aReference, msg_item );
+        else
+            msg.Printf( _( "%s found but %s not found" ), aReference, msg_item );
+    }
+    else
+        msg.Printf( _( "Component %s not found" ), aReference );
+
+    m_frame->SetStatusText( msg );
+
+    m_probingPcbToSch = true;   // recursion guard
+    {
+        // Clear any existing highlighting
+        m_toolMgr->RunAction( EE_ACTIONS::clearSelection, true );
+        m_frame->GetCanvas()->GetView()->HighlightItem( nullptr, nullptr );
+
+        if( foundItem )
+            m_frame->GetCanvas()->GetView()->HighlightItem( foundItem, pin );
+    }
+    m_probingPcbToSch = false;
+
+    m_frame->GetCanvas()->Refresh();
+
+    return item;
+}
+
 
 /**
  * Execute a remote command sent by Pcbnew via a socket connection.
@@ -64,7 +177,8 @@
  */
 void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 {
-    char     line[1024];
+    SCH_EDITOR_CONTROL* editor = m_toolManager->GetTool<SCH_EDITOR_CONTROL>();
+    char                line[1024];
 
     strncpy( line, cmdline, sizeof(line) - 1 );
     line[ sizeof(line) - 1 ] = '\0';
@@ -77,15 +191,10 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 
     if( strcmp( idcmd, "$NET:" ) == 0 )
     {
-        if( GetCurrentToolName() == EE_ACTIONS::highlightNetCursor.GetName() )
-        {
-            m_SelectedNetName = FROM_UTF8( text );
+        m_SelectedNetName = FROM_UTF8( text );
+        GetToolManager()->RunAction( EE_ACTIONS::updateNetHighlighting, true );
 
-            SetStatusText( _( "Selected net: " ) + UnescapeString( m_SelectedNetName ) );
-
-            GetToolManager()->RunAction( EE_ACTIONS::updateNetHighlighting, true );
-        }
-
+        SetStatusText( _( "Selected net: " ) + UnescapeString( m_SelectedNetName ) );
         return;
     }
 
@@ -114,7 +223,7 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
     if( idcmd == NULL )    // Highlight component only (from Cvpcb or Pcbnew)
     {
         // Highlight component part_ref, or clear Highlight, if part_ref is not existing
-        FindComponentAndItem( part_ref, true, FIND_COMPONENT_ONLY, wxEmptyString );
+        editor->FindComponentAndItem( part_ref, true, HIGHLIGHT_COMPONENT, wxEmptyString );
         return;
     }
 
@@ -127,19 +236,23 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 
     if( strcmp( idcmd, "$REF:" ) == 0 )
     {
-        FindComponentAndItem( part_ref, true, FIND_REFERENCE, msg );
+        // Highlighting the reference itself isn't actually that useful, and it's harder to
+        // see.  Highlight the parent and display the message.
+        editor->FindComponentAndItem( part_ref, true, HIGHLIGHT_COMPONENT, msg );
     }
     else if( strcmp( idcmd, "$VAL:" ) == 0 )
     {
-        FindComponentAndItem( part_ref, true, FIND_VALUE, msg );
+        // Highlighting the value itself isn't actually that useful, and it's harder to see.
+        // Highlight the parent and display the message.
+        editor->FindComponentAndItem( part_ref, true, HIGHLIGHT_COMPONENT, msg );
     }
     else if( strcmp( idcmd, "$PAD:" ) == 0 )
     {
-        FindComponentAndItem( part_ref, true, FIND_PIN, msg );
+        editor->FindComponentAndItem( part_ref, true, HIGHLIGHT_PIN, msg );
     }
     else
     {
-        FindComponentAndItem( part_ref, true, FIND_COMPONENT_ONLY, wxEmptyString );
+        editor->FindComponentAndItem( part_ref, true, HIGHLIGHT_COMPONENT, wxEmptyString );
     }
 }
 
@@ -151,14 +264,6 @@ std::string FormatProbeItem( EDA_ITEM* aItem, SCH_COMPONENT* aComp )
     // Cross probing to Pcbnew if a pin or a component is found
     switch( aItem->Type() )
     {
-    case LIB_PIN_T:
-        wxFAIL_MSG( "What are we doing with LIB_* items here?" );
-        break;
-
-    case LIB_FIELD_T:
-        wxFAIL_MSG( "What are we doing with LIB_* items here?" );
-        // fall through to SCH_FIELD_T:
-
     case SCH_FIELD_T:
         if( aComp )
             return StrPrintf( "$PART: \"%s\"", TO_UTF8( aComp->GetField( REFERENCE )->GetText() ) );
@@ -209,7 +314,7 @@ void SCH_EDIT_FRAME::SendMessageToPCBNEW( EDA_ITEM* aObjectToSync, SCH_COMPONENT
 
     std::string packet = FormatProbeItem( aObjectToSync, aLibItem );
 
-    if( packet.size() )
+    if( !packet.empty() )
     {
         if( Kiface().IsSingle() )
             SendCommand( MSG_TO_PCB, packet.c_str() );
@@ -230,7 +335,7 @@ void SCH_EDIT_FRAME::SendCrossProbeNetName( const wxString& aNetName )
 
     std::string packet = StrPrintf( "$NET: \"%s\"", TO_UTF8( aNetName ) );
 
-    if( packet.size() )
+    if( !packet.empty() )
     {
         if( Kiface().IsSingle() )
             SendCommand( MSG_TO_PCB, packet.c_str() );

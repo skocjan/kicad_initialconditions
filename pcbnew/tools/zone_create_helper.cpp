@@ -22,19 +22,14 @@
  */
 
 #include <tools/zone_create_helper.h>
-
-#include <view/view.h>
 #include <tool/tool_manager.h>
 #include <class_zone.h>
 #include <class_drawsegment.h>
 #include <class_edge_mod.h>
-#include <class_pad.h>
 #include <board_commit.h>
 #include <pcb_painter.h>
-
 #include <tools/pcb_actions.h>
 #include <tools/selection_tool.h>
-
 #include <zone_filler.h>
 
 ZONE_CREATE_HELPER::ZONE_CREATE_HELPER( DRAWING_TOOL& aTool, PARAMS& aParams ):
@@ -56,7 +51,7 @@ ZONE_CREATE_HELPER::~ZONE_CREATE_HELPER()
 
 std::unique_ptr<ZONE_CONTAINER> ZONE_CREATE_HELPER::createNewZone( bool aKeepout )
 {
-    auto& frame = *m_tool.getEditFrame<PCB_BASE_EDIT_FRAME>();
+    auto& frame = *m_tool.getEditFrame<PCB_BASE_FRAME>();
     auto& board = *m_tool.getModel<BOARD>();
     KIGFX::VIEW_CONTROLS* controls = m_tool.GetManager()->GetViewControls();
 
@@ -66,7 +61,7 @@ std::unique_ptr<ZONE_CONTAINER> ZONE_CREATE_HELPER::createNewZone( bool aKeepout
     zoneInfo.m_NetcodeSelection = board.GetHighLightNetCode();
     zoneInfo.SetIsKeepout( m_params.m_keepout );
 
-    if( m_params.m_mode != DRAWING_TOOL::ZONE_MODE::GRAPHIC_POLYGON )
+    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON )
     {
         // Get the current default settings for zones
 
@@ -133,9 +128,7 @@ void ZONE_CREATE_HELPER::performZoneCutout( ZONE_CONTAINER& aZone, ZONE_CONTAINE
         newZoneOutline->AddOutline( originalOutline.Outline( i ) );
 
         for (int j = 0; j < originalOutline.HoleCount(i) ; j++ )
-        {
             newZoneOutline->AddHole( originalOutline.CHole(i, j), i );
-        }
 
         auto newZone = new ZONE_CONTAINER( aZone );
         newZone->SetOutline( newZoneOutline );
@@ -160,18 +153,15 @@ void ZONE_CREATE_HELPER::performZoneCutout( ZONE_CONTAINER& aZone, ZONE_CONTAINE
 
 void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE_CONTAINER> aZone )
 {
-    auto& frame = *m_tool.getEditFrame<PCB_EDIT_FRAME>();
-    auto board = m_tool.getModel<BOARD>();
-
     switch ( m_params.m_mode )
     {
-        case DRAWING_TOOL::ZONE_MODE::CUTOUT:
-                // For cutouts, subtract from the source
+        case ZONE_MODE::CUTOUT:
+            // For cutouts, subtract from the source
             performZoneCutout( *m_params.m_sourceZone, *aZone );
             break;
 
-        case DRAWING_TOOL::ZONE_MODE::ADD:
-        case DRAWING_TOOL::ZONE_MODE::SIMILAR:
+        case ZONE_MODE::ADD:
+        case ZONE_MODE::SIMILAR:
         {
             BOARD_COMMIT bCommit( &m_tool );
 
@@ -179,39 +169,39 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE_CONTAINER> aZone )
 
             if( !m_params.m_keepout )
             {
-                ZONE_FILLER filler( board );
+                ZONE_FILLER filler( m_tool.getModel<BOARD>() );
                 filler.Fill( { aZone.get() } );
             }
 
-            bCommit.Add( aZone.release() );
+            bCommit.Add( aZone.get() );
             bCommit.Push( _( "Add a zone" ) );
+            m_tool.GetManager()->RunAction( PCB_ACTIONS::selectItem, true, aZone.release() );
             break;
         }
 
-        case DRAWING_TOOL::ZONE_MODE::GRAPHIC_POLYGON:
+        case ZONE_MODE::GRAPHIC_POLYGON:
         {
             BOARD_COMMIT bCommit( &m_tool );
-            BOARD_ITEM_CONTAINER* parent = frame.GetModel();
+            BOARD_ITEM_CONTAINER* parent = m_tool.m_frame->GetModel();
 
             if( m_tool.getDrawingLayer() != Edge_Cuts )
             {
-                auto poly = m_tool.m_editModules ?
-                        new EDGE_MODULE( (MODULE *) parent ) :
-                        new DRAWSEGMENT();
+                auto poly = m_tool.m_editModules ? new EDGE_MODULE( (MODULE *) parent )
+                                                 : new DRAWSEGMENT();
                 poly->SetShape ( S_POLYGON );
                 poly->SetLayer( m_tool.getDrawingLayer() );
                 poly->SetPolyShape ( *aZone->Outline() );
                 bCommit.Add( poly );
+                m_tool.GetManager()->RunAction( PCB_ACTIONS::selectItem, true, poly );
             }
             else
             {
                 auto outline = aZone->Outline();
 
-                for( auto seg = outline->IterateSegments( 0 ); seg; seg++ )
+                for( auto seg = outline->CIterateSegments( 0 ); seg; seg++ )
                 {
-                    auto new_seg = m_tool.m_editModules ?
-                            new EDGE_MODULE( (MODULE *) parent ) :
-                            new DRAWSEGMENT();
+                    auto new_seg = m_tool.m_editModules ? new EDGE_MODULE( (MODULE *) parent )
+                                                        : new DRAWSEGMENT();
                     new_seg->SetShape( S_SEGMENT );
                     new_seg->SetLayer( m_tool.getDrawingLayer() );
                     new_seg->SetStart( wxPoint( seg.Get().A.x, seg.Get().A.y ) );
@@ -231,10 +221,11 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE_CONTAINER> aZone )
 bool ZONE_CREATE_HELPER::OnFirstPoint( POLYGON_GEOM_MANAGER& aMgr )
 {
     // if we don't have a zone, create one
-    // the user's choice here can affect things like the colour
-    // of the preview
+    // the user's choice here can affect things like the colour of the preview
     if( !m_zone )
     {
+        m_tool.GetManager()->RunAction( PCB_ACTIONS::selectionClear, true );
+
         if( m_params.m_sourceZone )
             m_zone = createZoneFromExisting( *m_params.m_sourceZone );
         else
@@ -251,18 +242,12 @@ bool ZONE_CREATE_HELPER::OnFirstPoint( POLYGON_GEOM_MANAGER& aMgr )
 
             m_parentView.SetVisible( &m_previewItem, true );
 
-            aMgr.SetLeaderMode( m_zone.get()->GetHV45()
-                                ? POLYGON_GEOM_MANAGER::LEADER_MODE::DEG45
-                                : POLYGON_GEOM_MANAGER::LEADER_MODE::DIRECT );
+            aMgr.SetLeaderMode( m_zone->GetHV45() ? POLYGON_GEOM_MANAGER::LEADER_MODE::DEG45
+                                                  : POLYGON_GEOM_MANAGER::LEADER_MODE::DIRECT );
         }
     }
 
-    if( !m_zone )
-    {
-        return false;
-    }
-
-    return true;
+    return m_zone != nullptr;
 }
 
 
@@ -291,9 +276,7 @@ void ZONE_CREATE_HELPER::OnComplete( const POLYGON_GEOM_MANAGER& aMgr )
         auto* outline = m_zone->Outline();
 
         for( int i = 0; i < finalPoints.PointCount(); ++i )
-        {
             outline->Append( finalPoints.CPoint( i ) );
-        }
 
         outline->Outline( 0 ).SetClosed( true );
         outline->RemoveNullSegments();

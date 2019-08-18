@@ -22,23 +22,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file class_board.h
- * @brief Class BOARD to handle a board.
- */
-
 #ifndef CLASS_BOARD_H_
 #define CLASS_BOARD_H_
 
 #include <tuple>
-
 #include <core/iterators.h>
-
 #include <board_design_settings.h>
 #include <board_item_container.h>
 #include <class_module.h>
 #include <class_pad.h>
-#include <colors_design_settings.h>
+#include <pcb_general_settings.h>
 #include <common.h> // PAGE_INFO
 #include <eda_rect.h>
 #include <layers_id_colors_and_visibility.h>
@@ -111,11 +104,8 @@ struct LAYER
     */
 
     wxString    m_name;         ///< The name of the layer, there should be no spaces in this name.
-
     LAYER_T     m_type;         ///< The type of the layer
-
     bool        m_visible;
-
     int         m_number;
 
     /**
@@ -203,7 +193,7 @@ private:
 
     BOARD_DESIGN_SETTINGS   m_designSettings;
     ZONE_SETTINGS           m_zoneSettings;
-    COLORS_DESIGN_SETTINGS* m_colorsSettings;
+    PCB_GENERAL_SETTINGS*   m_generalSettings;      ///< reference only; I have no ownership
     PAGE_INFO               m_paper;
     TITLE_BLOCK             m_titles;               ///< text in lower right of screen and plots
     PCB_PLOT_PARAMS         m_plotOptions;
@@ -275,7 +265,8 @@ public:
 
     bool IsEmpty() const
     {
-        return m_drawings.empty() && m_modules.empty() && m_tracks.empty();
+        return m_drawings.empty() && m_modules.empty() && m_tracks.empty() &&
+               m_ZoneDescriptorList.empty();
     }
 
     void Move( const wxPoint& aMoveVector ) override;
@@ -379,10 +370,10 @@ public:
     const wxPoint& GetGridOrigin() const            { return m_designSettings.m_GridOrigin; }
 
     /**
-     * Function ResetHighLight
+     * Function ResetNetHighLight
      * Reset all high light data to the init state
      */
-    void ResetHighLight()
+    void ResetNetHighLight()
     {
         m_highLight.Clear();
         m_highLightPrevious.Clear();
@@ -579,16 +570,15 @@ public:
      * Function GetColorSettings
      * @return the current COLORS_DESIGN_SETTINGS in use
      */
-    const COLORS_DESIGN_SETTINGS& Colors() const { return *m_colorsSettings; }
+    const COLORS_DESIGN_SETTINGS& Colors() const { return m_generalSettings->Colors(); }
 
-    /**
-     * Function SetColorsSettings
-     * @param aColorsSettings = the new COLORS_DESIGN_SETTINGS to use
-     */
-    void SetColorsSettings( COLORS_DESIGN_SETTINGS* aColorsSettings )
+    const PCB_GENERAL_SETTINGS& GeneralSettings() const { return *m_generalSettings; }
+
+    void SetGeneralSettings( PCB_GENERAL_SETTINGS* aGeneralSettings )
     {
-        m_colorsSettings = aColorsSettings;
+        m_generalSettings = aGeneralSettings;
     }
+
     /**
      * Function GetBoardPolygonOutlines
      * Extracts the board outlines and build a closed polygon
