@@ -358,6 +358,13 @@ bool DIALOG_SPICE_MODEL::TransferDataToWindow()
         m_nodeSeqVal->SetValue( m_fieldsTmp[SF_NODE_SEQUENCE] );
     }
 
+    // Generate event on passive type combobox
+    // This will eventually configure validator for initial condition field
+    // and set controls to enabled or disabled by the means of attached callback
+    wxEvtHandler *handler = m_pasType->GetEventHandler();
+    wxCommandEvent triggerUpdate( wxEVT_COMBOBOX, m_pasType->GetId() );
+    handler->ProcessEvent( triggerUpdate );
+
     return DIALOG_SPICE_MODEL_BASE::TransferDataToWindow();
 }
 
@@ -827,7 +834,7 @@ bool DIALOG_SPICE_MODEL::addPwlValue( const wxString& aTime, const wxString& aVa
 }
 
 
-void DIALOG_SPICE_MODEL::onUpdateUI( wxUpdateUIEvent& aEvent)
+void DIALOG_SPICE_MODEL::onSelectPassiveTypeOrIC( wxCommandEvent& event)
 {
     // When passive type: resistor
     if( m_pasType->GetSelection() == 0 )
@@ -836,12 +843,14 @@ void DIALOG_SPICE_MODEL::onUpdateUI( wxUpdateUIEvent& aEvent)
         m_useIC->SetValue( false );
         m_useIC->Enable( false );
         m_IC->Enable( false );
+        m_IC->SetValidator( m_spiceEmptyValidator );
     }
     else
     {
         //enable checkbox and textfield if needed
         m_useIC->Enable( true );
         m_IC->Enable( m_useIC->GetValue() );
+        m_IC->SetValidator( m_spiceValidator );
     }
 }
 

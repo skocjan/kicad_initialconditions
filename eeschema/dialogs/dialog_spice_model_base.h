@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr  6 2019)
+// C++ code generated with wxFormBuilder (version Oct 26 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -190,6 +190,7 @@ class DIALOG_SPICE_MODEL_BASE : public DIALOG_SHIM
 		// Virtual event handlers, overide them in your derived class
 		virtual void onInitDlg( wxInitDialogEvent& event ) { event.Skip(); }
 		virtual void onUpdateUI( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void onSelectPassiveTypeOrIC( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onSelectLibrary( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onModelSelected( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onPwlAdd( wxCommandEvent& event ) { event.Skip(); }

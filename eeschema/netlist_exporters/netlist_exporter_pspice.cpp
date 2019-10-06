@@ -485,5 +485,5 @@ const std::vector<wxString> NETLIST_EXPORTER_PSPICE::m_spiceFields = {
     "Spice_Netlist_Enabled",
     "Spice_Node_Sequence",
     "Spice_Lib_File",
-    "Spice_IC"
+    "Spice_Initial_Condition"
 };

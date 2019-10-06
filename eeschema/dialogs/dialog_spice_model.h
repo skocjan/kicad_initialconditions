@@ -103,11 +103,6 @@ private:
     }
 
     /**
-     * This event handler is called when change of control states is triggered
-     */
-    virtual void onUpdateUI( wxUpdateUIEvent& event ) override;
-
-    /**
      * Initializes the internal settings
      */
     void Init();
@@ -117,6 +112,7 @@ private:
     void onModelSelected( wxCommandEvent& event ) override;
     void onPwlAdd( wxCommandEvent& event ) override;
     void onPwlRemove( wxCommandEvent& event ) override;
+    void onSelectPassiveTypeOrIC( wxCommandEvent& event ) override;
 
     ///> Edited component
     SCH_COMPONENT& m_component;
