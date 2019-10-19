@@ -171,7 +171,7 @@ wxString SCH_SHEET_PATH::PathHumanReadable() const
     wxString s;
 
     if( size() == 1 )
-        return _( "<root sheet>" );
+        return _( "_root_sheet_" );
 
     s = wxT( "/" );
 
