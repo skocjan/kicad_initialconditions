@@ -27,8 +27,8 @@
 
 #include <sim/netlist_exporter_pspice_sim.h>
 
-DIALOG_SIGNAL_LIST::DIALOG_SIGNAL_LIST( SIM_PLOT_FRAME* aParent, NETLIST_EXPORTER_PSPICE_SIM* aExporter )
-    : DIALOG_SIGNAL_LIST_BASE( aParent ), m_plotFrame( aParent ), m_exporter( aExporter )
+DIALOG_SIGNAL_LIST::DIALOG_SIGNAL_LIST( SIM_PLOT_FRAME* aParent, NETLIST_EXPORTER_PSPICE_SIM* aExporter, bool aCurrentsShown )
+    : DIALOG_SIGNAL_LIST_BASE( aParent ), m_plotFrame( aParent ), m_exporter( aExporter ), m_areCurrentsShown( aCurrentsShown )
 {
 
 }
@@ -61,17 +61,20 @@ bool DIALOG_SIGNAL_LIST::TransferDataToWindow()
                 m_signals->Append( wxString::Format( "V(%s)", netname ) );
         }
 
-        auto simType = m_exporter->GetSimType();
-
-        if( simType == ST_TRANSIENT || simType == ST_DC )
+        if( m_areCurrentsShown )
         {
-            for( const auto& item : m_exporter->GetSpiceItems() )
+            auto simType = m_exporter->GetSimType();
+
+            if( simType == ST_TRANSIENT || simType == ST_DC )
             {
-                // Add all possible currents for the primitive
-                for( const auto& current :
-                        NETLIST_EXPORTER_PSPICE_SIM::GetCurrents( (SPICE_PRIMITIVE) item.m_primitive ) )
+                for( const auto& item : m_exporter->GetSpiceItems() )
                 {
-                    m_signals->Append( wxString::Format( "%s(%s)", current, item.m_refName ) );
+                    // Add all possible currents for the primitive
+                    for( const auto& current :
+                            NETLIST_EXPORTER_PSPICE_SIM::GetCurrents( (SPICE_PRIMITIVE) item.m_primitive ) )
+                    {
+                        m_signals->Append( wxString::Format( "%s(%s)", current, item.m_refName ) );
+                    }
                 }
             }
         }

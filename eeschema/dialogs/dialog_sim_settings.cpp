@@ -70,7 +70,7 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_transStep->SetValidator( m_spiceValidator );
     m_transFinal->SetValidator( m_spiceValidator );
     m_transInitial->SetValidator( m_spiceEmptyValidator );
-    
+
     m_absTol->SetValidator( m_spiceValidator );
     m_relTol->SetValidator( m_spiceValidator );
     m_rShunt->SetValidator( m_spiceValidator );
@@ -513,6 +513,9 @@ void DIALOG_SIM_SETTINGS::updateNetlistOpts()
 
     if( !m_fixIncludePaths->IsChecked() )
         m_option.m_flags &= ~NET_ADJUST_INCLUDE_PATHS;
+
+    if( !m_fixSaveCurrents->IsChecked() )
+        m_option.m_flags &= ~OPT_SIM_SAVE_CURRENTS;
 
     tempString = m_temp->GetValue();
     tempString.Replace( ",", "." );

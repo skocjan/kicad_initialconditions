@@ -33,7 +33,7 @@ class NETLIST_EXPORTER_PSPICE_SIM;
 class DIALOG_SIGNAL_LIST : public DIALOG_SIGNAL_LIST_BASE
 {
 public:
-    DIALOG_SIGNAL_LIST( SIM_PLOT_FRAME* aParent, NETLIST_EXPORTER_PSPICE_SIM* aExporter );
+    DIALOG_SIGNAL_LIST( SIM_PLOT_FRAME* aParent, NETLIST_EXPORTER_PSPICE_SIM* aExporter, bool aCurrentsShown );
 
     bool TransferDataFromWindow() override;
     bool TransferDataToWindow() override;
@@ -48,6 +48,7 @@ private:
 
     SIM_PLOT_FRAME* m_plotFrame;
     NETLIST_EXPORTER_PSPICE_SIM* m_exporter;
+    bool m_areCurrentsShown;
 };
 
 #endif /* DIALOG_SIGNAL_LIST_H */

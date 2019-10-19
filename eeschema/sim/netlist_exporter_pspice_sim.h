@@ -116,6 +116,11 @@ public:
         m_simOptions.clear();
     }
 
+    bool AreCurrentsSaved()
+    {
+        return m_areCurrentsSaved;
+    }
+
     /**
      * @brief Returns simulation type basing on the simulation command directives.
      * Simulation directives set using SetSimCommand() have priority over the ones placed in
@@ -160,6 +165,8 @@ private:
 
     ///> Directives with simulation options updated from simulation settings dialog
     std::vector<wxString> m_simOptions;
+
+    bool m_areCurrentsSaved;
 
     /**
      * @brief Adds new correctly formatted option directive to m_simOptions

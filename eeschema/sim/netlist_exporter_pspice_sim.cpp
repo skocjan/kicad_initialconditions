@@ -169,30 +169,6 @@ bool NETLIST_EXPORTER_PSPICE_SIM::ParseDCCommand( const wxString& aCmd, SPICE_DC
 
 void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter ) const
 {
-    // Add a directive to obtain currents
-    //aFormatter->Print( 0, ".options savecurrents\n" );        // does not work :(
-
-    for( const auto& item : GetSpiceItems() )
-    {
-        for( const auto& current :
-                NETLIST_EXPORTER_PSPICE_SIM::GetCurrents( (SPICE_PRIMITIVE) item.m_primitive ) )
-        {
-            if( !item.m_enabled )
-                continue;
-
-            /// @todo is it required to switch to lowercase
-            aFormatter->Print( 0, ".save %s\n",
-                    (const char*) GetSpiceVector( item.m_refName, SPT_CURRENT, current ).c_str() );
-        }
-    }
-
-    // If we print out .save directives for currents, then it needs to be done for voltages as well
-    for( const auto& netMap : GetNetIndexMap() )
-    {
-        aFormatter->Print( 0, ".save %s\n",
-                (const char*) GetSpiceVector( netMap.first, SPT_VOLTAGE ).c_str() );
-    }
-
     if( m_simCommand.IsEmpty() )
     {
         // Fallback to the default behavior and just write all directives
@@ -200,17 +176,17 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter )
     }
     else
     {
+        // Add here simulation options from DIALOG_SIM_SETTINGS
+        for( const auto& opt : m_simOptions )
+        {
+            aFormatter->Print( 0, "%s\n", (const char*) opt.c_str() );
+        }
+
         // Dump all directives but simulation commands
         for( const auto& dir : GetDirectives() )
         {
             if( !IsSimCommand( dir ) )
                 aFormatter->Print( 0, "%s\n", (const char*) dir.c_str() );
-        }
-
-        // Add here simulation options
-        for( const auto& opt : m_simOptions )
-        {
-            aFormatter->Print( 0, "%s\n", (const char*) opt.c_str() );
         }
 
         // Finish with our custom simulation command
@@ -230,16 +206,22 @@ void NETLIST_EXPORTER_PSPICE_SIM::SetSimOptions( const struct PSPICE_SIM_OPTIONS
 {
     ClearSimOptions();
 
+    // Global options
+    addNewOptionToList( "temp=", aOptions.m_temp );
+    addNewOptionToList( "tnom=", aOptions.m_tnom );
+
+    if( aOptions.m_flags & OPT_SIM_SAVE_CURRENTS )
+    {
+        addNewOptionToList( "", wxString( "savecurrents" ) );
+        m_areCurrentsSaved = true;
+    }
+    else
+    {
+        m_areCurrentsSaved = false;
+    }
+
     if( !aCustomCommand )
     {
-        // Global options
-        addNewOptionToList( "temp=", aOptions.m_temp );
-        addNewOptionToList( "tnom=", aOptions.m_tnom );
-
-        //TODO does it work?
-        if( aOptions.m_flags & OPT_SIM_SAVE_CURRENTS )
-            addNewOptionToList( "", wxString( "savecurrents" ) );
-
         switch( GetSimType() )
         {
         case ST_OP:
