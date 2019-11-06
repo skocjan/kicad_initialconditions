@@ -82,12 +82,20 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
     const bool useNetcodeAsNetName = false;//aCtl & NET_USE_NETCODES_AS_NETNAMES;
 
     // default title
-    m_title = "KiCad schematic";
+    if( ( g_RootSheet == nullptr ) ||
+        ( ( m_title = g_RootSheet->GetScreen()->GetTitleBlock().GetTitle() ).IsEmpty() )
+      )
+    {
+        m_title = "KiCad schematic";
+    }
 
     if( !ProcessNetlist( aCtl ) )
         return false;
 
     aFormatter->Print( 0, ".title %s\n", (const char*) m_title.c_str() );
+
+    if( m_libraries.size() != 0 )
+        aFormatter->Print( 0, exportSectionSeparator( _("Libraries")) );
 
     // Write .include directives
     for( const auto& lib : m_libraries )
@@ -111,6 +119,9 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
         aFormatter->Print( 0, ".include \"%s\"\n", (const char*) full_path.c_str() );
     }
 
+    if( m_spiceItems.size() != 0 )
+        aFormatter->Print( 0, exportSectionSeparator( _( "Components" ) ) );
+
     unsigned int NC_counter = 1;
 
     for( const auto& item : m_spiceItems )
@@ -131,7 +142,7 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
             // {0,1,2,...m_item.m_pin.size()-1}
             if( activePinIndex >= item.m_pins.size() )
             {
-                wxASSERT_MSG( false, "Used an invalid pin number in node sequence" );
+                wxASSERT_MSG( false, _( "Used an invalid pin number in node sequence" ) );
                 continue;
             }
 
@@ -164,6 +175,8 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
 
         aFormatter->Print( 0, "%s\n", (const char*) item.m_model.c_str() );
     }
+
+    aFormatter->Print( 0, exportSectionSeparator( _( "Spice Directives" ) ) );
 
     // Print out all directives found in the text fields on the schematics
     writeDirectives( aFormatter, aCtl );

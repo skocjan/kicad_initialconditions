@@ -363,3 +363,19 @@ void NETLIST_EXPORTER::findAllUnitsOfComponent( SCH_COMPONENT* aComponent,
     }
 }
 
+wxString NETLIST_EXPORTER::exportSectionSeparator( wxString aTitle ) const
+{
+    const int maxLen = 80;
+    int diff = maxLen - aTitle.Length() - 2;
+    int pre = ( diff / 2 );
+    int post = pre +
+             ( diff % 2 );
+
+    aTitle = wxString(" ") + aTitle + wxString(" ");
+    aTitle.Prepend( wxString( '*', pre  ));
+    aTitle.Append ( wxString( '*', post ));
+    aTitle.Append ( wxString( "\n" ));
+
+    return aTitle;
+}
+

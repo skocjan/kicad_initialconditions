@@ -39,11 +39,39 @@ public:
     bool TransferDataToWindow() override;
 
 private:
+    void onSearchTextEnter( wxCommandEvent& event ) override
+    {
+        updateSignalList();
+    }
+
+    void onSearchCancel( wxCommandEvent& event ) override
+    {
+        m_searchCtrl->SetValue( wxString( "" ) );
+    }
+
     void onSignalAdd( wxCommandEvent& event ) override
     {
         addSelectionToPlotFrame();
     }
 
+    void onKeyDownInSearchBox( wxKeyEvent & event ) override
+    {
+        if( event.GetKeyCode() == WXK_UP ||
+            event.GetKeyCode() == WXK_DOWN  )
+        {
+            wxKeyEvent * newEvt = new wxKeyEvent( wxEVT_KEY_DOWN ); //event.GetKeyCode() );
+            m_signals->GetEventHandler()->QueueEvent( newEvt );
+        }
+    }
+
+    void onCharInSignalList( wxKeyEvent& event ) override
+    {
+        wxKeyEvent * newEvt = new wxKeyEvent( event.GetKeyCode() );
+        m_searchCtrl->GetEventHandler()->QueueEvent( newEvt );
+    }
+
+    void addItemIfUnfiltered( const wxString* aCurrentName,  const wxString* aNetname );
+    void updateSignalList();
     void addSelectionToPlotFrame();
 
     SIM_PLOT_FRAME* m_plotFrame;

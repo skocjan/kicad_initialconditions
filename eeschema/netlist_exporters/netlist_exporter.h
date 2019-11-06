@@ -163,6 +163,12 @@ protected:
                                   LIB_PART*       aEntry,
                                   SCH_SHEET_PATH* aSheetPath );
 
+    /**
+     * @brief Returns formatted line which can be written into netlist.
+     * It is used to make logical separation between different parts of netlist file.
+     */
+    wxString exportSectionSeparator( wxString aTitle ) const;
+
 public:
 
     /**

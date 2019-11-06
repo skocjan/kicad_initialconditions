@@ -45,8 +45,24 @@ bool DIALOG_SIGNAL_LIST::TransferDataFromWindow()
 }
 
 
-bool DIALOG_SIGNAL_LIST::TransferDataToWindow()
+void DIALOG_SIGNAL_LIST::addItemIfUnfiltered( const wxString* aCurrentName,  const wxString* aNetname )
 {
+    wxString label;
+
+    if( aCurrentName != nullptr )
+        label = wxString::Format( "%s(%s)", *aCurrentName, *aNetname );
+    else
+        label = wxString::Format( "V(%s)", *aNetname );
+
+    if( label.Lower().Contains( m_searchCtrl->GetValue().Lower() ) )
+        m_signals->Append( label );
+}
+
+
+void DIALOG_SIGNAL_LIST::updateSignalList()
+{
+    m_signals->Clear();
+
     // Create a list of possible signals
     /// @todo it could include separated mag & phase for AC analysis
     if( m_exporter )
@@ -58,7 +74,7 @@ bool DIALOG_SIGNAL_LIST::TransferDataToWindow()
             wxString netname = UnescapeString( net.first );
 
             if( netname != "GND" && netname != "0" )
-                m_signals->Append( wxString::Format( "V(%s)", netname ) );
+                addItemIfUnfiltered( nullptr, &netname );
         }
 
         auto simType = m_exporter->GetSimType();
@@ -71,11 +87,19 @@ bool DIALOG_SIGNAL_LIST::TransferDataToWindow()
                 for( const auto& current :
                         NETLIST_EXPORTER_PSPICE_SIM::GetCurrents( (SPICE_PRIMITIVE) item.m_primitive ) )
                 {
-                    m_signals->Append( wxString::Format( "%s(%s)", current, item.m_refName ) );
+                    addItemIfUnfiltered( &current, &item.m_refName );
                 }
             }
         }
     }
+
+    m_signals->SetSelection( 0 );
+}
+
+
+bool DIALOG_SIGNAL_LIST::TransferDataToWindow()
+{
+    updateSignalList();
 
     bool success = DIALOG_SIGNAL_LIST_BASE::TransferDataToWindow();
 
