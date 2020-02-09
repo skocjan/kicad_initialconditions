@@ -150,10 +150,35 @@ void DIALOG_SPICE_MODEL::Init()
     m_expFallDelay->SetValidator( m_spiceEmptyValidator );
     m_expFallConst->SetValidator( m_spiceEmptyValidator );
 
+    m_fmOffset->SetValidator( m_spiceEmptyValidator );
+    m_fmAmplitude->SetValidator( m_spiceEmptyValidator );
+    m_fmFcarrier->SetValidator( m_spiceEmptyValidator );
+    m_fmModIndex->SetValidator( m_spiceEmptyValidator );
+    m_fmFsignal->SetValidator( m_spiceEmptyValidator );
+    m_fmPhaseC->SetValidator( m_spiceEmptyValidator );
+    m_fmPhaseS->SetValidator( m_spiceEmptyValidator );
+
+    m_amAmplitude->SetValidator( m_spiceEmptyValidator );
+    m_amOffset->SetValidator( m_spiceEmptyValidator );
+    m_amModulatingFreq->SetValidator( m_spiceEmptyValidator );
+    m_amCarrierFreq->SetValidator( m_spiceEmptyValidator );
+    m_amSignalDelay->SetValidator( m_spiceEmptyValidator );
+    m_amPhase->SetValidator( m_spiceEmptyValidator );
+
+    m_rnTS->SetValidator( m_spiceEmptyValidator );
+    m_rnTD->SetValidator( m_spiceEmptyValidator );
+    m_rnParam1->SetValidator( m_spiceEmptyValidator );
+    m_rnParam2->SetValidator( m_spiceEmptyValidator );
+
     m_pwlTimeCol = m_pwlValList->AppendColumn( "Time [s]", wxLIST_FORMAT_LEFT, 100 );
     m_pwlValueCol = m_pwlValList->AppendColumn( "Value [V/A]", wxLIST_FORMAT_LEFT, 100 );
 
     m_sdbSizerOK->SetDefault();
+
+    // Hide pages that aren't fully implemented yet
+    // wxPanel::Hide() isn't enough on some platforms
+    m_powerNotebook->RemovePage( m_powerNotebook->FindPage( m_pwrTransNoise ) );
+    m_powerNotebook->RemovePage( m_powerNotebook->FindPage( m_pwrExtData ) );
 }
 
 
@@ -468,6 +493,52 @@ bool DIALOG_SPICE_MODEL::parsePowerSource( const wxString& aModel )
         }
 
 
+        else if( tkn == "sffm" )
+        {
+            m_powerNotebook->SetSelection( m_powerNotebook->FindPage( m_pwrFm ) );
+
+            genericProcessing = true;
+            genericReqParamsCount = 4;
+            genericControls = { m_fmOffset, m_fmAmplitude,
+                m_fmFcarrier, m_fmModIndex, m_fmFsignal, m_fmFsignal, m_fmPhaseC, m_fmPhaseS };
+        }
+
+
+        else if( tkn == "am" )
+        {
+            m_powerNotebook->SetSelection( m_powerNotebook->FindPage( m_pwrAm ) );
+
+            genericProcessing = true;
+            genericReqParamsCount = 5;
+            genericControls = { m_amAmplitude, m_amOffset,
+                m_amModulatingFreq, m_amCarrierFreq, m_amSignalDelay, m_amPhase };
+        }
+
+
+        else if( tkn == "trrandom" )
+        {
+            m_powerNotebook->SetSelection( m_powerNotebook->FindPage( m_pwrRandom ) );
+
+            // first token will configure drop-down list
+            if( !tokenizer.HasMoreTokens() )
+                return false;
+
+            tkn = tokenizer.GetNextToken().Lower();
+            long type;
+            if( !tkn.ToLong( &type ) )
+                return false;
+
+            m_rnType->SetSelection( type - 1 );
+            wxCommandEvent dummy;
+            onRandomSourceType( dummy );
+
+            // remaining parameters can be handled in generic way
+            genericProcessing = true;
+            genericReqParamsCount = 4;
+            genericControls = { m_rnTS, m_rnTD, m_rnParam1, m_rnParam2 };
+        }
+
+
         else
         {
             // Unhandled power source type
@@ -552,7 +623,7 @@ bool DIALOG_SPICE_MODEL::generatePowerSource( wxString& aTarget ) const
             return false;
 
         genericProcessing = true;
-        trans += "pulse";
+        trans += "pulse(";
         genericReqParamsCount = 2;
         genericControls = { m_pulseInit, m_pulseNominal, m_pulseDelay,
             m_pulseRise, m_pulseFall, m_pulseWidth, m_pulsePeriod };
@@ -565,7 +636,7 @@ bool DIALOG_SPICE_MODEL::generatePowerSource( wxString& aTarget ) const
             return false;
 
         genericProcessing = true;
-        trans += "sin";
+        trans += "sin(";
         genericReqParamsCount = 2;
         genericControls = { m_sinOffset, m_sinAmplitude, m_sinFreq, m_sinDelay, m_sinDampFactor };
     }
@@ -577,7 +648,7 @@ bool DIALOG_SPICE_MODEL::generatePowerSource( wxString& aTarget ) const
             return false;
 
         genericProcessing = true;
-        trans += "exp";
+        trans += "exp(";
         genericReqParamsCount = 2;
         genericControls = { m_expInit, m_expPulsed,
             m_expRiseDelay, m_expRiseConst, m_expFallDelay, m_expFallConst };
@@ -601,10 +672,50 @@ bool DIALOG_SPICE_MODEL::generatePowerSource( wxString& aTarget ) const
         }
     }
 
+
+    else if( page == m_pwrFm )
+    {
+        if( !m_pwrFm->Validate() )
+            return false;
+
+        genericProcessing = true;
+        trans += "sffm(";
+        genericReqParamsCount = 4;
+        genericControls = { m_fmOffset, m_fmAmplitude,
+            m_fmFcarrier, m_fmModIndex, m_fmFsignal, m_fmFsignal, m_fmPhaseC, m_fmPhaseS };
+    }
+
+
+    else if( page == m_pwrAm )
+    {
+        if( !m_pwrAm->Validate() )
+            return false;
+
+        genericProcessing = true;
+        trans += "am(";
+        genericReqParamsCount = 5;
+        genericControls = { m_amAmplitude, m_amOffset,
+            m_amModulatingFreq, m_amCarrierFreq, m_amSignalDelay, m_amPhase };
+    }
+
+
+    else if( page == m_pwrRandom )
+    {
+        if( !m_pwrRandom->Validate() )
+            return false;
+
+        // first parameter must be retrieved from drop-down list selection
+        trans += "trrandom(";
+        trans.Append( wxString::Format( wxT( "%i " ), (m_rnType->GetSelection() + 1 ) ) );
+
+        genericProcessing = true;
+        genericReqParamsCount = 4;
+        genericControls = { m_rnTS, m_rnTD, m_rnParam1, m_rnParam2 };
+    }
+
+
     if( genericProcessing )
     {
-        trans += "(";
-
         auto first_empty = std::find_if( genericControls.begin(), genericControls.end(), empty );
         auto first_not_empty = std::find_if( genericControls.begin(), genericControls.end(),
                 []( const wxTextCtrl* c ){ return !empty( c ); } );
@@ -881,6 +992,41 @@ void DIALOG_SPICE_MODEL::onPwlRemove( wxCommandEvent& event )
 {
     long idx = m_pwlValList->GetNextItem( -1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED );
     m_pwlValList->DeleteItem( idx );
+}
+
+
+void DIALOG_SPICE_MODEL::onRandomSourceType( wxCommandEvent& event )
+{
+    switch( m_rnType->GetSelection() )
+    {
+    case 0:
+        // uniform white noise
+        m_rnParam1Text->SetLabel( _( "Range:" ) );
+        m_rnParam2Text->SetLabel( _( "Offset:" ) );
+        break;
+
+    case 1:
+        // Gaussian
+        m_rnParam1Text->SetLabel( _( "Standard deviation:" ) );
+        m_rnParam2Text->SetLabel( _( "Mean:" ) );
+        break;
+
+    case 2:
+        // exponential
+        m_rnParam1Text->SetLabel( _( "Mean:" ) );
+        m_rnParam2Text->SetLabel( _( "Offset:" ) );
+        break;
+
+    case 3:
+        // Poisson
+        m_rnParam1Text->SetLabel( _( "Lambda:" ) );
+        m_rnParam2Text->SetLabel( _( "Offset:" ) );
+        break;
+
+    default:
+        wxFAIL_MSG( _( "type of random generator for source is invalid" ) );
+        break;
+    }
 }
 
 
