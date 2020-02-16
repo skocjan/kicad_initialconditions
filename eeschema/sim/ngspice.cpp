@@ -46,6 +46,7 @@ NGSPICE::NGSPICE() :
         m_ngSpice_Circ( nullptr ),
         m_ngSpice_Command( nullptr ),
         m_ngGet_Vec_Info( nullptr ),
+        m_ngSpice_CurPlot( nullptr ),
         m_ngSpice_AllPlots( nullptr ),
         m_ngSpice_AllVecs( nullptr ),
         m_ngSpice_Running( nullptr ),
@@ -63,6 +64,34 @@ NGSPICE::~NGSPICE()
 void NGSPICE::Init()
 {
     Command( "reset" );
+}
+
+
+std::vector<std::string> NGSPICE::AllPlots()
+{
+    LOCALE_IO c_locale;       // ngspice works correctly only with C locale
+    char* currentPlot = m_ngSpice_CurPlot();
+    char** allPlots = m_ngSpice_AllVecs(currentPlot);
+    int noOfPlots = 0;
+
+    if( allPlots != nullptr )
+    {
+        for( char** plot = allPlots; *plot != nullptr; plot++ )
+            noOfPlots++;
+    }
+
+    {
+        std::vector<std::string> retVal (noOfPlots);
+        if( noOfPlots > 0 )
+        {
+            for( int i = 0; i < noOfPlots; i++, allPlots++ )
+            {
+                std::string vec = *allPlots;
+                retVal.at(i) = vec;
+            }
+        }
+        return retVal;
+    }
 }
 
 
@@ -361,6 +390,7 @@ void NGSPICE::init_dll()
     m_ngSpice_Circ = (ngSpice_Circ) m_dll.GetSymbol( "ngSpice_Circ" );
     m_ngSpice_Command = (ngSpice_Command) m_dll.GetSymbol( "ngSpice_Command" );
     m_ngGet_Vec_Info = (ngGet_Vec_Info) m_dll.GetSymbol( "ngGet_Vec_Info" );
+    m_ngSpice_CurPlot = (ngSpice_CurPlot) m_dll.GetSymbol( "ngSpice_CurPlot" );
     m_ngSpice_AllPlots = (ngSpice_AllPlots) m_dll.GetSymbol( "ngSpice_AllPlots" );
     m_ngSpice_AllVecs = (ngSpice_AllVecs) m_dll.GetSymbol( "ngSpice_AllVecs" );
     m_ngSpice_Running = (ngSpice_Running) m_dll.GetSymbol( "ngSpice_running" ); // it is not a typo
