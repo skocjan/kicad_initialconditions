@@ -23,6 +23,7 @@
  */
 
 #include "netlist_exporter_pspice_sim.h"
+#include <wx/regex.h>
 #include <wx/tokenzr.h>
 
 wxString NETLIST_EXPORTER_PSPICE_SIM::GetSpiceVector( const wxString& aName, SIM_PLOT_TYPE aType,
@@ -129,16 +130,18 @@ SIM_TYPE NETLIST_EXPORTER_PSPICE_SIM::GetSimType()
 
 SIM_TYPE NETLIST_EXPORTER_PSPICE_SIM::CommandToSimType( const wxString& aCmd )
 {
-    const std::map<wxString, SIM_TYPE> simCmds = {
-        { ".ac ", ST_AC }, { ".dc ", ST_DC }, { ".disto ", ST_DISTORTION }, { ".noise ", ST_NOISE },
-        { ".op ", ST_OP }, { ".pz ", ST_POLE_ZERO }, { ".sens ", ST_SENSITIVITY }, { ".tf ", ST_TRANS_FUNC },
-        { ".tran ", ST_TRANSIENT }
+    const std::vector<std::pair<wxString, SIM_TYPE>> simCmds = {
+        { "^.ac\\M.*", ST_AC }, { "^.dc\\M.*", ST_DC }, { "^.tran\\M.*", ST_TRANSIENT }, { "^.op\\M.*", ST_OP },
+        { "^.disto\\M.*", ST_DISTORTION }, { "^.noise\\M.*", ST_NOISE }, { "^.pz\\M.*", ST_POLE_ZERO },
+        { "^.sens\\M.*", ST_SENSITIVITY }, { "^.tf\\M.*", ST_TRANS_FUNC }
     };
-    wxString lcaseCmd = aCmd.Lower();
+    wxRegEx simCmd;
 
     for( const auto& c : simCmds )
     {
-        if( lcaseCmd.StartsWith( c.first ) )
+        simCmd.Compile( c.first, wxRE_ADVANCED | wxRE_NOSUB | wxRE_ICASE  );
+
+        if( simCmd.Matches( aCmd ) )
             return c.second;
     }
 
