@@ -55,15 +55,13 @@ private:
 class SIM_NOPLOT_PANEL : public SIM_PLOT_PANEL_BASE, public wxPanel
 {
 public:
-    SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, //SIM_PLOT_FRAME* aMainFrame, wxWindowID id,
-                    const wxPoint& pos = wxDefaultPosition,
+    SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, const wxPoint& pos = wxDefaultPosition,
         const wxSize& size = wxDefaultSize, long style = 0, const wxString& name = wxPanelNameStr );
 
     virtual ~SIM_NOPLOT_PANEL();
 
 private:
 
-    //wxPanel* m_panel;
     wxSizer* m_sizer;
     wxStaticText* m_textInfo;
 };

@@ -60,17 +60,21 @@ bool SIM_PLOT_PANEL_BASE::IsPlottable( SIM_TYPE aSimType )
 }
 
 
-SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, //SIM_PLOT_FRAME* aMainFrame, wxWindowID id,
+SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent,
                 const wxPoint& pos, const wxSize& size, long style, const wxString& name )
     : SIM_PLOT_PANEL_BASE( aType ),
       wxPanel( parent, wxID_ANY, pos, size, style, name )
 {
-    //m_panel = new wxPanel();
     m_sizer = new wxBoxSizer( wxVERTICAL );
-    m_textInfo = new wxStaticText( parent, wxID_ANY,
+    m_sizer->Add( 0, 0, 1, wxEXPAND, 5 );
+
+    m_textInfo = new wxStaticText( dynamic_cast<wxWindow*>( this ), wxID_ANY,
                     _( "This simulation provide no plots. Please refer to console window for results" ),
-                    wxDefaultPosition, wxDefaultSize );
-    m_sizer->Add( m_textInfo, 0, wxALL, 10 );
+                    wxDefaultPosition, wxDefaultSize, wxALL | wxEXPAND | wxALIGN_CENTER_HORIZONTAL );
+    m_textInfo->SetForegroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+
+    m_sizer->Add( m_textInfo, 0, wxALL | wxEXPAND, 10 );
+    m_sizer->Add( 0, 0, 1, wxEXPAND, 5 );
 }
 
 
@@ -78,6 +82,5 @@ SIM_NOPLOT_PANEL::~SIM_NOPLOT_PANEL()
 {
     delete m_textInfo;
     delete m_sizer;
-    //delete m_panel;
 }
 
