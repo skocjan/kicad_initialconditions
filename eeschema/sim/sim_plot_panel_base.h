@@ -41,6 +41,11 @@ public:
 
     static bool IsPlottable( SIM_TYPE aSimType );
 
+    SIM_TYPE GetType() const
+    {
+        return m_type;
+    }
+
 private:
 
     const SIM_TYPE m_type;

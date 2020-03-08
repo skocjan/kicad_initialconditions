@@ -366,13 +366,13 @@ void CURSOR::UpdateReference()
 SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
                                 wxWindowID id, const wxPoint& pos,
         const wxSize& size, long style, const wxString& name )
-        : mpWindow( parent, id, pos, size, style ),
+        : SIM_PLOT_PANEL_BASE( aType ),
+          mpWindow( parent, id, pos, size, style ),
           m_colorIdx( 0 ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
           m_axis_y2( nullptr ),
           m_dotted_cp( false ),
-          m_type( aType ),
           m_masterFrame( aMainFrame )
 {
     LimitView( true );
@@ -382,7 +382,7 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
                     GetPlotColor( SIM_FG_COLOR ),
                     GetPlotColor( SIM_AXIS_COLOR ) );
 
-    switch( m_type )
+    switch( GetType() )
     {
         case ST_AC:
             m_axis_x = new FREQUENCY_LOG_SCALE( _( "Frequency" ), mpALIGN_BOTTOM );
@@ -490,7 +490,7 @@ bool SIM_PLOT_PANEL::AddTrace( const wxString& aName, int aPoints,
 
     if( addedNewEntry )
     {
-        if( m_type == ST_TRANSIENT )
+        if( GetType() == ST_TRANSIENT )
         {
             bool hasVoltageTraces = false;
 
@@ -531,7 +531,7 @@ bool SIM_PLOT_PANEL::AddTrace( const wxString& aName, int aPoints,
 
     std::vector<double> tmp( aY, aY + aPoints );
 
-    if( m_type == ST_AC )
+    if( GetType() == ST_AC )
     {
         if( aFlags & SPT_AC_PHASE )
         {

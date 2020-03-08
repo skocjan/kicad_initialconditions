@@ -164,7 +164,7 @@ protected:
 };
 
 
-class SIM_PLOT_PANEL : public mpWindow
+class SIM_PLOT_PANEL : public SIM_PLOT_PANEL_BASE, public mpWindow
 {
 public:
     SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
@@ -177,11 +177,6 @@ public:
     void SetMasterFrame( SIM_PLOT_FRAME* aFrame )
     {
         m_masterFrame = aFrame;
-    }
-
-    SIM_TYPE GetType() const
-    {
-        return m_type;
     }
 
     wxString GetLabelX() const
@@ -308,8 +303,6 @@ private:
     bool m_dotted_cp;
 
     std::vector<mpLayer*> m_topLevel;
-
-    const SIM_TYPE m_type;
 
     SIM_PLOT_FRAME* m_masterFrame;
 };
