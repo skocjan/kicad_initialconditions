@@ -762,12 +762,12 @@ bool SIM_PLOT_FRAME::updatePlot( const TRACE_DESC& aDescriptor, SIM_PLOT_PANEL* 
 
 void SIM_PLOT_FRAME::updateSignalList()
 {
+    m_signals->ClearAll();
+
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
     if( !plotPanel )
         return;
-
-    m_signals->ClearAll();
 
     wxSize size = m_signals->GetClientSize();
     m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x );
