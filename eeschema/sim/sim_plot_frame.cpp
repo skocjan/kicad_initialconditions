@@ -1509,11 +1509,12 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
         for( const auto& vec : m_simulator->AllPlots() )
         {
             double val = m_simulator->GetRealPlot( vec.c_str(), 1 ).at(0);
-            wxPrintf("[SK], Vector: %s, Value: %f\n", vec.c_str(), val);
 
-            //m_simConsole->AppendText( aEvent.GetString() + "\n" );
-            //m_simConsole->SetInsertionPointEnd();
+            wxString outLine;
+            outLine.Printf( _("Vector: %s, Value: %e\n"), vec.c_str(), val);
 
+            m_simConsole->AppendText( outLine );
+            m_simConsole->SetInsertionPointEnd();
         }
     }
 }
