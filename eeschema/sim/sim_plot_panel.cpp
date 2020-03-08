@@ -469,21 +469,6 @@ wxColour SIM_PLOT_PANEL::GetPlotColor( int aIndex )
 }
 
 
-bool SIM_PLOT_PANEL::IsPlottable( SIM_TYPE aSimType )
-{
-    switch( aSimType )
-    {
-        case ST_AC:
-        case ST_DC:
-        case ST_TRANSIENT:
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-
 void SIM_PLOT_PANEL::UpdateTraceStyle( TRACE* trace )
 {
     int        flags    = trace->GetFlags();

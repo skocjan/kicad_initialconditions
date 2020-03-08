@@ -2,7 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2016 CERN
- * @author Maciej Suminski <maciej.suminski@cern.ch>
+ * Copyright (C) 2016-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * @author Sylwester Kocjan <s.kocjan@o2.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,29 +23,45 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef SIM_TYPES_H
-#define SIM_TYPES_H
+#ifndef __SIM_PLOT_PANEL_BASE_H
+#define __SIM_PLOT_PANEL_BASE_H
 
-///> Possible simulation types
-enum SIM_TYPE {
-    ST_UNKNOWN, ST_AC, ST_DC, ST_DISTORTION, ST_NOISE, ST_OP,
-    ST_POLE_ZERO, ST_SENSITIVITY, ST_TRANS_FUNC, ST_TRANSIENT,
-    ST_INVALID = -1
+#include "sim_types.h"
+#include <wx/panel.h>
+#include <wx/sizer.h>
+#include <wx/stattext.h>
+
+
+class SIM_PLOT_PANEL_BASE
+{
+public:
+    SIM_PLOT_PANEL_BASE();
+    SIM_PLOT_PANEL_BASE( SIM_TYPE );
+    virtual ~SIM_PLOT_PANEL_BASE();
+
+    static bool IsPlottable( SIM_TYPE aSimType );
+
+private:
+
+    const SIM_TYPE m_type;
 };
 
-///> Possible plot types
-enum SIM_PLOT_TYPE {
-    // Y axis
-    SPT_VOLTAGE         = 0x01,
-    SPT_CURRENT         = 0x02,
-    SPT_AC_PHASE        = 0x04,
-    SPT_AC_MAG          = 0x08,
 
-    // X axis
-    SPT_TIME            = 0x10,
-    SPT_LIN_FREQUENCY   = 0x20,
-    SPT_LOG_FREQUENCY   = 0x20,
-    SPT_SWEEP           = 0x40
+class SIM_NOPLOT_PANEL : public SIM_PLOT_PANEL_BASE, public wxPanel
+{
+public:
+    SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, //SIM_PLOT_FRAME* aMainFrame, wxWindowID id,
+                    const wxPoint& pos = wxDefaultPosition,
+        const wxSize& size = wxDefaultSize, long style = 0, const wxString& name = wxPanelNameStr );
+
+    virtual ~SIM_NOPLOT_PANEL();
+
+private:
+
+    //wxPanel* m_panel;
+    wxSizer* m_sizer;
+    wxStaticText* m_textInfo;
 };
 
-#endif /* SIM_TYPES_H */
+
+#endif

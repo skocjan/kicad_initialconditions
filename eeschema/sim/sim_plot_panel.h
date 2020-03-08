@@ -29,6 +29,7 @@
 
 #include <widgets/mathplot.h>
 #include <map>
+#include "sim_plot_panel_base.h"
 #include "sim_types.h"
 
 class SIM_PLOT_FRAME;
@@ -182,8 +183,6 @@ public:
     {
         return m_type;
     }
-
-    static bool IsPlottable( SIM_TYPE aSimType );
 
     wxString GetLabelX() const
     {
