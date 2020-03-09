@@ -66,15 +66,18 @@ SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent,
       wxPanel( parent, wxID_ANY, pos, size, style, name )
 {
     m_sizer = new wxBoxSizer( wxVERTICAL );
-    m_sizer->Add( 0, 0, 1, wxEXPAND, 5 );
+    m_sizer->Add( 0, 1, 1, wxEXPAND, 5 );
 
     m_textInfo = new wxStaticText( dynamic_cast<wxWindow*>( this ), wxID_ANY,
                     _( "This simulation provide no plots. Please refer to console window for results" ),
                     wxDefaultPosition, wxDefaultSize, wxALL | wxEXPAND | wxALIGN_CENTER_HORIZONTAL );
+    m_textInfo->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, wxEmptyString ) );
     m_textInfo->SetForegroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
 
-    m_sizer->Add( m_textInfo, 0, wxALL | wxEXPAND, 10 );
-    m_sizer->Add( 0, 0, 1, wxEXPAND, 5 );
+    m_sizer->Add( m_textInfo, 1, wxALL | wxEXPAND, 5 );
+    m_sizer->Add( 0, 1, 1, wxEXPAND, 5 );
+
+    dynamic_cast<wxWindow*>( this )->SetSizer( m_sizer );
 }
 
 
