@@ -117,7 +117,7 @@ TRACE_DESC::TRACE_DESC( const NETLIST_EXPORTER_PSPICE_SIM& aExporter, const wxSt
 wxString SIM_PLOT_FRAME::m_savedWorkbooksPath;
 
 SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
-    : SIM_PLOT_FRAME_BASE( aParent ), m_lastSimPlot( nullptr )
+    : SIM_PLOT_FRAME_BASE( aParent ), m_lastSimPlot( nullptr ), m_welcomePanel( nullptr )
 {
     SetKiway( this, aKiway );
     m_signalsIconColorList = NULL;
@@ -203,7 +203,9 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onSettings,    this, m_settings->GetId() );
 
     m_toolBar->Realize();
-    m_plotNotebook->SetPageText( 0, _( "Welcome!" ) );
+
+    m_welcomePanel = new SIM_PLOT_PANEL_BASE( ST_UNKNOWN, m_plotNotebook, wxID_ANY );
+    m_plotNotebook->AddPage( m_welcomePanel, _( "Welcome!" ), 1, true );
 
     // the settings dialog will be created later, on demand.
     // if created in the ctor, for some obscure reason, there is an issue
@@ -465,11 +467,6 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
                                                     ->GetViewControls()
                                                     ->IsMousewheelPanEnabled() );
 
-        if( m_welcomePanel )
-        {
-            m_plotNotebook->DeletePage( 0 );
-            m_welcomePanel = nullptr;
-        }
         plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
     }
     else
@@ -477,6 +474,12 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         SIM_NOPLOT_PANEL* panel;
         panel = new SIM_NOPLOT_PANEL( aSimType, m_plotNotebook, wxID_ANY );
         plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
+    }
+
+    if( m_welcomePanel )
+    {
+        m_plotNotebook->DeletePage( 0 );
+        m_welcomePanel = nullptr;
     }
 
     m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ), wxString::Format( _( "Plot%u" ),
@@ -552,10 +555,10 @@ void SIM_PLOT_FRAME::RemoveTuner( TUNER_SLIDER* aTuner, bool aErase )
 
 SIM_PLOT_PANEL* SIM_PLOT_FRAME::CurrentPlot() const
 {
-    SIM_PLOT_PANEL_BASE* curPage = currentPlotWindow();
+    SIM_PLOT_PANEL_BASE* curPage   = currentPlotWindow();
 
-    return ( dynamic_cast<wxWindow*>( curPage ) == dynamic_cast<wxWindow*>( m_welcomePanel ) ) ?
-                    nullptr : dynamic_cast<SIM_PLOT_PANEL*>( curPage );
+    return ( ( curPage->GetType() == ST_UNKNOWN ) ?
+                    nullptr : dynamic_cast<SIM_PLOT_PANEL*>( curPage ) );
 }
 
 

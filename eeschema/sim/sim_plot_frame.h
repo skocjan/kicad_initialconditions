@@ -441,6 +441,9 @@ private:
     ///> A string to store the path of saved workbooks during a session
     static wxString m_savedWorkbooksPath;
 
+    ///> Info panel
+    SIM_PLOT_PANEL_BASE* m_welcomePanel;
+
     // Variables for temporary storage:
     int m_splitterLeftRightSashPosition;
     int m_splitterPlotAndConsoleSashPosition;

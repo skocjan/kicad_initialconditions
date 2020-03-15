@@ -26,10 +26,18 @@
 #define SIM_TYPES_H
 
 ///> Possible simulation types
-enum SIM_TYPE {
-    ST_UNKNOWN, ST_AC, ST_DC, ST_DISTORTION, ST_NOISE, ST_OP,
-    ST_POLE_ZERO, ST_SENSITIVITY, ST_TRANS_FUNC, ST_TRANSIENT,
-    ST_INVALID = -1
+enum SIM_TYPE
+{
+    ST_UNKNOWN,
+    ST_AC,
+    ST_DC,
+    ST_DISTORTION,
+    ST_NOISE,
+    ST_OP,
+    ST_POLE_ZERO,
+    ST_SENSITIVITY,
+    ST_TRANS_FUNC,
+    ST_TRANSIENT
 };
 
 ///> Possible plot types
