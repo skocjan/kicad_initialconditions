@@ -94,7 +94,5 @@ SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, wxWindowID
 
 SIM_NOPLOT_PANEL::~SIM_NOPLOT_PANEL()
 {
-    delete m_textInfo;
-    delete m_sizer;
 }
 
