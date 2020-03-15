@@ -34,8 +34,16 @@ SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE()
 }
 
 
-SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE( enum SIM_TYPE aType )
+SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE( SIM_TYPE aType )
     : m_type( aType )
+{
+}
+
+
+SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE( SIM_TYPE aType, wxWindow* parent, wxWindowID id, const wxPoint& pos,
+                const wxSize& size, long style, const wxString& name )
+    : wxWindow( parent, id, pos, size, style, name ),
+      m_type( aType )
 {
 }
 
@@ -60,10 +68,9 @@ bool SIM_PLOT_PANEL_BASE::IsPlottable( SIM_TYPE aSimType )
 }
 
 
-SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent,
+SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
                 const wxPoint& pos, const wxSize& size, long style, const wxString& name )
-    : SIM_PLOT_PANEL_BASE( aType ),
-      wxPanel( parent, wxID_ANY, pos, size, style, name )
+    : SIM_PLOT_PANEL_BASE( aType, parent, id, pos, size, style, name )
 {
     m_sizer = new wxBoxSizer( wxVERTICAL );
     m_sizer->Add( 0, 1, 1, wxEXPAND, 5 );

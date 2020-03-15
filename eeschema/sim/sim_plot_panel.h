@@ -28,6 +28,7 @@
 #define __SIM_PLOT_PANEL_H
 
 #include <widgets/mathplot.h>
+#include <wx/sizer.h>
 #include <map>
 #include "sim_plot_panel_base.h"
 #include "sim_types.h"
@@ -164,14 +165,14 @@ protected:
 };
 
 
-class SIM_PLOT_PANEL : public SIM_PLOT_PANEL_BASE, public mpWindow
+class SIM_PLOT_PANEL : public SIM_PLOT_PANEL_BASE
 {
 public:
     SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
                     wxWindowID id, const wxPoint& pos = wxDefaultPosition,
         const wxSize& size = wxDefaultSize, long style = 0, const wxString& name = wxPanelNameStr );
 
-    ~SIM_PLOT_PANEL();
+    virtual ~SIM_PLOT_PANEL();
 
     ///> set the pointer to the sim plot frame
     void SetMasterFrame( SIM_PLOT_FRAME* aFrame )
@@ -223,7 +224,7 @@ public:
         m_axis_x->SetTicks( !aEnable );
         m_axis_y1->SetTicks( !aEnable );
         m_axis_y2->SetTicks( !aEnable );
-        UpdateAll();
+        m_plotWin->UpdateAll();
     }
 
     bool IsGridShown() const
@@ -238,7 +239,7 @@ public:
     void ShowLegend( bool aEnable )
     {
         m_legend->SetVisible( aEnable );
-        UpdateAll();
+        m_plotWin->UpdateAll();
     }
 
     bool IsLegendShown() const
@@ -255,7 +256,7 @@ public:
             UpdateTraceStyle( tr.second );
         }
 
-        UpdateAll();
+        m_plotWin->UpdateAll();
     }
 
     bool GetDottedCurrentPhase() const
@@ -285,12 +286,22 @@ public:
     ///> Update plot colors
     void UpdatePlotColors();
 
+    ///> Getter for math plot window
+    mpWindow* GetPlotWin() const
+    {
+        return m_plotWin;
+    }
+
 private:
     ///> @return a new color from the palette
     wxColour generateColor();
 
     // Color index to get a new color from the palette
     unsigned int m_colorIdx;
+
+    // Top-level plot window
+    mpWindow* m_plotWin;
+    wxBoxSizer* m_sizer;
 
     // Traces to be plotted
     std::map<wxString, TRACE*> m_traces;

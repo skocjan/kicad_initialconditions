@@ -366,8 +366,7 @@ void CURSOR::UpdateReference()
 SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
                                 wxWindowID id, const wxPoint& pos,
         const wxSize& size, long style, const wxString& name )
-        : SIM_PLOT_PANEL_BASE( aType ),
-          mpWindow( parent, id, pos, size, style ),
+        : SIM_PLOT_PANEL_BASE( aType, parent, id, pos, size, style, name ),
           m_colorIdx( 0 ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
@@ -375,12 +374,15 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
           m_dotted_cp( false ),
           m_masterFrame( aMainFrame )
 {
-    LimitView( true );
-    SetMargins( 50, 80, 50, 80 );
+    m_sizer = new wxBoxSizer( wxVERTICAL );
+    m_plotWin = new mpWindow( this, wxID_ANY, pos, size, style );
 
-    SetColourTheme( GetPlotColor( SIM_BG_COLOR ),
-                    GetPlotColor( SIM_FG_COLOR ),
-                    GetPlotColor( SIM_AXIS_COLOR ) );
+    m_plotWin->LimitView( true );
+    m_plotWin->SetMargins( 50, 80, 50, 80 );
+
+    m_plotWin->SetColourTheme( GetPlotColor( SIM_BG_COLOR ),
+                               GetPlotColor( SIM_FG_COLOR ),
+                               GetPlotColor( SIM_AXIS_COLOR ) );
 
     switch( GetType() )
     {
@@ -419,30 +421,33 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
         m_axis_x->SetTicks( false );
         m_axis_x->SetNameAlign ( mpALIGN_BOTTOM );
 
-        AddLayer( m_axis_x );
+        m_plotWin->AddLayer( m_axis_x );
     }
 
     if( m_axis_y1 )
     {
         m_axis_y1->SetTicks( false );
         m_axis_y1->SetNameAlign ( mpALIGN_LEFT );
-        AddLayer( m_axis_y1 );
+        m_plotWin->AddLayer( m_axis_y1 );
     }
 
     if( m_axis_y2 )
     {
         m_axis_y2->SetTicks( false );
         m_axis_y2->SetNameAlign ( mpALIGN_RIGHT );
-        AddLayer( m_axis_y2 );
+        m_plotWin->AddLayer( m_axis_y2 );
     }
 
     // a mpInfoLegend displays le name of traces on the left top panel corner:
     m_legend = new mpInfoLegend( wxRect( 0, 40, 200, 40 ), wxTRANSPARENT_BRUSH );
     m_legend->SetVisible( false );
-    AddLayer( m_legend );
+    m_plotWin->AddLayer( m_legend );
 
-    EnableDoubleBuffer( true );
-    UpdateAll();
+    m_plotWin->EnableDoubleBuffer( true );
+    m_plotWin->UpdateAll();
+
+    m_sizer->Add( m_plotWin, 1, wxALL | wxEXPAND, 1 );
+    dynamic_cast<wxWindow*>( this )->SetSizer( m_sizer );
 }
 
 
@@ -455,11 +460,11 @@ SIM_PLOT_PANEL::~SIM_PLOT_PANEL()
 void SIM_PLOT_PANEL::UpdatePlotColors()
 {
     // Update bg and fg colors:
-    SetColourTheme( GetPlotColor( SIM_BG_COLOR ),
+    m_plotWin->SetColourTheme( GetPlotColor( SIM_BG_COLOR ),
                     GetPlotColor( SIM_FG_COLOR ),
                     GetPlotColor( SIM_AXIS_COLOR ) );
 
-    UpdateAll();
+    m_plotWin->UpdateAll();
 }
 
 
@@ -517,12 +522,12 @@ bool SIM_PLOT_PANEL::AddTrace( const wxString& aName, int aPoints,
 
         // It is a trick to keep legend & coords always on the top
         for( mpLayer* l : m_topLevel )
-            DelLayer( l );
+            m_plotWin->DelLayer( l );
 
-        AddLayer( (mpLayer*) trace );
+        m_plotWin->AddLayer( (mpLayer*) trace );
 
         for( mpLayer* l : m_topLevel )
-            AddLayer( l );
+            m_plotWin->AddLayer( l );
     }
     else
     {
@@ -554,7 +559,7 @@ bool SIM_PLOT_PANEL::AddTrace( const wxString& aName, int aPoints,
 
     trace->SetFlags( aFlags );
 
-    UpdateAll();
+    m_plotWin->UpdateAll();
 
     return addedNewEntry;
 }
@@ -570,9 +575,9 @@ bool SIM_PLOT_PANEL::DeleteTrace( const wxString& aName )
         m_traces.erase( it );
 
         if( CURSOR* cursor = trace->GetCursor() )
-            DelLayer( cursor, true );
+            m_plotWin->DelLayer( cursor, true );
 
-        DelLayer( trace, true, true );
+        m_plotWin->DelLayer( trace, true, true );
         ResetScales();
 
         return true;
@@ -612,16 +617,17 @@ void SIM_PLOT_PANEL::EnableCursor( const wxString& aName, bool aEnable )
     if( aEnable )
     {
         CURSOR* c = new CURSOR( t, this );
-        int plotCenter = GetMarginLeft() + ( GetXScreen() - GetMarginLeft() - GetMarginRight() ) / 2;
+        int plotCenter = GetPlotWin()->GetMarginLeft() +
+            ( GetPlotWin()->GetXScreen() - GetPlotWin()->GetMarginLeft() - GetPlotWin()->GetMarginRight() ) / 2;
         c->SetX( plotCenter );
         t->SetCursor( c );
-        AddLayer( c );
+        m_plotWin->AddLayer( c );
     }
     else
     {
         CURSOR* c = t->GetCursor();
         t->SetCursor( NULL );
-        DelLayer( c, true );
+        m_plotWin->DelLayer( c, true );
     }
 
     // Notify the parent window about the changes
