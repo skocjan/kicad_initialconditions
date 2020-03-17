@@ -1500,23 +1500,28 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
     }
     else if ( simType == ST_OP )
     {
-        //for( const auto& net : m_exporter->GetNetIndexMap() )
-        //{
-        //    int node = net.second;
-        //
-        /// @todo display calculated values on the schematic
-        //    if( node > 0 )
-        //        m_simulator->Command( wxString::Format( "print v(%d)", node ).ToStdString() );
-        //}
+        m_simConsole->AppendText( _( "\n\nSimulation results:\n\n" ) );
+        m_simConsole->SetInsertionPointEnd();
+
         for( const auto& vec : m_simulator->AllPlots() )
         {
-            double val = m_simulator->GetRealPlot( vec.c_str(), 1 ).at(0);
+            double val = m_simulator->GetRealPlot( vec, 1 ).at(0);
 
-            wxString outLine;
-            outLine.Printf( _("Vector: %s, Value: %e\n"), vec.c_str(), val);
+            wxString outLine, signal;
+            SIM_PLOT_TYPE type = m_exporter->Vector2Signal( vec, signal );
+
+            size_t padding = (signal.length() < 25) ?
+                             (25 - signal.length() ) : 1;
+
+            outLine.Printf( _("%s%s"), ( signal + wxT( ":" ) ).Pad( padding, wxUniChar( ' ' ) ),
+                                         SPICE_VALUE( val ).ToSpiceString() );
+
+            outLine.Append( type == SPT_CURRENT ? "A\n" : "V\n" );
 
             m_simConsole->AppendText( outLine );
             m_simConsole->SetInsertionPointEnd();
+
+            // @todo display calculated values on the schematic
         }
     }
 }
