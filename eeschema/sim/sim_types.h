@@ -52,7 +52,9 @@ enum SIM_PLOT_TYPE {
     SPT_TIME            = 0x10,
     SPT_LIN_FREQUENCY   = 0x20,
     SPT_LOG_FREQUENCY   = 0x20,
-    SPT_SWEEP           = 0x40
+    SPT_SWEEP           = 0x40,
+
+    SPT_UNKNOWN         = 0x00
 };
 
 #endif /* SIM_TYPES_H */
