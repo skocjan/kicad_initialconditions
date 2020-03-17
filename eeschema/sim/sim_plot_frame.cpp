@@ -482,9 +482,11 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         m_welcomePanel = nullptr;
     }
 
-    m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ), wxString::Format( _( "Plot%u" ),
-            (unsigned int) m_plotNotebook->GetPageCount() + 1 ), true );
+    wxString pageTitle( m_simulator->Type2Name( aSimType, true ) );
+    pageTitle.Prepend(wxString::Format(
+                    _( "Plot%u - " ), (unsigned int) m_plotNotebook->GetPageCount() + 1 ) );
 
+    m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ), pageTitle, true );
     m_plots[plotPanel] = PLOT_INFO(); //TODO sk why not new?
 
     return plotPanel;

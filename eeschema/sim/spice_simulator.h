@@ -32,6 +32,8 @@
 #include <complex>
 #include <memory>
 
+#include <wx/string.h>
+
 class SPICE_REPORTER;
 class SPICE_SIMULATOR;
 
@@ -148,6 +150,15 @@ public:
      * @return The netlist.
      */
     virtual const std::string GetNetlist() const = 0;
+
+    /**
+     * @brief Returns a string with simulation name based on enum.
+     * @param aType is the enum describing simulation type
+     * @param aShortName if true  - return is in format "TRAN", "OP".
+     *                   if false - return is in format "Transient", "Operating Point".
+     * @return String with requested name as described above.
+     */
+    static wxString Type2Name( SIM_TYPE aType, bool aShortName );
 
 protected:
     ///> Reporter object to receive simulation log
