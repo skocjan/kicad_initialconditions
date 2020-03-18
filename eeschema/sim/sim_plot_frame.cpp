@@ -507,9 +507,9 @@ void SIM_PLOT_FRAME::AddCurrentPlot( const wxString& aDeviceName, const wxString
 
 void SIM_PLOT_FRAME::AddTuner( SCH_COMPONENT* aComponent )
 {
-    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    SIM_PLOT_PANEL_BASE* plotPanel = currentPlotWindow();
 
-    if( !plotPanel )
+    if( !plotPanel || plotPanel == m_welcomePanel )
         return;
 
     // For now limit the tuner tool to RLC components
