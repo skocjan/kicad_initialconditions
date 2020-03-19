@@ -374,12 +374,12 @@ private:
 
         PLOT_INFO& operator [] ( SIM_PLOT_PANEL* aPlot )
         {
-            return (*dynamic_cast<std::map<SIM_PLOT_PANEL_BASE*, PLOT_INFO>*>(this))[dynamic_cast<SIM_PLOT_PANEL_BASE*>(aPlot)];
+            return (*this)[dynamic_cast<SIM_PLOT_PANEL_BASE*>(aPlot)];
         }
 
         PLOT_INFO& operator [] ( SIM_NOPLOT_PANEL* aPlot )
         {
-            return (*dynamic_cast<std::map<SIM_PLOT_PANEL_BASE*, PLOT_INFO>*>(this))[dynamic_cast<SIM_PLOT_PANEL_BASE*>(aPlot)];
+            return (*this)[dynamic_cast<SIM_PLOT_PANEL_BASE*>(aPlot)];
         }
     };
 #if 0
