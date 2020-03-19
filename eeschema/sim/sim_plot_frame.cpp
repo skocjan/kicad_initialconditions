@@ -955,7 +955,7 @@ bool SIM_PLOT_FRAME::saveWorkbook( const wxString& aPath )
         file.Create();
     }
 
-    file.AddLine( wxString::Format( "%lu", m_plots.size() ) );
+    file.AddLine( wxString::Format( "%llu", m_plots.size() ) );
 
     for( const auto& plot : m_plots )
     {
@@ -963,7 +963,7 @@ bool SIM_PLOT_FRAME::saveWorkbook( const wxString& aPath )
         {
             file.AddLine( wxString::Format( "%d", plot.first->GetType() ) );
             file.AddLine( plot.second.m_simCommand );
-            file.AddLine( wxString::Format( "%lu", plot.second.m_traces.size() ) );
+            file.AddLine( wxString::Format( "%llu", plot.second.m_traces.size() ) );
 
             for( const auto& trace : plot.second.m_traces )
             {
