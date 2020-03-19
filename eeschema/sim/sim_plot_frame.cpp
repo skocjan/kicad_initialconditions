@@ -1278,7 +1278,7 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
     if( !m_settingsDlg )
         m_settingsDlg = new DIALOG_SIM_SETTINGS( this );
 
-    if( plotPanelWindow )
+    if( plotPanelWindow != m_welcomePanel )
         m_settingsDlg->SetSimCommand( m_plots[plotPanelWindow].m_simCommand );
 
     m_settingsDlg->SetNetlistExporter( m_exporter.get() );
