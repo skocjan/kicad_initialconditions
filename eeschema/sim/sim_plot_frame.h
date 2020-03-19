@@ -257,11 +257,6 @@ private:
     void updateSignalList();
 
     /**
-     * @brief Updates the cursor values list.
-     */
-    void updateCursors();
-
-    /**
      * @brief Filters out tuners for components that do not exist anymore.
      * Decisions are based on the current NETLIST_EXPORTER data.
      */
