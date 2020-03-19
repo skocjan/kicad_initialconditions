@@ -559,7 +559,7 @@ SIM_PLOT_PANEL* SIM_PLOT_FRAME::CurrentPlot() const
 {
     SIM_PLOT_PANEL_BASE* curPage   = currentPlotWindow();
 
-    return ( ( curPage->GetType() == ST_UNKNOWN ) ?
+    return ( ( !curPage || curPage->GetType() == ST_UNKNOWN ) ?
                     nullptr : dynamic_cast<SIM_PLOT_PANEL*>( curPage ) );
 }
 
