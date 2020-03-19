@@ -407,10 +407,9 @@ void SIM_PLOT_FRAME::fillDefaultColorList( bool aWhiteBg )
 }
 
 
-void SIM_PLOT_FRAME::StartSimulation()
+void SIM_PLOT_FRAME::StartSimulation( wxString aSimCommand )
 {
     STRING_FORMATTER formatter;
-    SIM_PLOT_PANEL_BASE* plotPanel = currentPlotWindow();
 
     if( !m_settingsDlg )
         m_settingsDlg = new DIALOG_SIM_SETTINGS( this );
@@ -419,8 +418,16 @@ void SIM_PLOT_FRAME::StartSimulation()
     updateNetlistExporter();
 
     // SK bug: what if I close panel before simulation?
-    if( plotPanel )
-        m_exporter->SetSimCommand( m_plots[plotPanel].m_simCommand );
+    if( aSimCommand.IsEmpty() )
+    {
+        SIM_PLOT_PANEL_BASE* plotPanel = currentPlotWindow();
+        if( plotPanel )
+            m_exporter->SetSimCommand( m_plots[plotPanel].m_simCommand );
+    }
+    else
+    {
+        m_exporter->SetSimCommand( aSimCommand );
+    }
 
     if( !m_exporter->Format( &formatter, m_settingsDlg->GetNetlistOptions() ) )
     {
@@ -894,9 +901,9 @@ bool SIM_PLOT_FRAME::loadWorkbook( const wxString& aPath )
         if( !file.GetNextLine().ToLong( &plotType ) )
             return false;
 
-        SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( NewPlotPanel( (SIM_TYPE) plotType ) );
+        SIM_PLOT_PANEL_BASE* plotPanel = NewPlotPanel( (SIM_TYPE) plotType );
         m_plots[plotPanel].m_simCommand = file.GetNextLine();
-        StartSimulation();
+        StartSimulation( m_plots[plotPanel].m_simCommand );
 
         // Perform simulation, so plots can be added with values
         do

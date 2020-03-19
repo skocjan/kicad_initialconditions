@@ -135,7 +135,7 @@ public:
     SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent );
     ~SIM_PLOT_FRAME();
 
-    void StartSimulation();
+    void StartSimulation( wxString aSimCommand = wxT( "" ) );
     void StopSimulation();
     bool IsSimulationRunning();
 
