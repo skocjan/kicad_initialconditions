@@ -118,7 +118,10 @@ TRACE_DESC::TRACE_DESC( const NETLIST_EXPORTER_PSPICE_SIM& aExporter, const wxSt
 wxString SIM_PLOT_FRAME::m_savedWorkbooksPath;
 
 SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
-        : SIM_PLOT_FRAME_BASE( aParent ), m_lastSimPlot( nullptr ), m_welcomePanel( nullptr )
+        : SIM_PLOT_FRAME_BASE( aParent ),
+          m_lastSimPlot( nullptr ),
+          m_welcomePanel( nullptr ),
+          m_plotNumber( 0 )
 {
     SetKiway( this, aKiway );
     m_signalsIconColorList = NULL;
@@ -500,10 +503,10 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         m_welcomePanel = nullptr;
     }
 
-    m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ),
-            wxString::Format( _( "Plot%u" ), (unsigned int) m_plotNotebook->GetPageCount() + 1 ),
-            true );
+    wxString pageTitle( m_simulator->Type2Name( aSimType, true ) );
+    pageTitle.Prepend( wxString::Format( _( "Plot%u - " ), (unsigned int) ++m_plotNumber ) );
 
+    m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ), pageTitle, true );
     m_plots[plotPanel] = PLOT_INFO();
 
     return plotPanel;

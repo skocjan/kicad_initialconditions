@@ -438,6 +438,7 @@ private:
     int m_splitterSignalsSashPosition;
     int m_splitterTuneValuesSashPosition;
     bool m_plotUseWhiteBg;
+    unsigned int m_plotNumber;
 
     ///> The color list to draw traces, bg, fg, axis...
     std::vector<wxColour> m_colorList;
