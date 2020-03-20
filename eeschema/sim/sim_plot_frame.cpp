@@ -419,10 +419,9 @@ void SIM_PLOT_FRAME::fillDefaultColorList( bool aWhiteBg )
 }
 
 
-void SIM_PLOT_FRAME::StartSimulation()
+void SIM_PLOT_FRAME::StartSimulation( wxString aSimCommand )
 {
     STRING_FORMATTER formatter;
-    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
     if( !m_settingsDlg )
         m_settingsDlg = new DIALOG_SIM_SETTINGS( this );
@@ -430,8 +429,16 @@ void SIM_PLOT_FRAME::StartSimulation()
     m_simConsole->Clear();
     updateNetlistExporter();
 
-    if( plotPanel )
-        m_exporter->SetSimCommand( m_plots[plotPanel].m_simCommand );
+    if( aSimCommand.IsEmpty() )
+    {
+        SIM_PLOT_PANEL_BASE* plotPanel = currentPlotWindow();
+        if( plotPanel )
+            m_exporter->SetSimCommand( m_plots[plotPanel].m_simCommand );
+    }
+    else
+    {
+        m_exporter->SetSimCommand( aSimCommand );
+    }
 
     if( !m_exporter->Format( &formatter, m_settingsDlg->GetNetlistOptions() ) )
     {
@@ -464,21 +471,35 @@ bool SIM_PLOT_FRAME::IsSimulationRunning()
 }
 
 
-SIM_PLOT_PANEL* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
+SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
 {
-    SIM_PLOT_PANEL* plotPanel = new SIM_PLOT_PANEL( aSimType, m_plotNotebook, this, wxID_ANY );
+    SIM_PLOT_PANEL_BASE* plotPanel;
 
-    plotPanel->EnableMouseWheelPan(
-            m_schematicFrame->GetCanvas()->GetViewControls()->IsMousewheelPanEnabled() );
-
-    if( m_welcomePanel )
+    if( SIM_PLOT_PANEL_BASE::IsPlottable( aSimType ) )
     {
-        m_plotNotebook->DeletePage( 0 );
-        m_welcomePanel = nullptr;
+        SIM_PLOT_PANEL* panel;
+        panel = new SIM_PLOT_PANEL( aSimType, m_plotNotebook, this, wxID_ANY );
+
+        panel->EnableMouseWheelPan(
+                m_schematicFrame->GetCanvas()->GetViewControls()->IsMousewheelPanEnabled() );
+
+        if( m_welcomePanel )
+        {
+            m_plotNotebook->DeletePage( 0 );
+            m_welcomePanel = nullptr;
+        }
+        plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
+    }
+    else
+    {
+        SIM_NOPLOT_PANEL* panel;
+        panel     = new SIM_NOPLOT_PANEL( aSimType, m_plotNotebook );
+        plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
     }
 
-    m_plotNotebook->AddPage( plotPanel, wxString::Format( _( "Plot%u" ),
-            (unsigned int) m_plotNotebook->GetPageCount() + 1 ), true );
+    m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ),
+            wxString::Format( _( "Plot%u" ), (unsigned int) m_plotNotebook->GetPageCount() + 1 ),
+            true );
 
     m_plots[plotPanel] = PLOT_INFO();
 
@@ -572,7 +593,7 @@ void SIM_PLOT_FRAME::addPlot( const wxString& aName, SIM_PLOT_TYPE aType, const 
         m_simConsole->SetInsertionPointEnd();
         return;
     }
-    else if( !SIM_PLOT_PANEL::IsPlottable( simType ) )
+    else if( !SIM_PLOT_PANEL_BASE::IsPlottable( simType ) )
     {
         m_simConsole->AppendText( _( "Error: simulation type doesn't support plotting!\n" ) );
         m_simConsole->SetInsertionPointEnd();
@@ -583,7 +604,7 @@ void SIM_PLOT_FRAME::addPlot( const wxString& aName, SIM_PLOT_TYPE aType, const 
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
     if( !plotPanel || plotPanel->GetType() != simType )
-        plotPanel = NewPlotPanel( simType );
+        plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( NewPlotPanel( simType ) );
 
     TRACE_DESC descriptor( *m_exporter, aName, aType, aParam );
 
@@ -649,7 +670,7 @@ bool SIM_PLOT_FRAME::updatePlot( const TRACE_DESC& aDescriptor, SIM_PLOT_PANEL* 
     wxString spiceVector = m_exporter->GetSpiceVector( aDescriptor.GetName(),
             aDescriptor.GetType(), aDescriptor.GetParam() );
 
-    if( !SIM_PLOT_PANEL::IsPlottable( simType ) )
+    if( !SIM_PLOT_PANEL_BASE::IsPlottable( simType ) )
     {
         // There is no plot to be shown
         m_simulator->Command( wxString::Format( "print %s", spiceVector ).ToStdString() );
@@ -760,12 +781,12 @@ bool SIM_PLOT_FRAME::updatePlot( const TRACE_DESC& aDescriptor, SIM_PLOT_PANEL* 
 
 void SIM_PLOT_FRAME::updateSignalList()
 {
+    m_signals->ClearAll();
+
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
     if( !plotPanel )
         return;
-
-    m_signals->ClearAll();
 
     wxSize size = m_signals->GetClientSize();
     m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x );
@@ -891,9 +912,9 @@ bool SIM_PLOT_FRAME::loadWorkbook( const wxString& aPath )
         if( !file.GetNextLine().ToLong( &plotType ) )
             return false;
 
-        SIM_PLOT_PANEL* plotPanel = NewPlotPanel( (SIM_TYPE) plotType );
+        SIM_PLOT_PANEL_BASE* plotPanel  = NewPlotPanel( (SIM_TYPE) plotType );
         m_plots[plotPanel].m_simCommand = file.GetNextLine();
-        StartSimulation();
+        StartSimulation( m_plots[plotPanel].m_simCommand );
 
         // Perform simulation, so plots can be added with values
         do
@@ -952,19 +973,24 @@ bool SIM_PLOT_FRAME::saveWorkbook( const wxString& aPath )
         file.Create();
     }
 
-    file.AddLine( wxString::Format( "%lu", m_plots.size() ) );
+    file.AddLine( wxString::Format( "%llu", m_plots.size() ) );
 
     for( const auto& plot : m_plots )
     {
-        file.AddLine( wxString::Format( "%d", plot.first->GetType() ) );
-        file.AddLine( plot.second.m_simCommand );
-        file.AddLine( wxString::Format( "%lu", plot.second.m_traces.size() ) );
+        SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( plot.first );
 
-        for( const auto& trace : plot.second.m_traces )
+        if( plotPanel )
         {
-            file.AddLine( wxString::Format( "%d", trace.second.GetType() ) );
-            file.AddLine( trace.second.GetName() );
-            file.AddLine( trace.second.GetParam() );
+            file.AddLine( wxString::Format( "%d", plotPanel->GetType() ) );
+            file.AddLine( plot.second.m_simCommand );
+            file.AddLine( wxString::Format( "%llu", plot.second.m_traces.size() ) );
+
+            for( const auto& trace : plot.second.m_traces )
+            {
+                file.AddLine( wxString::Format( "%d", trace.second.GetType() ) );
+                file.AddLine( trace.second.GetName() );
+                file.AddLine( trace.second.GetParam() );
+            }
         }
     }
 
@@ -1000,10 +1026,10 @@ void SIM_PLOT_FRAME::menuNewPlot( wxCommandEvent& aEvent )
 {
     SIM_TYPE type = m_exporter->GetSimType();
 
-    if( SIM_PLOT_PANEL::IsPlottable( type ) )
+    if( SIM_PLOT_PANEL_BASE::IsPlottable( type ) )
     {
         SIM_PLOT_PANEL* prevPlot = CurrentPlot();
-        SIM_PLOT_PANEL* newPlot = NewPlotPanel( type );
+        SIM_PLOT_PANEL* newPlot  = dynamic_cast<SIM_PLOT_PANEL*>( NewPlotPanel( type ) );
 
         // If the previous plot had the same type, copy the simulation command
         if( prevPlot )
@@ -1201,7 +1227,8 @@ void SIM_PLOT_FRAME::onPlotClose( wxAuiNotebookEvent& event )
     if( idx == wxNOT_FOUND )
         return;
 
-    SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( m_plotNotebook->GetPage( idx ) );
+    SIM_PLOT_PANEL_BASE* plotPanel =
+            dynamic_cast<SIM_PLOT_PANEL_BASE*>( m_plotNotebook->GetPage( idx ) );
 
     if( !plotPanel )
         return;
@@ -1258,7 +1285,7 @@ void SIM_PLOT_FRAME::onSimulate( wxCommandEvent& event )
 
 void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
 {
-    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    SIM_PLOT_PANEL_BASE* plotPanelWindow = currentPlotWindow();
 
     // Initial processing is required to e.g. display a list of power sources
     updateNetlistExporter();
@@ -1272,32 +1299,26 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
     if( !m_settingsDlg )
         m_settingsDlg = new DIALOG_SIM_SETTINGS( this );
 
-    if( plotPanel )
-        m_settingsDlg->SetSimCommand( m_plots[plotPanel].m_simCommand );
+    if( plotPanelWindow )
+        m_settingsDlg->SetSimCommand( m_plots[plotPanelWindow].m_simCommand );
 
     m_settingsDlg->SetNetlistExporter( m_exporter.get() );
 
     if( m_settingsDlg->ShowModal() == wxID_OK )
     {
         wxString newCommand = m_settingsDlg->GetSimCommand();
+        SIM_PLOT_PANEL* plotPanel  = dynamic_cast<SIM_PLOT_PANEL*>( plotPanelWindow );
+
         wxPrintf( "[SK] SIM_PLOT_FRAME::onSettings(), newCommand: %s", newCommand.c_str() );
         SIM_TYPE newSimType = NETLIST_EXPORTER_PSPICE_SIM::CommandToSimType( newCommand );
 
-        if( SIM_PLOT_PANEL::IsPlottable( newSimType ) )
+        // If it is a new simulation type, open a new plot
+        if( !plotPanel || ( plotPanel && plotPanel->GetType() != newSimType ) )
         {
-            // If it is a new simulation type, open a new plot
-            if( !plotPanel || ( plotPanel && plotPanel->GetType() != newSimType ) )
-            {
-                plotPanel = NewPlotPanel( newSimType );
-            }
+            plotPanelWindow = NewPlotPanel( newSimType );
+        }
 
-            m_plots[plotPanel].m_simCommand = newCommand;
-        }
-        else
-        {
-            // TODO sk: ensure no plots (close them all)
-            ;
-        }
+        m_plots[plotPanelWindow].m_simCommand = newCommand;
     }
 }
 
@@ -1308,7 +1329,7 @@ void SIM_PLOT_FRAME::onAddSignal( wxCommandEvent& event )
 
     if( !plotPanel || !m_exporter || plotPanel->GetType() != m_exporter->GetSimType() )
     {
-        DisplayInfoMessage( this, _( "You need to run simulation first." ) );
+        DisplayInfoMessage( this, _( "You need to run plot-providing simulation first." ) );
         return;
     }
 
@@ -1467,13 +1488,13 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
     if( !plotPanel || plotPanel->GetType() != simType )
-        plotPanel = NewPlotPanel( simType );
+        plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( NewPlotPanel( simType ) );
 
     if( IsSimulationRunning() )
         return;
 
     // If there are any signals plotted, update them
-    if( SIM_PLOT_PANEL::IsPlottable( simType ) )
+    if( SIM_PLOT_PANEL_BASE::IsPlottable( simType ) )
     {
         TRACE_MAP& traceMap = m_plots[plotPanel].m_traces;
 

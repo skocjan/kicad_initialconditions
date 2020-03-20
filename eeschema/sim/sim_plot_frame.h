@@ -51,7 +51,10 @@ class SCH_COMPONENT;
 
 class SPICE_SIMULATOR;
 class NETLIST_EXPORTER_PSPICE_SIM;
-class SIM_PLOT_PANEL;
+
+#include "sim_plot_panel.h"
+#include "sim_plot_panel_base.h"
+
 class SIM_THREAD_REPORTER;
 class TUNER_SLIDER;
 
@@ -117,6 +120,7 @@ private:
     wxString m_title;
 };
 
+
 /** Implementing SIM_PLOT_FRAME_BASE */
 class SIM_PLOT_FRAME : public SIM_PLOT_FRAME_BASE
 {
@@ -125,7 +129,7 @@ public:
     SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent );
     ~SIM_PLOT_FRAME();
 
-    void StartSimulation();
+    void StartSimulation( wxString aSimCommand = wxT( "" ) );
     void StopSimulation();
     bool IsSimulationRunning();
 
@@ -135,7 +139,7 @@ public:
      * @param aSimType is requested simulation type.
      * @return The new plot panel.
      */
-    SIM_PLOT_PANEL* NewPlotPanel( SIM_TYPE aSimType );
+    SIM_PLOT_PANEL_BASE* NewPlotPanel( SIM_TYPE aSimType );
 
     /**
      * @brief Adds a voltage plot for a given net name.
@@ -207,6 +211,14 @@ private:
      * false to use a dark background
      */
     void fillDefaultColorList( bool aWhiteBg );
+
+    /**
+     * @brief Returns the currently opened plot panel (or NULL if there is none).
+     */
+    SIM_PLOT_PANEL_BASE* currentPlotWindow() const
+    {
+        return dynamic_cast<SIM_PLOT_PANEL_BASE*>( m_plotNotebook->GetCurrentPage() );
+    }
 
     /**
      * @brief Adds a new plot to the current panel.
@@ -355,8 +367,27 @@ private:
         wxString m_simCommand;
     };
 
+    class PLOT_MAP : public std::map<SIM_PLOT_PANEL_BASE*, PLOT_INFO>
+    {
+    public:
+        PLOT_INFO& operator[]( SIM_PLOT_PANEL_BASE* aPlot )
+        {
+            return ( *dynamic_cast<std::map<SIM_PLOT_PANEL_BASE*, PLOT_INFO>*>( this ) )[aPlot];
+        }
+
+        PLOT_INFO& operator[]( SIM_PLOT_PANEL* aPlot )
+        {
+            return ( *this )[dynamic_cast<SIM_PLOT_PANEL_BASE*>( aPlot )];
+        }
+
+        PLOT_INFO& operator[]( SIM_NOPLOT_PANEL* aPlot )
+        {
+            return ( *this )[dynamic_cast<SIM_PLOT_PANEL_BASE*>( aPlot )];
+        }
+    };
+
     ///> Map of plot panels and associated data
-    std::map<SIM_PLOT_PANEL*, PLOT_INFO> m_plots;
+    PLOT_MAP m_plots;
 
     ///> List of currently displayed tuners
     std::list<TUNER_SLIDER*> m_tuners;
