@@ -480,7 +480,7 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         SIM_PLOT_PANEL* panel;
         panel = new SIM_PLOT_PANEL( aSimType, m_plotNotebook, this, wxID_ANY );
 
-        panel->EnableMouseWheelPan(
+        panel->GetPlotWin()->EnableMouseWheelPan(
                 m_schematicFrame->GetCanvas()->GetViewControls()->IsMousewheelPanEnabled() );
 
         if( m_welcomePanel )
@@ -493,7 +493,7 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
     else
     {
         SIM_NOPLOT_PANEL* panel;
-        panel     = new SIM_NOPLOT_PANEL( aSimType, m_plotNotebook );
+        panel     = new SIM_NOPLOT_PANEL( aSimType, m_plotNotebook, wxID_ANY );
         plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
     }
 
@@ -571,9 +571,11 @@ void SIM_PLOT_FRAME::RemoveTuner( TUNER_SLIDER* aTuner, bool aErase )
 
 SIM_PLOT_PANEL* SIM_PLOT_FRAME::CurrentPlot() const
 {
-    wxWindow* curPage = m_plotNotebook->GetCurrentPage();
+    SIM_PLOT_PANEL_BASE* curPage = currentPlotWindow();
 
-    return ( curPage == m_welcomePanel ) ? nullptr : static_cast<SIM_PLOT_PANEL*>( curPage );
+    return ( ( !curPage || curPage->GetType() == ST_UNKNOWN ) ?
+                     nullptr :
+                     dynamic_cast<SIM_PLOT_PANEL*>( curPage ) );
 }
 
 
@@ -977,11 +979,9 @@ bool SIM_PLOT_FRAME::saveWorkbook( const wxString& aPath )
 
     for( const auto& plot : m_plots )
     {
-        SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( plot.first );
-
-        if( plotPanel )
+        if( plot.first )
         {
-            file.AddLine( wxString::Format( "%d", plotPanel->GetType() ) );
+            file.AddLine( wxString::Format( "%d", plot.first->GetType() ) );
             file.AddLine( plot.second.m_simCommand );
             file.AddLine( wxString::Format( "%llu", plot.second.m_traces.size() ) );
 
@@ -1082,7 +1082,7 @@ void SIM_PLOT_FRAME::menuSaveImage( wxCommandEvent& event )
     if( saveDlg.ShowModal() == wxID_CANCEL )
         return;
 
-    CurrentPlot()->SaveScreenshot( saveDlg.GetPath(), wxBITMAP_TYPE_PNG );
+    CurrentPlot()->GetPlotWin()->SaveScreenshot( saveDlg.GetPath(), wxBITMAP_TYPE_PNG );
 }
 
 
@@ -1132,21 +1132,21 @@ void SIM_PLOT_FRAME::menuSaveCsv( wxCommandEvent& event )
 void SIM_PLOT_FRAME::menuZoomIn( wxCommandEvent& event )
 {
     if( CurrentPlot() )
-        CurrentPlot()->ZoomIn();
+        CurrentPlot()->GetPlotWin()->ZoomIn();
 }
 
 
 void SIM_PLOT_FRAME::menuZoomOut( wxCommandEvent& event )
 {
     if( CurrentPlot() )
-        CurrentPlot()->ZoomOut();
+        CurrentPlot()->GetPlotWin()->ZoomOut();
 }
 
 
 void SIM_PLOT_FRAME::menuZoomFit( wxCommandEvent& event )
 {
     if( CurrentPlot() )
-        CurrentPlot()->Fit();
+        CurrentPlot()->GetPlotWin()->Fit();
 }
 
 
@@ -1307,13 +1307,10 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
     if( m_settingsDlg->ShowModal() == wxID_OK )
     {
         wxString newCommand = m_settingsDlg->GetSimCommand();
-        SIM_PLOT_PANEL* plotPanel  = dynamic_cast<SIM_PLOT_PANEL*>( plotPanelWindow );
-
-        wxPrintf( "[SK] SIM_PLOT_FRAME::onSettings(), newCommand: %s", newCommand.c_str() );
         SIM_TYPE newSimType = NETLIST_EXPORTER_PSPICE_SIM::CommandToSimType( newCommand );
 
         // If it is a new simulation type, open a new plot
-        if( !plotPanel || ( plotPanel && plotPanel->GetType() != newSimType ) )
+        if( !plotPanelWindow || ( plotPanelWindow && plotPanelWindow->GetType() != newSimType ) )
         {
             plotPanelWindow = NewPlotPanel( newSimType );
         }
@@ -1485,10 +1482,10 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
     if( simType == ST_UNKNOWN )
         return;
 
-    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    SIM_PLOT_PANEL_BASE* plotPanelWindow = currentPlotWindow();
 
-    if( !plotPanel || plotPanel->GetType() != simType )
-        plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( NewPlotPanel( simType ) );
+    if( !plotPanelWindow || plotPanelWindow->GetType() != simType )
+        plotPanelWindow = NewPlotPanel( simType );
 
     if( IsSimulationRunning() )
         return;
@@ -1496,7 +1493,8 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
     // If there are any signals plotted, update them
     if( SIM_PLOT_PANEL_BASE::IsPlottable( simType ) )
     {
-        TRACE_MAP& traceMap = m_plots[plotPanel].m_traces;
+        TRACE_MAP&      traceMap  = m_plots[plotPanelWindow].m_traces;
+        SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( plotPanelWindow );
 
         for( auto it = traceMap.begin(); it != traceMap.end(); /* iteration occurs in the loop */)
         {
@@ -1512,7 +1510,7 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
         }
 
         updateSignalList();
-        plotPanel->UpdateAll();
+        plotPanel->GetPlotWin()->UpdateAll();
         plotPanel->ResetScales();
     }
     else if( simType == ST_OP )
