@@ -60,8 +60,16 @@ public:
      * @return Empty string if query is invalid, otherwise a plot name that
      * can be requested from the simulator.
      */
-    wxString GetSpiceVector( const wxString& aName, SIM_PLOT_TYPE aType,
+    wxString Component2Vector( const wxString& aName, SIM_PLOT_TYPE aType,
             const wxString& aParam = wxEmptyString ) const;
+
+    /**
+     * @brief Returns name of Spice dataset for a specific plot.
+     * @param aVector is name of the vector produced by ngspice
+     * @param [out] aSignal is output in form: V(R1), Ib(Q2), I(L8)
+     * @return SPT_VOLTAGE or SPT_CURRENT depending on aVector.
+     */
+    SIM_PLOT_TYPE Vector2Signal( const std::string& aVector, wxString& aSignal ) const;
 
     /**
      * @brief Returns a list of currents that can be probed in a Spice primitive.

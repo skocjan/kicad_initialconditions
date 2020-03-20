@@ -672,8 +672,8 @@ void SIM_PLOT_FRAME::updateNetlistExporter()
 bool SIM_PLOT_FRAME::updatePlot( const TRACE_DESC& aDescriptor, SIM_PLOT_PANEL* aPanel )
 {
     SIM_TYPE simType = m_exporter->GetSimType();
-    wxString spiceVector = m_exporter->GetSpiceVector( aDescriptor.GetName(),
-            aDescriptor.GetType(), aDescriptor.GetParam() );
+    wxString spiceVector = m_exporter->Component2Vector(
+            aDescriptor.GetName(), aDescriptor.GetType(), aDescriptor.GetParam() );
 
     if( !SIM_PLOT_PANEL_BASE::IsPlottable( simType ) )
     {
