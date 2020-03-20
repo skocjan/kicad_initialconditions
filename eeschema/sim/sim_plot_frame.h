@@ -217,6 +217,7 @@ private:
      */
     SIM_PLOT_PANEL_BASE* currentPlotWindow() const
     {
+        //TODO bug wxWindow doesn't derive from SIM_PLOT_PANEL_BASE and vice versa
         return dynamic_cast<SIM_PLOT_PANEL_BASE*>( m_plotNotebook->GetCurrentPage() );
     }
 
