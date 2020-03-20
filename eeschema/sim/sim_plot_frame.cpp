@@ -662,7 +662,8 @@ void SIM_PLOT_FRAME::removePlot( const wxString& aPlotName, bool aErase )
     plotPanel->Fit();
 
     updateSignalList();
-    updateCursors();
+    wxCommandEvent dummy;
+    onCursorUpdate( dummy );
 }
 
 
@@ -850,12 +851,6 @@ void SIM_PLOT_FRAME::updateSignalList()
         m_signals->InsertItem( imgidx, trace.first, imgidx );
         imgidx++;
     }
-}
-
-
-void SIM_PLOT_FRAME::updateCursors()
-{
-    wxQueueEvent( this, new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
 }
 
 
@@ -1236,19 +1231,18 @@ void SIM_PLOT_FRAME::onPlotClose( wxAuiNotebookEvent& event )
     SIM_PLOT_PANEL_BASE* plotPanel =
             dynamic_cast<SIM_PLOT_PANEL_BASE*>( m_plotNotebook->GetPage( idx ) );
 
-    if( !plotPanel )
-        return;
-
     m_plots.erase( plotPanel );
     updateSignalList();
-    updateCursors();
+    wxCommandEvent dummy;
+    onCursorUpdate( dummy );
 }
 
 
 void SIM_PLOT_FRAME::onPlotChanged( wxAuiNotebookEvent& event )
 {
     updateSignalList();
-    updateCursors();
+    wxCommandEvent dummy;
+    onCursorUpdate( dummy );
 }
 
 
