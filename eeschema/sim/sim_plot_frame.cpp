@@ -1280,15 +1280,24 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
     if( m_settingsDlg->ShowModal() == wxID_OK )
     {
         wxString newCommand = m_settingsDlg->GetSimCommand();
+        wxPrintf( "[SK] SIM_PLOT_FRAME::onSettings(), newCommand: %s", newCommand.c_str() );
         SIM_TYPE newSimType = NETLIST_EXPORTER_PSPICE_SIM::CommandToSimType( newCommand );
 
-        // If it is a new simulation type, open a new plot
-        if( !plotPanel || ( plotPanel && plotPanel->GetType() != newSimType ) )
+        if( SIM_PLOT_PANEL::IsPlottable( newSimType ) )
         {
-            plotPanel = NewPlotPanel( newSimType );
-        }
+            // If it is a new simulation type, open a new plot
+            if( !plotPanel || ( plotPanel && plotPanel->GetType() != newSimType ) )
+            {
+                plotPanel = NewPlotPanel( newSimType );
+            }
 
-        m_plots[plotPanel].m_simCommand = newCommand;
+            m_plots[plotPanel].m_simCommand = newCommand;
+        }
+        else
+        {
+            // TODO sk: ensure no plots (close them all)
+            ;
+        }
     }
 }
 
@@ -1485,15 +1494,23 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
         plotPanel->UpdateAll();
         plotPanel->ResetScales();
     }
-    else
+    else if( simType == ST_OP )
     {
-        /// @todo do not make it hardcoded for ngspice
-        for( const auto& net : m_exporter->GetNetIndexMap() )
+        //for( const auto& net : m_exporter->GetNetIndexMap() )
+        //{
+        //    int node = net.second;
+        //
+        /// @todo display calculated values on the schematic
+        //    if( node > 0 )
+        //        m_simulator->Command( wxString::Format( "print v(%d)", node ).ToStdString() );
+        //}
+        for( const auto& vec : m_simulator->AllPlots() )
         {
-            int node = net.second;
+            double val = m_simulator->GetRealPlot( vec.c_str(), 1 ).at( 0 );
+            wxPrintf( "[SK], Vector: %s, Value: %f\n", vec.c_str(), val );
 
-            if( node > 0 )
-                m_simulator->Command( wxString::Format( "print v(%d)", node ).ToStdString() );
+            //m_simConsole->AppendText( aEvent.GetString() + "\n" );
+            //m_simConsole->SetInsertionPointEnd();
         }
     }
 }

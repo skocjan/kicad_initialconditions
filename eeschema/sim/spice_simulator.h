@@ -89,6 +89,13 @@ public:
     }
 
     /**
+     * @brief Returns a list with all vectors generated in current simulation.
+     * @param none
+     * @return List of vector names. ?May not match to the net name elements.
+     */
+    virtual std::vector<std::string> AllPlots() = 0;
+
+    /**
      * @brief Returns a requested vector with complex values. If the vector is real, then
      * the imaginary part is set to 0 in all values.
      * @param aName is the vector named in Spice convention (e.g. V(3), I(R1)).
