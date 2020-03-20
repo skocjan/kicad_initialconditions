@@ -37,8 +37,7 @@ enum SIM_TYPE
     ST_POLE_ZERO,
     ST_SENSITIVITY,
     ST_TRANS_FUNC,
-    ST_TRANSIENT,
-    ST_INVALID = -1
+    ST_TRANSIENT
 };
 
 ///> Possible plot types

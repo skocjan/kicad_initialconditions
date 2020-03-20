@@ -118,7 +118,7 @@ TRACE_DESC::TRACE_DESC( const NETLIST_EXPORTER_PSPICE_SIM& aExporter, const wxSt
 wxString SIM_PLOT_FRAME::m_savedWorkbooksPath;
 
 SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
-    : SIM_PLOT_FRAME_BASE( aParent ), m_lastSimPlot( nullptr )
+        : SIM_PLOT_FRAME_BASE( aParent ), m_lastSimPlot( nullptr ), m_welcomePanel( nullptr )
 {
     SetKiway( this, aKiway );
     m_signalsIconColorList = NULL;
@@ -204,7 +204,9 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onSettings,    this, m_settings->GetId() );
 
     m_toolBar->Realize();
-    m_plotNotebook->SetPageText( 0, _( "Welcome!" ) );
+
+    m_welcomePanel = new SIM_PLOT_PANEL_BASE( ST_UNKNOWN, m_plotNotebook, wxID_ANY );
+    m_plotNotebook->AddPage( m_welcomePanel, _( "Welcome!" ), 1, true );
 
     // the settings dialog will be created later, on demand.
     // if created in the ctor, for some obscure reason, there is an issue
@@ -483,11 +485,6 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         panel->GetPlotWin()->EnableMouseWheelPan(
                 m_schematicFrame->GetCanvas()->GetViewControls()->IsMousewheelPanEnabled() );
 
-        if( m_welcomePanel )
-        {
-            m_plotNotebook->DeletePage( 0 );
-            m_welcomePanel = nullptr;
-        }
         plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
     }
     else
@@ -495,6 +492,12 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         SIM_NOPLOT_PANEL* panel;
         panel     = new SIM_NOPLOT_PANEL( aSimType, m_plotNotebook, wxID_ANY );
         plotPanel = dynamic_cast<SIM_PLOT_PANEL_BASE*>( panel );
+    }
+
+    if( m_welcomePanel )
+    {
+        m_plotNotebook->DeletePage( 0 );
+        m_welcomePanel = nullptr;
     }
 
     m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ),
@@ -521,9 +524,9 @@ void SIM_PLOT_FRAME::AddCurrentPlot( const wxString& aDeviceName, const wxString
 
 void SIM_PLOT_FRAME::AddTuner( SCH_COMPONENT* aComponent )
 {
-    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    SIM_PLOT_PANEL_BASE* plotPanel = currentPlotWindow();
 
-    if( !plotPanel )
+    if( !plotPanel || plotPanel == m_welcomePanel )
         return;
 
     // For now limit the tuner tool to RLC components
@@ -1299,7 +1302,7 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
     if( !m_settingsDlg )
         m_settingsDlg = new DIALOG_SIM_SETTINGS( this );
 
-    if( plotPanelWindow )
+    if( plotPanelWindow != m_welcomePanel )
         m_settingsDlg->SetSimCommand( m_plots[plotPanelWindow].m_simCommand );
 
     m_settingsDlg->SetNetlistExporter( m_exporter.get() );
