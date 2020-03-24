@@ -39,9 +39,10 @@
 #include <wx/image.h>
 #include <wx/tipwin.h>
 
+#include <algorithm>
 #include <cmath>
-#include <cstdio>   // used only for debug
-#include <ctime>    // used for representation of x axes involving date
+#include <cstdio> // used only for debug
+#include <ctime>  // used for representation of x axes involving date
 #include <set>
 
 // Memory leak debugging
@@ -3406,30 +3407,16 @@ void mpFXYVector::SetData( const std::vector<double>& xs, const std::vector<doub
     // Update internal variables for the bounding box.
     if( xs.size()>0 )
     {
-        m_minX  = xs[0];
-        m_maxX  = xs[0];
-        m_minY  = ys[0];
-        m_maxY  = ys[0];
+        auto result = std::minmax_element( xs.begin(), xs.end() );
+        m_minX      = *result.first;
+        m_maxX      = *result.second;
 
-        std::vector<double>::const_iterator it;
+        result = std::minmax_element( ys.begin(), ys.end() );
+        m_minY = *result.first;
+        m_maxY = *result.second;
 
-        for( it = xs.begin(); it!=xs.end(); it++ )
-        {
-            if( *it<m_minX )
-                m_minX = *it;
-
-            if( *it>m_maxX )
-                m_maxX = *it;
-        }
-
-        for( it = ys.begin(); it!=ys.end(); it++ )
-        {
-            if( *it<m_minY )
-                m_minY = *it;
-
-            if( *it>m_maxY )
-                m_maxY = *it;
-        }
+        m_minYindex = std::distance( ys.begin(), result.first );
+        m_maxYindex = std::distance( ys.begin(), result.second );
 
         // printf("minX %.10f maxX %.10f\n ", m_minX, m_maxX );
         // printf("minY %.10f maxY %.10f\n ", m_minY, m_maxY );
@@ -3440,6 +3427,8 @@ void mpFXYVector::SetData( const std::vector<double>& xs, const std::vector<doub
         m_maxX  = 1;
         m_minY  = -1;
         m_maxY  = 1;
+        m_minYindex = 0;
+        m_maxYindex = 0;
     }
 }
 

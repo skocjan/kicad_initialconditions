@@ -1594,6 +1594,7 @@ protected:
     /** Loaded at SetData
      */
     double m_minX, m_maxX, m_minY, m_maxY;
+    size_t m_minYindex, m_maxYindex;
 
     /** Rewind value enumeration with mpFXY::GetNextXY.
      *  Overridden in this implementation.
@@ -1625,6 +1626,14 @@ public:
     /** Returns the actual maximum Y data (loaded in SetData).
      */
     double GetMaxY() override { return m_maxY; }
+
+    /** Returns the index, at which minimum Y can be found in data vector (loaded in SetData).
+     */
+    size_t GetMinYindex() const { return m_minYindex; }
+
+    /** Returns the index, at which maximum Y can be found in data vector (loaded in SetData).
+     */
+    size_t GetMaxYindex() const { return m_maxYindex; }
 
 protected:
 
