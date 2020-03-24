@@ -35,6 +35,26 @@ class SIM_PLOT_FRAME;
 class SIM_PLOT_PANEL;
 class TRACE;
 
+
+///> Actions that can be made with cursors
+enum CURSOR_CONTEXT_MENU_ID
+{
+    CCM_LOCAL      = 1 << 0,
+    CCM_GLOBAL     = 1 << 1,
+    CCM_MINIMUM    = 1 << 2,
+    CCM_MAXIMUM    = 1 << 3,
+    CCM_ASCENDING  = 1 << 4,
+    CCM_DESCENDING = 1 << 5,
+
+    CCM_GLOBAL_MAXIMUM           = CCM_GLOBAL | CCM_MAXIMUM,
+    CCM_GLOBAL_MINIMUM           = CCM_GLOBAL | CCM_MINIMUM,
+    CCM_LOCAL_MAXIMUM_ASCENDING  = CCM_LOCAL | CCM_MAXIMUM | CCM_ASCENDING,
+    CCM_LOCAL_MINIMUM_ASCENDING  = CCM_LOCAL | CCM_MINIMUM | CCM_ASCENDING,
+    CCM_LOCAL_MAXIMUM_DESCENDING = CCM_LOCAL | CCM_MAXIMUM | CCM_DESCENDING,
+    CCM_LOCAL_MINIMUM_DESCENDING = CCM_LOCAL | CCM_MINIMUM | CCM_DESCENDING
+};
+
+
 ///> Cursor attached to a trace to follow its values:
 class CURSOR : public mpInfoLayer
 {
@@ -49,6 +69,11 @@ public:
 
     void Plot( wxDC& aDC, mpWindow& aWindow ) override;
 
+    /**
+     * @brief Sets cursor at specific location on window
+     *
+     * @param aX: X axis position in DC (device context) coordinates (aka plot coordinates)
+     */
     void SetX( int aX )
     {
         m_reference.x = 0;
@@ -60,6 +85,15 @@ public:
     {
         m_updateRequired = true;
     }
+
+    /**
+     * @brief Sets cursor at minimum or maximum of signal
+     *
+     * @param aCommand: see description of enum CURSOR_CONTEXT_MENU_ID
+     *
+     * @return true if new extremum has been found, otherwise false
+     */
+    bool GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand );
 
     bool Inside( wxPoint& aPoint ) override;
 
@@ -97,6 +131,8 @@ public:
         SetDrawOutsideMargins( false );
         ShowName( false );
     }
+
+    friend bool CURSOR::GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand );
 
     /**
      * @brief Assigns new data set for the trace. aX and aY need to have the same length.
@@ -314,6 +350,7 @@ private:
 
     SIM_PLOT_FRAME* m_masterFrame;
 };
+
 
 wxDECLARE_EVENT( EVT_SIM_CURSOR_UPDATE, wxCommandEvent );
 

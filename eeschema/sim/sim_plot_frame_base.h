@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jul 10 2019)
+// C++ code generated with wxFormBuilder (version Oct 26 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -10,8 +10,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class wxListView;
-
 #include "kiway_player.h"
 #include <wx/string.h>
 #include <wx/bitmap.h>
@@ -90,7 +88,7 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		wxSplitterWindow* m_splitterTuneValues;
 		wxPanel* m_panelCursors;
 		wxStaticText* m_staticTextCursors;
-		wxListCtrl* m_cursors;
+		wxListView* m_cursors;
 		wxPanel* m_tunePanel;
 		wxStaticText* m_staticTextTune;
 		wxBoxSizer* m_tuneSizer;
@@ -117,6 +115,7 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		virtual void onPlotClose( wxAuiNotebookEvent& event ) { event.Skip(); }
 		virtual void onSignalDblClick( wxMouseEvent& event ) { event.Skip(); }
 		virtual void onSignalRClick( wxListEvent& event ) { event.Skip(); }
+		virtual void onCursorRClick( wxListEvent& event ) { event.Skip(); }
 
 
 	public:

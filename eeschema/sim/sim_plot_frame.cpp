@@ -1247,6 +1247,27 @@ void SIM_PLOT_FRAME::onSignalRClick( wxListEvent& event )
 }
 
 
+void SIM_PLOT_FRAME::onCursorRClick( wxListEvent& event )
+{
+    int idx = event.GetIndex();
+
+    if( idx != wxNOT_FOUND )
+        m_cursors->Select( idx );
+
+    idx = m_cursors->GetFirstSelected();
+
+    if( idx != wxNOT_FOUND )
+    {
+        const wxString& netName = m_cursors->GetItemText( idx, 0 );
+        const SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+        CURSOR* cursor = plotPanel->GetTraces().at( netName )->GetCursor();
+
+        CURSOR_CONTEXT_MENU ctxMenu( cursor );
+        m_cursors->PopupMenu( &ctxMenu );
+    }
+}
+
+
 void SIM_PLOT_FRAME::onSimulate( wxCommandEvent& event )
 {
     if( IsSimulationRunning() )
@@ -1568,6 +1589,35 @@ void SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::onMenuEvent( wxMenuEvent& aEvent )
             break;
     }
 }
+
+
+SIM_PLOT_FRAME::CURSOR_CONTEXT_MENU::CURSOR_CONTEXT_MENU( CURSOR* aCursor )
+    : m_cursor( aCursor )
+{
+    std::vector<std::pair<CURSOR_CONTEXT_MENU_ID, wxString>> menuItems =
+    {
+                    {CCM_GLOBAL_MAXIMUM          , _( "Global Maximum" )},
+                    {CCM_GLOBAL_MINIMUM          , _( "Global Minimum" )},
+                    {CCM_LOCAL_MAXIMUM_ASCENDING , _( "Local Maximum asc. order" )},
+                    {CCM_LOCAL_MINIMUM_ASCENDING , _( "Local Minimum asc. order" )},
+                    {CCM_LOCAL_MAXIMUM_DESCENDING, _( "Local Maximum desc. order" )},
+                    {CCM_LOCAL_MINIMUM_DESCENDING, _( "Local Minimum desc. order" )}
+    };
+    for( auto item : menuItems )
+    {
+        wxMenuItem* menuItem = new wxMenuItem( this, item.first, item.second );
+        Append( menuItem );
+    }
+
+    Connect( wxEVT_COMMAND_MENU_SELECTED, wxMenuEventHandler( CURSOR_CONTEXT_MENU::onMenuEvent ), NULL, this );
+}
+
+
+void SIM_PLOT_FRAME::CURSOR_CONTEXT_MENU::onMenuEvent( wxMenuEvent& aEvent )
+{
+    (void) m_cursor->GoToExtremum( static_cast<CURSOR_CONTEXT_MENU_ID>( aEvent.GetId() ) );
+}
+
 
 wxDEFINE_EVENT( EVT_SIM_UPDATE, wxCommandEvent );
 wxDEFINE_EVENT( EVT_SIM_REPORT, wxCommandEvent );

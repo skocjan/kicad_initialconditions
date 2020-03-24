@@ -52,6 +52,7 @@ class SCH_COMPONENT;
 class SPICE_SIMULATOR;
 class NETLIST_EXPORTER_PSPICE_SIM;
 class SIM_PLOT_PANEL;
+class CURSOR;
 class SIM_THREAD_REPORTER;
 class TUNER_SLIDER;
 
@@ -313,6 +314,7 @@ private:
 
     void onSignalDblClick( wxMouseEvent& event ) override;
     void onSignalRClick( wxListEvent& event ) override;
+    void onCursorRClick( wxListEvent& event ) override;
 
     void onSimulate( wxCommandEvent& event );
     void onSettings( wxCommandEvent& event );
@@ -388,6 +390,18 @@ private:
                 SHOW_CURSOR,
                 HIDE_CURSOR
             };
+    };
+
+    // Right click context menu for signals in the listbox
+    class CURSOR_CONTEXT_MENU : public wxMenu
+    {
+    public:
+        CURSOR_CONTEXT_MENU( CURSOR* aCursor );
+
+    private:
+        void onMenuEvent( wxMenuEvent& aEvent );
+
+        CURSOR* m_cursor;
     };
 
     ///> Panel that was used as the most recent one for simulations

@@ -362,6 +362,31 @@ void CURSOR::UpdateReference()
     m_reference.y = m_window->y2p( m_trace->y2s( m_coords.y ) );
 }
 
+bool CURSOR::GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand )
+{
+    // Some of the flags should exclude mutually
+    assert( ( ( aCommand & CCM_GLOBAL ) == 0 )    != ( ( aCommand & CCM_LOCAL ) == 0 ) );
+    assert( ( ( aCommand & CCM_MAXIMUM ) == 0 )   != ( ( aCommand & CCM_MINIMUM ) == 0 ) );
+
+    if( aCommand & CCM_GLOBAL )
+    {
+        double x = m_trace->GetDataX().at( ( aCommand & CCM_MAXIMUM ) ?
+                        m_trace->GetMaxYindex() : m_trace->GetMinYindex() );
+        SetX( m_plotPanel->x2p( m_trace->x2s( x ) ) );
+    }
+    else
+    {
+        assert( ( ( aCommand & CCM_ASCENDING ) == 0 ) != ( ( aCommand & CCM_DESCENDING ) == 0 ) );
+
+        // Local extremum is requested
+        wxPrintf( "Not yet implemented" );
+        return false;
+    }
+
+    m_plotPanel->UpdateAll();
+    return true;
+}
+
 
 SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
                                 wxWindowID id, const wxPoint& pos,
