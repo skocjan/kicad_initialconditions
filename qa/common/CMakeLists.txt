@@ -63,6 +63,8 @@ set( common_srcs
     geometry/test_shape_line_chain.cpp
 
     view/test_zoom_controller.cpp
+    
+    widgets/test_mathplot.cpp
 )
 
 set( common_libs

@@ -22,6 +22,7 @@
 set( QA_UTIL_COMMON_SRC
     stdstream_line_reader.cpp
     utility_program.cpp
+    plot_data_vectors.cpp
 
     geometry/line_chain_construction.cpp
     geometry/poly_set_construction.cpp
