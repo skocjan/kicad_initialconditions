@@ -27,11 +27,11 @@
 #ifndef __SIM_PLOT_PANEL_H
 #define __SIM_PLOT_PANEL_H
 
-#include "sim_plot_panel_base.h"
 #include "sim_types.h"
 #include <map>
 #include <widgets/mathplot.h>
 #include <wx/sizer.h>
+#include "sim_panel_base.h"
 
 class SIM_PLOT_FRAME;
 class SIM_PLOT_PANEL;
@@ -165,7 +165,7 @@ protected:
 };
 
 
-class SIM_PLOT_PANEL : public SIM_PLOT_PANEL_BASE
+class SIM_PLOT_PANEL : public SIM_PANEL_BASE
 {
 public:
     SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,

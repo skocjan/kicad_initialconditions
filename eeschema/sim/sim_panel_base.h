@@ -32,15 +32,15 @@
 #include <wx/stattext.h>
 
 
-class SIM_PLOT_PANEL_BASE : public wxWindow
+class SIM_PANEL_BASE : public wxWindow
 {
 public:
-    SIM_PLOT_PANEL_BASE();
-    SIM_PLOT_PANEL_BASE( SIM_TYPE );
-    SIM_PLOT_PANEL_BASE( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
+    SIM_PANEL_BASE();
+    SIM_PANEL_BASE( SIM_TYPE );
+    SIM_PANEL_BASE( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
             const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize,
             long style = 0, const wxString& name = wxPanelNameStr );
-    virtual ~SIM_PLOT_PANEL_BASE();
+    virtual ~SIM_PANEL_BASE();
 
     static bool IsPlottable( SIM_TYPE aSimType );
 
@@ -54,7 +54,7 @@ private:
 };
 
 
-class SIM_NOPLOT_PANEL : public SIM_PLOT_PANEL_BASE
+class SIM_NOPLOT_PANEL : public SIM_PANEL_BASE
 {
 public:
     SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, wxWindowID id,

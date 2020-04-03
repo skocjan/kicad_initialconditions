@@ -22,35 +22,36 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "sim_plot_panel_base.h"
+#include "sim_panel_base.h"
+
 #include "sim_plot_frame.h"
 
 #include <wx/sizer.h>
 
 
-SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE() : m_type( ST_UNKNOWN )
+SIM_PANEL_BASE::SIM_PANEL_BASE() : m_type( ST_UNKNOWN )
 {
 }
 
 
-SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE( SIM_TYPE aType ) : m_type( aType )
+SIM_PANEL_BASE::SIM_PANEL_BASE( SIM_TYPE aType ) : m_type( aType )
 {
 }
 
 
-SIM_PLOT_PANEL_BASE::SIM_PLOT_PANEL_BASE( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
+SIM_PANEL_BASE::SIM_PANEL_BASE( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
         const wxPoint& pos, const wxSize& size, long style, const wxString& name )
         : wxWindow( parent, id, pos, size, style, name ), m_type( aType )
 {
 }
 
 
-SIM_PLOT_PANEL_BASE::~SIM_PLOT_PANEL_BASE()
+SIM_PANEL_BASE::~SIM_PANEL_BASE()
 {
 }
 
 
-bool SIM_PLOT_PANEL_BASE::IsPlottable( SIM_TYPE aSimType )
+bool SIM_PANEL_BASE::IsPlottable( SIM_TYPE aSimType )
 {
     switch( aSimType )
     {
@@ -67,7 +68,7 @@ bool SIM_PLOT_PANEL_BASE::IsPlottable( SIM_TYPE aSimType )
 
 SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
         const wxPoint& pos, const wxSize& size, long style, const wxString& name )
-        : SIM_PLOT_PANEL_BASE( aType, parent, id, pos, size, style, name )
+        : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name )
 {
     m_sizer = new wxBoxSizer( wxVERTICAL );
     m_sizer->Add( 0, 1, 1, wxEXPAND, 5 );

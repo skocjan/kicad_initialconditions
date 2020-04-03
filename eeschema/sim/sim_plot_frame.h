@@ -53,7 +53,7 @@ class SPICE_SIMULATOR;
 class NETLIST_EXPORTER_PSPICE_SIM;
 
 #include "sim_plot_panel.h"
-#include "sim_plot_panel_base.h"
+#include "sim_panel_base.h"
 
 class SIM_THREAD_REPORTER;
 class TUNER_SLIDER;
@@ -139,7 +139,7 @@ public:
      * @param aSimType is requested simulation type.
      * @return The new plot panel.
      */
-    SIM_PLOT_PANEL_BASE* NewPlotPanel( SIM_TYPE aSimType );
+    SIM_PANEL_BASE* NewPlotPanel( SIM_TYPE aSimType );
 
     /**
      * @brief Adds a voltage plot for a given net name.
@@ -215,9 +215,9 @@ private:
     /**
      * @brief Returns the currently opened plot panel (or NULL if there is none).
      */
-    SIM_PLOT_PANEL_BASE* currentPlotWindow() const
+    SIM_PANEL_BASE* currentPlotWindow() const
     {
-        return dynamic_cast<SIM_PLOT_PANEL_BASE*>( m_plotNotebook->GetCurrentPage() );
+        return dynamic_cast<SIM_PANEL_BASE*>( m_plotNotebook->GetCurrentPage() );
     }
 
     /**
@@ -362,22 +362,22 @@ private:
         wxString m_simCommand;
     };
 
-    class PLOT_MAP : public std::map<SIM_PLOT_PANEL_BASE*, PLOT_INFO>
+    class PLOT_MAP : public std::map<SIM_PANEL_BASE*, PLOT_INFO>
     {
     public:
-        PLOT_INFO& operator[]( SIM_PLOT_PANEL_BASE* aPlot )
+        PLOT_INFO& operator[]( SIM_PANEL_BASE* aPlot )
         {
-            return ( *dynamic_cast<std::map<SIM_PLOT_PANEL_BASE*, PLOT_INFO>*>( this ) )[aPlot];
+            return ( *dynamic_cast<std::map<SIM_PANEL_BASE*, PLOT_INFO>*>( this ) )[aPlot];
         }
 
         PLOT_INFO& operator[]( SIM_PLOT_PANEL* aPlot )
         {
-            return ( *this )[dynamic_cast<SIM_PLOT_PANEL_BASE*>( aPlot )];
+            return ( *this )[dynamic_cast<SIM_PANEL_BASE*>( aPlot )];
         }
 
         PLOT_INFO& operator[]( SIM_NOPLOT_PANEL* aPlot )
         {
-            return ( *this )[dynamic_cast<SIM_PLOT_PANEL_BASE*>( aPlot )];
+            return ( *this )[dynamic_cast<SIM_PANEL_BASE*>( aPlot )];
         }
     };
 
@@ -424,7 +424,7 @@ private:
     static wxString m_savedWorkbooksPath;
 
     ///> Info panel
-    SIM_PLOT_PANEL_BASE* m_welcomePanel;
+    SIM_PANEL_BASE* m_welcomePanel;
 
     // Variables for temporary storage:
     int m_splitterLeftRightSashPosition;

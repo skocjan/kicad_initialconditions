@@ -365,7 +365,7 @@ void CURSOR::UpdateReference()
 
 SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
         wxWindowID id, const wxPoint& pos, const wxSize& size, long style, const wxString& name )
-        : SIM_PLOT_PANEL_BASE( aType, parent, id, pos, size, style, name ),
+        : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name ),
           m_colorIdx( 0 ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
