@@ -659,7 +659,7 @@ void SIM_PLOT_FRAME::removePlot( const wxString& aPlotName, bool aErase )
 
     wxASSERT( plotPanel->TraceShown( aPlotName ) );
     plotPanel->DeleteTrace( aPlotName );
-    plotPanel->Fit();
+    plotPanel->GetPlotWin()->Fit();
 
     updateSignalList();
     wxCommandEvent dummy;
