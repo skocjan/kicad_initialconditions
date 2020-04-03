@@ -424,7 +424,7 @@ void SIM_PLOT_FRAME::fillDefaultColorList( bool aWhiteBg )
 }
 
 
-void SIM_PLOT_FRAME::StartSimulation( wxString aSimCommand )
+void SIM_PLOT_FRAME::StartSimulation( const wxString& aSimCommand )
 {
     STRING_FORMATTER formatter;
 
@@ -1525,9 +1525,10 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
             wxString      outLine, signal;
             SIM_PLOT_TYPE type = m_exporter->VectorToSignal( vec, signal );
 
-            size_t padding = ( signal.length() < 25 ) ? ( 25 - signal.length() ) : 1;
+            size_t tab     = 25; //characters
+            size_t padding = ( signal.length() < tab ) ? ( tab - signal.length() ) : 1;
 
-            outLine.Printf( _( "%s%s" ), ( signal + wxT( ":" ) ).Pad( padding, wxUniChar( ' ' ) ),
+            outLine.Printf( wxT( "%s%s" ), ( signal + wxT( ":" ) ).Pad( padding, wxUniChar( ' ' ) ),
                     SPICE_VALUE( val ).ToSpiceString() );
 
             outLine.Append( type == SPT_CURRENT ? "A\n" : "V\n" );

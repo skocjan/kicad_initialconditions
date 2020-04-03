@@ -129,7 +129,7 @@ public:
     SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent );
     ~SIM_PLOT_FRAME();
 
-    void StartSimulation( wxString aSimCommand = wxT( "" ) );
+    void StartSimulation( const wxString& aSimCommand = wxEmptyString );
     void StopSimulation();
     bool IsSimulationRunning();
 
@@ -217,7 +217,6 @@ private:
      */
     SIM_PLOT_PANEL_BASE* currentPlotWindow() const
     {
-        //TODO bug wxWindow doesn't derive from SIM_PLOT_PANEL_BASE and vice versa
         return dynamic_cast<SIM_PLOT_PANEL_BASE*>( m_plotNotebook->GetCurrentPage() );
     }
 
