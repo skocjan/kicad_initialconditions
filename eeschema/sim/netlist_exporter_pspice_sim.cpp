@@ -26,7 +26,7 @@
 #include <wx/regex.h>
 #include <wx/tokenzr.h>
 
-wxString NETLIST_EXPORTER_PSPICE_SIM::Component2Vector(
+wxString NETLIST_EXPORTER_PSPICE_SIM::ComponentToVector(
         const wxString& aName, SIM_PLOT_TYPE aType, const wxString& aParam ) const
 {
     wxString res;
@@ -69,7 +69,7 @@ wxString NETLIST_EXPORTER_PSPICE_SIM::Component2Vector(
 }
 
 
-SIM_PLOT_TYPE NETLIST_EXPORTER_PSPICE_SIM::Vector2Signal(
+SIM_PLOT_TYPE NETLIST_EXPORTER_PSPICE_SIM::VectorToSignal(
         const std::string& aVector, wxString& aSignal ) const
 {
     using namespace std;
@@ -236,7 +236,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
 
             /// @todo is it required to switch to lowercase
             aFormatter->Print( 0, ".save %s\n",
-                    (const char*) Component2Vector( item.m_refName, SPT_CURRENT, current )
+                    (const char*) ComponentToVector( item.m_refName, SPT_CURRENT, current )
                             .c_str() );
         }
     }
@@ -246,7 +246,7 @@ void NETLIST_EXPORTER_PSPICE_SIM::writeDirectives( OUTPUTFORMATTER* aFormatter, 
     {
         // the "0" and the "GND" nets are automaticallly saved internally by ngspice.
         // Skip them
-        wxString netname = Component2Vector( netMap.first, SPT_VOLTAGE );
+        wxString netname = ComponentToVector( netMap.first, SPT_VOLTAGE );
 
         if( netname == "V(0)" || netname == "V(GND)" )
             continue;

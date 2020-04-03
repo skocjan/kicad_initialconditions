@@ -676,7 +676,7 @@ void SIM_PLOT_FRAME::updateNetlistExporter()
 bool SIM_PLOT_FRAME::updatePlot( const TRACE_DESC& aDescriptor, SIM_PLOT_PANEL* aPanel )
 {
     SIM_TYPE simType = m_exporter->GetSimType();
-    wxString spiceVector = m_exporter->Component2Vector(
+    wxString spiceVector = m_exporter->ComponentToVector(
             aDescriptor.GetName(), aDescriptor.GetType(), aDescriptor.GetParam() );
 
     if( !SIM_PLOT_PANEL_BASE::IsPlottable( simType ) )
@@ -1523,7 +1523,7 @@ void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
             double val = m_simulator->GetRealPlot( vec, 1 ).at( 0 );
 
             wxString      outLine, signal;
-            SIM_PLOT_TYPE type = m_exporter->Vector2Signal( vec, signal );
+            SIM_PLOT_TYPE type = m_exporter->VectorToSignal( vec, signal );
 
             size_t padding = ( signal.length() < 25 ) ? ( 25 - signal.length() ) : 1;
 
