@@ -165,12 +165,17 @@ SIM_TYPE NETLIST_EXPORTER_PSPICE_SIM::GetSimType()
 
 SIM_TYPE NETLIST_EXPORTER_PSPICE_SIM::CommandToSimType( const wxString& aCmd )
 {
-    wxRegEx                                          simCmd;
-    const std::vector<std::pair<wxString, SIM_TYPE>> simCmds = { { "^.ac\\M.*", ST_AC },
-        { "^.dc\\M.*", ST_DC }, { "^.tran\\M.*", ST_TRANSIENT }, { "^.op\\M.*", ST_OP },
-        { "^.disto\\M.*", ST_DISTORTION }, { "^.noise\\M.*", ST_NOISE },
-        { "^.pz\\M.*", ST_POLE_ZERO }, { "^.sens\\M.*", ST_SENSITIVITY },
+    const std::vector<std::pair<wxString, SIM_TYPE>> simCmds = {
+        { "^.ac\\M.*", ST_AC },
+        { "^.dc\\M.*", ST_DC },
+        { "^.tran\\M.*", ST_TRANSIENT },
+        { "^.op\\M.*", ST_OP },
+        { "^.disto\\M.*", ST_DISTORTION },
+        { "^.noise\\M.*", ST_NOISE },
+        { "^.pz\\M.*", ST_POLE_ZERO },
+        { "^.sens\\M.*", ST_SENSITIVITY },
         { "^.tf\\M.*", ST_TRANS_FUNC } };
+    wxRegEx simCmd;
 
     for( const auto& c : simCmds )
     {
