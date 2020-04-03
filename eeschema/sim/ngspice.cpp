@@ -67,7 +67,7 @@ void NGSPICE::Init()
 }
 
 
-std::vector<std::string> NGSPICE::AllPlots()
+vector<string> NGSPICE::AllPlots()
 {
     LOCALE_IO c_locale; // ngspice works correctly only with C locale
     char*     currentPlot = m_ngSpice_CurPlot();
@@ -75,23 +75,19 @@ std::vector<std::string> NGSPICE::AllPlots()
     int       noOfPlots   = 0;
 
     if( allPlots != nullptr )
-    {
         for( char** plot = allPlots; *plot != nullptr; plot++ )
             noOfPlots++;
-    }
 
+    vector<string> retVal( noOfPlots );
+    if( noOfPlots > 0 )
     {
-        std::vector<std::string> retVal( noOfPlots );
-        if( noOfPlots > 0 )
+        for( int i = 0; i < noOfPlots; i++, allPlots++ )
         {
-            for( int i = 0; i < noOfPlots; i++, allPlots++ )
-            {
-                std::string vec = *allPlots;
-                retVal.at( i )  = vec;
-            }
+            string vec = *allPlots;
+            retVal.at( i )  = vec;
         }
-        return retVal;
     }
+    return retVal;
 }
 
 
