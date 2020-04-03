@@ -503,7 +503,7 @@ SIM_PLOT_PANEL_BASE* SIM_PLOT_FRAME::NewPlotPanel( SIM_TYPE aSimType )
         m_welcomePanel = nullptr;
     }
 
-    wxString pageTitle( m_simulator->Type2Name( aSimType, true ) );
+    wxString pageTitle( m_simulator->TypeToName( aSimType, true ) );
     pageTitle.Prepend( wxString::Format( _( "Plot%u - " ), (unsigned int) ++m_plotNumber ) );
 
     m_plotNotebook->AddPage( dynamic_cast<wxWindow*>( plotPanel ), pageTitle, true );

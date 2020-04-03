@@ -45,7 +45,7 @@ std::shared_ptr<SPICE_SIMULATOR> SPICE_SIMULATOR::CreateInstance( const std::str
     return NULL;
 }
 
-wxString SPICE_SIMULATOR::Type2Name( SIM_TYPE aType, bool aShortName )
+wxString SPICE_SIMULATOR::TypeToName( SIM_TYPE aType, bool aShortName )
 {
     switch( aType )
     {

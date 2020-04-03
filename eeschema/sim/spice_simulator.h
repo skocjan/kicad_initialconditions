@@ -158,7 +158,7 @@ public:
      *                   if false - return is in format "Transient", "Operating Point".
      * @return String with requested name as described above.
      */
-    static wxString Type2Name( SIM_TYPE aType, bool aShortName );
+    static wxString TypeToName( SIM_TYPE aType, bool aShortName );
 
 protected:
     ///> Reporter object to receive simulation log
