@@ -108,7 +108,7 @@ BOOST_AUTO_TEST_CASE( CommandToSimType )
 /**
  * Check conversion from internal spice vector name to eeschema format
  */
-BOOST_AUTO_TEST_CASE( Vector2Signal )
+BOOST_AUTO_TEST_CASE( VectorToSignal )
 {
     struct TEST_DATA
     {
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE( Vector2Signal )
         wxString      outputSignalName;
         SIM_PLOT_TYPE retVal;
 
-        retVal = m_exporter.Vector2Signal( step.vector, outputSignalName );
+        retVal = m_exporter.VectorToSignal( step.vector, outputSignalName );
 
         BOOST_CHECK_EQUAL( retVal, step.type );
         BOOST_CHECK_EQUAL( outputSignalName.Cmp( step.signal ), 0 );
