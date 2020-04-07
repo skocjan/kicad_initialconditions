@@ -362,27 +362,8 @@ private:
         wxString m_simCommand;
     };
 
-    class PLOT_MAP : public std::map<SIM_PANEL_BASE*, PLOT_INFO>
-    {
-    public:
-        PLOT_INFO& operator[]( SIM_PANEL_BASE* aPlot )
-        {
-            return ( *dynamic_cast<std::map<SIM_PANEL_BASE*, PLOT_INFO>*>( this ) )[aPlot];
-        }
-
-        PLOT_INFO& operator[]( SIM_PLOT_PANEL* aPlot )
-        {
-            return ( *this )[dynamic_cast<SIM_PANEL_BASE*>( aPlot )];
-        }
-
-        PLOT_INFO& operator[]( SIM_NOPLOT_PANEL* aPlot )
-        {
-            return ( *this )[dynamic_cast<SIM_PANEL_BASE*>( aPlot )];
-        }
-    };
-
     ///> Map of plot panels and associated data
-    PLOT_MAP m_plots;
+    std::map<SIM_PANEL_BASE*, PLOT_INFO> m_plots;
 
     ///> List of currently displayed tuners
     std::list<TUNER_SLIDER*> m_tuners;
