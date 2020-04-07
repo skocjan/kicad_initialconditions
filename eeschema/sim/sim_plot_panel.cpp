@@ -445,7 +445,7 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
     m_plotWin->UpdateAll();
 
     m_sizer->Add( m_plotWin, 1, wxALL | wxEXPAND, 1 );
-    this->SetSizer( m_sizer );
+    SetSizer( m_sizer );
 }
 
 
