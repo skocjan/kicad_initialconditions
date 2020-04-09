@@ -21,9 +21,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <kiface_i.h>
-#include <pgm_base.h>
+#include <mocks_eeschema.h>
 #include <transform.h>
+#include <vector>
 
 #include <sch_edit_frame.h>
 #include <settings/settings_manager.h>
@@ -108,6 +108,16 @@ static struct PGM_MOCK_EESCHEMA_FRAME : public PGM_BASE
     }
 } program;
 
+
+static struct KIWAY_MOCK kiway_mock( &Pgm(), KFCTL_STANDALONE );
+
+
+KIWAY_PLAYER* KIWAY_MOCK::Player( FRAME_T aFrameType, bool doCreate, wxTopLevelWindow* aParent )
+{
+    return m_frames[aFrameType];
+}
+
+
 PGM_BASE& Pgm()
 {
     return program;
@@ -117,4 +127,10 @@ PGM_BASE& Pgm()
 KIFACE_I& Kiface()
 {
     return kiface;
+}
+
+
+KIWAY_MOCK& KiwayMock()
+{
+    return kiway_mock;
 }
