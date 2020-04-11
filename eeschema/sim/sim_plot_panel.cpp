@@ -624,13 +624,12 @@ bool SIM_PLOT_PANEL::DeleteTrace( const wxString& aName )
 
 void SIM_PLOT_PANEL::DeleteAllTraces()
 {
-    for( auto& t : m_traces )
+    while( m_traces.size() > 0 )
     {
-        DeleteTrace( t.first );
+        DeleteTrace( m_traces.begin()->first );
     }
 
     m_colorIdx = 0;
-    m_traces.clear();
 }
 
 
