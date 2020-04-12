@@ -30,7 +30,7 @@
 
 #include <wx/init.h>
 
-#include <unit_test_utils/wx_assert.h>
+#include <unit_test_utils/wx_util.h>
 
 /*
  * Simple function to handle a WX assertion and throw a real exception.
@@ -48,11 +48,11 @@ bool init_unit_test()
 {
     boost::unit_test::framework::master_test_suite().p_name.value = "Common Eeschema module tests";
 
-    bool ok = wxInitialize();
+    // bool ok = wxInitialize();
 
     wxSetAssertHandler( &wxAssertThrower );
 
-    return ok;
+    return true; //ok;
 }
 
 
@@ -62,7 +62,7 @@ int main( int argc, char* argv[] )
 
     // This causes some glib warnings on GTK3 (http://trac.wxwidgets.org/ticket/18274)
     // but without it, Valgrind notices a lot of leaks from WX
-    wxUninitialize();
+    //wxUninitialize();
 
     return ret;
 }

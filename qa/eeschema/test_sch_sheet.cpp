@@ -33,12 +33,14 @@
 
 #include "uuid_test_utils.h"
 
-#include <unit_test_utils/wx_assert.h>
+#include <unit_test_utils/wx_util.h>
+using namespace KI_TEST;
 
-class TEST_SCH_SHEET_FIXTURE
+
+class TEST_SCH_SHEET_FIXTURE : public WX_FIXTURE_BASE<TEST_APP_BASE>
 {
 public:
-    TEST_SCH_SHEET_FIXTURE() : m_sheet(), m_csheet( m_sheet )
+    TEST_SCH_SHEET_FIXTURE() : WX_FIXTURE_BASE<TEST_APP_BASE>(), m_sheet(), m_csheet( m_sheet )
     {
     }
 

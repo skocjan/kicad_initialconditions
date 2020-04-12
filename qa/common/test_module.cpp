@@ -33,15 +33,16 @@
 bool init_unit_test()
 {
     boost::unit_test::framework::master_test_suite().p_name.value = "Common library module tests";
-    bool ok = wxInitialize();
+    // bool ok = wxInitialize();
+    //
+    // if( ok )
+    // {
+    //     // need these for library image functions
+    //     wxInitAllImageHandlers();
+    // }
 
-    if( ok )
-    {
-        // need these for library image functions
-        wxInitAllImageHandlers();
-    }
-
-    return ok;
+    // return ok;
+    return true;
 }
 
 
@@ -51,7 +52,7 @@ int main( int argc, char* argv[] )
 
     // This causes some glib warnings on GTK3 (http://trac.wxwidgets.org/ticket/18274)
     // but without it, Valgrind notices a lot of leaks from WX
-    wxUninitialize();
+    // wxUninitialize();
 
     return ret;
 }

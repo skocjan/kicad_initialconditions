@@ -28,7 +28,8 @@
 
 #include <unit_test_utils/geometry.h>
 #include <unit_test_utils/unit_test_utils.h>
-#include <unit_test_utils/wx_assert.h>
+#include <unit_test_utils/wx_util.h>
+using namespace KI_TEST;
 
 // Code under test
 #include <sch_pin.h>
@@ -38,11 +39,12 @@
 #include <eda_rect.h>
 
 
-class TEST_SCH_PIN_FIXTURE
+class TEST_SCH_PIN_FIXTURE : public WX_FIXTURE_BASE<TEST_APP_BASE>
 {
 public:
     TEST_SCH_PIN_FIXTURE()
-            : m_parent_part( "parent_part", nullptr ),
+            : WX_FIXTURE_BASE<TEST_APP_BASE>(),
+              m_parent_part( "parent_part", nullptr ),
               m_lib_pin( &m_parent_part ),
               m_parent_comp( wxPoint( 0, 0 ), nullptr ),
               m_sch_pin( &m_lib_pin, &m_parent_comp )
