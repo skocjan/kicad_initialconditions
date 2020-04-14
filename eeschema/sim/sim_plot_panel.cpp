@@ -27,6 +27,7 @@
 #include "sim_plot_frame.h"
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
 
 static wxString formatFloat( double x, int nDigits )
@@ -300,6 +301,7 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
             m_coords.x = dataX[maxIdx];
         }
 
+        m_index = minIdx;
         const double leftX = dataX[minIdx];
         const double rightX = dataX[maxIdx];
         const double leftY = dataY[minIdx];
@@ -362,17 +364,18 @@ void CURSOR::UpdateReference()
     m_reference.y = m_window->y2p( m_trace->y2s( m_coords.y ) );
 }
 
+
 bool CURSOR::GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand )
 {
     // Some of the flags should exclude mutually
     assert( ( ( aCommand & CCM_GLOBAL ) == 0 )    != ( ( aCommand & CCM_LOCAL ) == 0 ) );
     assert( ( ( aCommand & CCM_MAXIMUM ) == 0 )   != ( ( aCommand & CCM_MINIMUM ) == 0 ) );
 
+    size_t index;
+
     if( aCommand & CCM_GLOBAL )
     {
-        double x = m_trace->GetDataX().at( ( aCommand & CCM_MAXIMUM ) ?
-                        m_trace->GetMaxYindex() : m_trace->GetMinYindex() );
-        SetX( m_plotPanel->x2p( m_trace->x2s( x ) ) );
+        index = ( aCommand & CCM_MAXIMUM ) ? m_trace->GetMaxYindex() : m_trace->GetMinYindex();
     }
     else
     {
@@ -383,8 +386,21 @@ bool CURSOR::GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand )
         return false;
     }
 
+    MoveToIndex( index );
     m_plotPanel->UpdateAll();
     return true;
+}
+
+
+void CURSOR::MoveToIndex( size_t index ) //index type
+{
+    // set explicitly coordinates (values from data vector)
+    m_index = index;
+    m_coords.x = m_trace->GetDataX().at( index );
+    m_coords.y = m_trace->GetDataY().at( index );
+
+    UpdateReference();
+    mpInfoLayer::Move( wxPoint( 0, 0 ) );
 }
 
 

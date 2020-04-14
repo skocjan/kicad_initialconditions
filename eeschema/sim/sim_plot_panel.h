@@ -81,6 +81,8 @@ public:
         Move( wxPoint( aX, 0 ) );
     }
 
+    void MoveToIndex( size_t index );
+
     void Update()
     {
         m_updateRequired = true;
@@ -113,7 +115,13 @@ public:
 private:
     const TRACE* m_trace;
     bool m_updateRequired, m_updateRef;
+
+    ///> (x,y) pair of values from data vector, pointing a data where CURSOR currently is
     wxRealPoint m_coords;
+
+    ///> The index of trace data (approx.) where cursor is located
+    size_t m_index;
+
     mpWindow* m_window;
     SIM_PLOT_PANEL* m_plotPanel;
 
