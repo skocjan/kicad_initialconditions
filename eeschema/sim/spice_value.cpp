@@ -33,7 +33,7 @@
 #include <common.h>
 #include <ki_exception.h>
 
-SPICE_VALUE::SPICE_VALUE( const wxString& aString )
+SPICE_VALUE SPICE_VALUE::operator=( const wxString& aString )
 {
     char buf[8] = { 0, };
 
@@ -50,7 +50,7 @@ SPICE_VALUE::SPICE_VALUE( const wxString& aString )
         m_prefix = PFX_NONE;
         m_spiceStr = false;
         Normalize();
-        return;
+        return *this;
     }
 
     m_spiceStr = true;
@@ -81,6 +81,30 @@ SPICE_VALUE::SPICE_VALUE( const wxString& aString )
     }
 
     Normalize();
+
+    return *this;
+}
+
+
+SPICE_VALUE SPICE_VALUE::operator=( int aInt )
+{
+    m_base     = aInt;
+    m_prefix   = PFX_NONE;
+    m_spiceStr = false;
+    Normalize();
+
+    return *this;
+}
+
+
+SPICE_VALUE SPICE_VALUE::operator=( double aDouble )
+{
+    m_base     = aDouble;
+    m_prefix   = PFX_NONE;
+    m_spiceStr = false;
+    Normalize();
+
+    return *this;
 }
 
 

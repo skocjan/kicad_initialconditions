@@ -52,7 +52,10 @@ public:
     }
 
     ///> Parses the string to create a Spice value (e.g. 100n)
-    SPICE_VALUE( const wxString& aString );
+    SPICE_VALUE( const wxString& aString )
+    {
+        *this = aString;
+    };
 
     SPICE_VALUE( int aInt, UNIT_PREFIX aPrefix = PFX_NONE )
         : m_base( aInt ), m_prefix( aPrefix ), m_spiceStr( false )
@@ -129,6 +132,9 @@ public:
     SPICE_VALUE operator+( const SPICE_VALUE& aOther ) const;
     SPICE_VALUE operator*( const SPICE_VALUE& aOther ) const;
     SPICE_VALUE operator/( const SPICE_VALUE& aOther ) const;
+    SPICE_VALUE operator=( const wxString& aString );
+    SPICE_VALUE operator=( int aInt );
+    SPICE_VALUE operator=( double aDouble );
 
 private:
     double m_base;
