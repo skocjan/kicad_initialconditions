@@ -81,7 +81,30 @@ public:
         Move( wxPoint( aX, 0 ) );
     }
 
-    void MoveToIndex( size_t index );
+    /**
+     * @brief Sets cursor at specific index of data vector
+     *
+     * @param index in range [0..m_trace.GetData[X|Y]().size()]
+     *
+     * @return true if index is in data range, otherwise false
+     */
+    bool MoveToIndex( size_t index );
+
+    /**
+     * @brief Moves cursor by one backwards
+     */
+    bool MoveForward()
+    {
+        return MoveToIndex( m_index + 1 );
+    }
+
+    /**
+     * @brief Moves cursor by one backwards
+     */
+    bool MoveBackward()
+    {
+        return MoveToIndex( m_index - 1 );
+    }
 
     void Update()
     {
@@ -113,6 +136,15 @@ public:
     }
 
 private:
+    /**
+     * @brief Seeks for local extremum in the data vector
+     * @param aCommand, only four values are allowed: CCM_LOCAL_MAXIMUM_ASCENDING,
+                        CCM_LOCAL_MINIMUM_ASCENDING, CCM_LOCAL_MAXIMUM_DESCENDING,
+                        CCM_LOCAL_MINIMUM_DESCENDING
+     * @return index where next local extremum is located
+     */
+    size_t findLocalExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand );
+
     const TRACE* m_trace;
     bool m_updateRequired, m_updateRef;
 

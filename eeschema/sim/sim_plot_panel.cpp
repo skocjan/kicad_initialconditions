@@ -368,10 +368,11 @@ void CURSOR::UpdateReference()
 bool CURSOR::GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand )
 {
     // Some of the flags should exclude mutually
-    assert( ( ( aCommand & CCM_GLOBAL ) == 0 )    != ( ( aCommand & CCM_LOCAL ) == 0 ) );
-    assert( ( ( aCommand & CCM_MAXIMUM ) == 0 )   != ( ( aCommand & CCM_MINIMUM ) == 0 ) );
+    assert( ( ( aCommand & CCM_GLOBAL ) == 0 )  != ( ( aCommand & CCM_LOCAL ) == 0 ) );
+    assert( ( ( aCommand & CCM_MAXIMUM ) == 0 ) != ( ( aCommand & CCM_MINIMUM ) == 0 ) );
 
     size_t index;
+    bool   retval;
 
     if( aCommand & CCM_GLOBAL )
     {
@@ -381,26 +382,166 @@ bool CURSOR::GoToExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand )
     {
         assert( ( ( aCommand & CCM_ASCENDING ) == 0 ) != ( ( aCommand & CCM_DESCENDING ) == 0 ) );
 
-        // Local extremum is requested
-        wxPrintf( "Not yet implemented" );
-        return false;
+        index = findLocalExtremum( aCommand );
     }
 
-    MoveToIndex( index );
+    retval = MoveToIndex( index );
     m_plotPanel->UpdateAll();
-    return true;
+    return retval;
 }
 
 
-void CURSOR::MoveToIndex( size_t index ) //index type
+size_t CURSOR::findLocalExtremum( enum CURSOR_CONTEXT_MENU_ID aCommand )
 {
-    // set explicitly coordinates (values from data vector)
-    m_index = index;
-    m_coords.x = m_trace->GetDataX().at( index );
-    m_coords.y = m_trace->GetDataY().at( index );
+    using DIFF_T = std::vector<double>::difference_type;
+    typedef bool ( *PREDICATE )( double, double );
 
-    UpdateReference();
-    mpInfoLayer::Move( wxPoint( 0, 0 ) );
+    PREDICATE ascending  = []( double a, double b ) -> bool { return a < b; };
+    PREDICATE descending = []( double a, double b ) -> bool { return a > b; };
+    PREDICATE constant   = []( double a, double b ) -> bool { return a == b; };
+
+    auto &values = m_trace->GetDataY();
+    DIFF_T index = m_index;
+    DIFF_T endCondition = ( aCommand & CCM_ASCENDING ? values.size() : -1 );
+
+    auto advanceIndex = 
+        [&aCommand, &index]( DIFF_T shift ) -> void
+        {
+            if( aCommand & CCM_ASCENDING )
+            {
+                index += shift;
+            }
+            else
+            {
+                index -= shift;
+            }
+        };
+
+    // returns true if this is really an extremum (even for discontinuous functions)
+    auto isExtremum = 
+        [&values, &index, &ascending, &descending]( enum CURSOR_CONTEXT_MENU_ID aCmd ) -> bool
+        {
+            if( ( index < 0 ) || ( index >= static_cast<DIFF_T>( values.size() ) ) )
+                return false;
+
+            bool check1 = true, check2 = true;
+            PREDICATE predicate1 = ascending, predicate2 = descending;
+
+            if( ( aCmd & CCM_MINIMUM ) != 0 )
+                std::swap<PREDICATE>( predicate1, predicate2 );
+
+            if( index > 0 )
+            {
+                check1 = predicate1( values.at( index - 1 ), values.at( index ) );
+            }
+            if( index < static_cast<DIFF_T>( values.size() - 1 ) )
+            {
+                check2 = predicate2( values.at( index ), values.at( index + 1 ) );
+            }
+
+            return check1 && check2;
+        };
+
+    auto findWhereTrendEnds = 
+        [&values, &index, &aCommand]( bool ( *predicate )( double, double ) ) -> DIFF_T
+        {
+            if( aCommand & CCM_ASCENDING )
+            {
+                std::vector<double>::const_iterator endOfTrend;
+                endOfTrend = std::is_sorted_until( values.begin() + index, values.end(), predicate );
+                return std::distance( values.begin() + index, endOfTrend );
+            }
+            else
+            {
+                std::vector<double>::const_reverse_iterator endOfTrend;
+                endOfTrend = std::is_sorted_until(
+                        values.rbegin() + values.size() - index - 1, values.rend(), predicate );
+                return std::distance( endOfTrend.base(), values.begin() + index ) + 1;
+            }
+        };
+
+    while( index != endCondition )
+    {
+        // find where plot stops rising or stops falling
+        std::vector<double>::difference_type indexNextMin, indexNextMax;
+
+        indexNextMax = findWhereTrendEnds( ascending );
+        indexNextMin = findWhereTrendEnds( descending );
+
+        // new max was found
+        if( indexNextMin == 1 && indexNextMax > 1 )
+        {
+            // if that's what we wanted
+            if( aCommand & CCM_MAXIMUM )
+            {
+                // end the loop
+                advanceIndex( indexNextMax - 1 );
+                break;
+            }
+            else
+            {
+                // keep searching from the point, where plot falls again
+                advanceIndex( indexNextMax );
+
+                // If plot is non-contiguous and the desired extremum is reached, stop
+                if( isExtremum( aCommand ) )
+                    break;
+            }
+        }
+        // new min was found
+        else if( indexNextMax == 1 && indexNextMin > 1 )
+        {
+            // if that's what we wanted
+            if( aCommand & CCM_MINIMUM )
+            {
+                // end the loop
+                advanceIndex( indexNextMin - 1 );
+                break;
+            }
+            else
+            {
+                // keep searching from the point, where plot rises again
+                advanceIndex( indexNextMin );
+
+                // If plot is non-contiguous and the desired extremum is reached, stop
+                if( isExtremum( aCommand ) )
+                    break;
+            }
+        }
+        else
+        {
+            // plot is constant - continue searching until moment it's not constant anymore
+            advanceIndex( findWhereTrendEnds( constant ) );
+        }
+    }
+
+    if( index == endCondition )
+        return -1;
+    else
+        return index;
+}
+
+
+bool CURSOR::MoveToIndex( size_t index ) //index type
+{
+    if( index < m_trace->GetDataX().size() )
+    {
+        // set explicitly coordinates (values from data vector)
+        m_index = index;
+        m_coords.x = m_trace->GetDataX().at( index );
+        m_coords.y = m_trace->GetDataY().at( index );
+
+        UpdateReference();
+        mpInfoLayer::Move( wxPoint( 0, 0 ) );
+
+        // Notify the parent window about the changes
+        if( m_window )
+            wxQueueEvent( m_window->GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+
+        return true;
+    }
+    else
+        return false;
 }
 
 
