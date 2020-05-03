@@ -1039,6 +1039,8 @@ void mpScaleY::getVisibleDataRange( mpWindow& w, double& minV, double& maxV )
 
     minV    = TransformFromPlot( pymax );
     maxV    = TransformFromPlot( pymin );
+
+    printf("minYpx %d maxYpx %d %.10f %.10f\n", minYpx, maxYpx, pymin, pymax);
 }
 
 
@@ -1198,6 +1200,8 @@ void mpScaleXBase::getVisibleDataRange( mpWindow& w, double& minV, double& maxV 
 
     minV    = TransformFromPlot( pxmin );
     maxV    = TransformFromPlot( pxmax );
+
+    printf("startPx %d endPx %d %.10f %.10f\n", startPx, endPx, pxmin, pxmax);
 }
 
 
@@ -1275,6 +1279,8 @@ void mpScaleXBase::Plot( wxDC& dc, mpWindow& w )
 {
     int tx, ty;
 
+    updateScaleOffset();
+    printf( "Plot Y-scale: %.3f, offset:  %.3f\n", m_scale, m_offset );
     recalculateTicks( dc, w );
 
     if( m_visible )
@@ -1487,6 +1493,8 @@ mpScaleY::mpScaleY( const wxString& name, int flags, bool ticks )
 
 void mpScaleY::Plot( wxDC& dc, mpWindow& w )
 {
+    updateScaleOffset();
+    printf( "Plot Y-scale: %.3f, offset:  %.3f\n", m_scale, m_offset );
     // printf("Plot Y-scale\n");
     recalculateTicks( dc, w );
 

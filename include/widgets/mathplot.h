@@ -788,16 +788,8 @@ protected:
     virtual void recalculateTicks( wxDC& dc, mpWindow& w ) {};
     virtual void updateScaleOffset()
     {
-        if( m_maxV != m_minV )
-        {
-            m_scale  = 1.0 / ( m_maxV - m_minV );
-            m_offset = -m_minV;
-        }
-        else
-        {
-            m_offset = 0.0;
-            m_scale  = 1.0;
-        }
+        m_scale  = 1.0 / ( m_maxV - m_minV );
+        m_offset = -m_minV;
     }
 
     int tickCount() const
