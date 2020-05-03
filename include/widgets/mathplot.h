@@ -919,7 +919,7 @@ public:
     // virtual double P2x( mpWindow &w, double x );
 
 protected:
-    void recalculateTicks( wxDC& dc, mpWindow& w ) override;
+    virtual void recalculateTicks( wxDC& dc, mpWindow& w ) override;
 
     // int tickCount() const;
     // int labelCount() const;
