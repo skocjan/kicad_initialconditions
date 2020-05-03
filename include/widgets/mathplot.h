@@ -726,6 +726,7 @@ public:
         m_rangeSet = true;
         m_minV  = minV;
         m_maxV  = maxV;
+        updateScaleOffset();
     }
 
     void GetDataRange( double& minV, double& maxV )
@@ -737,22 +738,12 @@ public:
     void ExtendDataRange( double minV, double maxV )
     {
         if( !m_rangeSet )
-        {
-            m_minV  = minV;
-            m_maxV  = maxV;
-            m_rangeSet = true;
-        }
+            SetDataRange( minV, maxV );
         else
-        {
-            m_minV  = std::min( minV, m_minV );
-            m_maxV  = std::max( maxV, m_maxV );
-        }
+            SetDataRange( std::min( minV, m_minV ), std::max( maxV, m_maxV ) );
 
         if( m_minV == m_maxV )
-        {
-            m_minV = m_minV - 1.0;
-            m_maxV = m_maxV + 1.0;
-        }
+            SetDataRange( minV - 1.0, maxV + 1.0 );
     }
 
     void ResetDataRange()
@@ -795,6 +786,19 @@ protected:
     // virtual int getLabelDecimalDigits(int maxDigits);
     virtual void getVisibleDataRange( mpWindow& w, double& minV, double& maxV ) {};
     virtual void recalculateTicks( wxDC& dc, mpWindow& w ) {};
+    virtual void updateScaleOffset()
+    {
+        if( m_maxV != m_minV )
+        {
+            m_scale  = 1.0 / ( m_maxV - m_minV );
+            m_offset = -m_minV;
+        }
+        else
+        {
+            m_offset = 0.0;
+            m_scale  = 1.0;
+        }
+    }
 
     int tickCount() const
     {

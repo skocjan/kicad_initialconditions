@@ -1054,8 +1054,7 @@ void mpScaleY::computeSlaveTicks( mpWindow& w )
     double  p0 = m_masterScale->TransformToPlot( m_masterScale->m_tickValues[0] );
     double  p1 = m_masterScale->TransformToPlot( m_masterScale->m_tickValues[1] );
 
-    m_scale     = 1.0 / ( m_maxV - m_minV );
-    m_offset    = -m_minV;
+    updateScaleOffset();
 
     double  y_slave0    = p0 / m_scale;
     double  y_slave1    = p1 / m_scale;
@@ -1072,7 +1071,6 @@ void mpScaleY::computeSlaveTicks( mpWindow& w )
 
     minvv = floor( minvv / dy_scaled ) * dy_scaled;
 
-    m_scale = 1.0 / ( m_maxV - m_minV );
     m_scale *= dy_slave / dy_scaled;
 
     m_offset = p0 / m_scale - minvv;
@@ -1276,9 +1274,6 @@ mpScaleXLog::mpScaleXLog( const wxString& name, int flags, bool ticks, unsigned 
 void mpScaleXBase::Plot( wxDC& dc, mpWindow& w )
 {
     int tx, ty;
-
-    m_offset    = -m_minV;
-    m_scale     = 1.0 / ( m_maxV - m_minV );
 
     recalculateTicks( dc, w );
 
@@ -1492,9 +1487,6 @@ mpScaleY::mpScaleY( const wxString& name, int flags, bool ticks )
 
 void mpScaleY::Plot( wxDC& dc, mpWindow& w )
 {
-    m_offset    = -m_minV;
-    m_scale     = 1.0 / ( m_maxV - m_minV );
-
     // printf("Plot Y-scale\n");
     recalculateTicks( dc, w );
 

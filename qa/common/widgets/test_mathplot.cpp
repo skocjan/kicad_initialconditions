@@ -116,7 +116,7 @@ enum WHAT_IS_PLOT
 /**
  * Check that we can get the default properties out as expected
  */
-//#define REAL_TEST
+#define REAL_TEST
 BOOST_AUTO_TEST_CASE( mpScaleX, * utf::tolerance(0.00001) )
 {
     App()->m_frame->m_scaleX->SetDataRange( 0.0, 1000.0 );
