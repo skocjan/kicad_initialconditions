@@ -901,17 +901,14 @@ void mpScaleX::recalculateTicks( wxDC& dc, mpWindow& w )
 
 mpScaleBase::mpScaleBase()
 {
+    SetDataRange( 0.0, 0.0 );
     m_rangeSet = false;
     m_nameFlags = mpALIGN_BORDER_BOTTOM;
 
     // initialize these members mainly to avoid not initialized values
-    m_offset = 0.0;
-    m_scale = 1.0;
     m_absVisibleMaxV = 0.0;
     m_flags = 0;            // Flag for axis alignment
     m_ticks = true;         // Flag to toggle between ticks or grid
-    m_minV = 0.0;
-    m_maxV = 0.0;
     m_maxLabelHeight = 1;
     m_maxLabelWidth = 1;
 }
