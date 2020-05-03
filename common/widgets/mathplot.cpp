@@ -840,7 +840,7 @@ void mpScaleX::recalculateTicks( wxDC& dc, mpWindow& w )
 
     m_absVisibleMaxV = std::max( std::abs( minVvis ), std::abs( maxVvis ) );
 
-    // printf("minV %.10f maxV %.10f %.10f %.10f\n", minV, maxV, minVvis, maxVvis);
+    printf("minV %.10f maxV %.10f %.10f %.10f\n", minV, maxV, minVvis, maxVvis);
 
     m_tickValues.clear();
     m_tickLabels.clear();
@@ -1106,7 +1106,7 @@ void mpScaleY::recalculateTicks( wxDC& dc, mpWindow& w )
     double minV, maxV, minVvis, maxVvis;
     GetDataRange( minV, maxV );
     getVisibleDataRange( w, minVvis, maxVvis );
-    // printf("vdr %.10f %.10f\n", minVvis, maxVvis);
+    printf("vdr %.10f %.10f\n", minVvis, maxVvis);
 
     m_absVisibleMaxV = std::max( std::abs( minVvis ), std::abs( maxVvis ) );
 
