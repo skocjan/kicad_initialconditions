@@ -367,6 +367,7 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
         wxWindowID id, const wxPoint& pos, const wxSize& size, long style, const wxString& name )
         : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name ),
           m_colorIdx( 0 ),
+          cursors( this ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
           m_axis_y2( nullptr ),
@@ -631,6 +632,19 @@ void SIM_PLOT_PANEL::EnableCursor( const wxString& aName, bool aEnable )
 
     // Notify the parent window about the changes
     wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+}
+
+
+void DIFF_CURSORS::ToggleCursor()
+{
+    cursors[0].SetVisible( !cursors[0].IsVisible() );
+    cursors[1].SetVisible( !cursors[1].IsVisible() );
+}
+
+
+bool DIFF_CURSORS::IsCursorActive()
+{
+    return cursors[0].IsVisible();
 }
 
 

@@ -322,6 +322,7 @@ private:
     void onSignalRClick( wxListEvent& event ) override;
 
     void onSimulate( wxCommandEvent& event );
+    void onCursorToggle( wxCommandEvent& event );
     void onSettings( wxCommandEvent& event );
     void onAddSignal( wxCommandEvent& event );
     void onProbe( wxCommandEvent& event );
@@ -348,6 +349,7 @@ private:
     wxToolBarToolBase* m_toolProbe;
     wxToolBarToolBase* m_toolTune;
     wxToolBarToolBase* m_toolSettings;
+    wxToolBarToolBase* m_toggleCursors;
 
     SCH_EDIT_FRAME* m_schematicFrame;
     std::unique_ptr<NETLIST_EXPORTER_PSPICE_SIM> m_exporter;

@@ -183,6 +183,8 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
             KiBitmap( sim_tune_xpm ), _( "Tune component values" ), wxITEM_NORMAL );
     m_toolSettings = m_toolBar->AddTool( wxID_ANY, _( "Settings" ),
             KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_NORMAL );
+    m_toggleCursors = m_toolBar->AddTool( wxID_ANY, _( "Toggle Cursors" ),
+            KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_CHECK );
 
     Connect( m_toolSimulate->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
              wxCommandEventHandler( SIM_PLOT_FRAME::onSimulate ), NULL, this );
@@ -194,6 +196,8 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
              wxCommandEventHandler( SIM_PLOT_FRAME::onTune ), NULL, this );
     Connect( m_toolSettings->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
              wxCommandEventHandler( SIM_PLOT_FRAME::onSettings ), NULL, this );
+    Connect( m_toggleCursors->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
+             wxCommandEventHandler( SIM_PLOT_FRAME::onCursorToggle ), NULL, this );
 
     // Bind toolbar buttons event to existing menu event handlers, so they behave the same
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onSimulate,    this, m_runSimulation->GetId() );
@@ -1286,6 +1290,14 @@ void SIM_PLOT_FRAME::onSimulate( wxCommandEvent& event )
 }
 
 
+void SIM_PLOT_FRAME::onCursorToggle( wxCommandEvent& event )
+{
+    SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( currentPlotWindow() );
+    if( plotPanel )
+        plotPanel->ToggleCursor();
+}
+
+
 void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
 {
     SIM_PANEL_BASE* plotPanelWindow = currentPlotWindow();
@@ -1424,6 +1436,7 @@ void SIM_PLOT_FRAME::doCloseWindow()
 
 void SIM_PLOT_FRAME::onCursorUpdate( wxCommandEvent& event )
 {
+    //TODO sk implement proper list view
     wxSize size = m_cursors->GetClientSize();
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
     m_cursors->ClearAll();
