@@ -45,17 +45,20 @@ public:
     CURSOR( const TRACE* aTrace, SIM_PLOT_PANEL* aPlotPanel )
         : mpInfoLayer( wxRect( 0, 0, DRAG_MARGIN, DRAG_MARGIN ), wxTRANSPARENT_BRUSH ),
         m_trace( aTrace ), m_updateRequired( true ), m_updateRef( false ),
-        m_coords( 0.0, 0.0 ), m_window( nullptr ), m_plotPanel( aPlotPanel )
+        m_coords( 0.0, 0.0 ), m_x( 0.0 ), m_window( nullptr ), m_plotPanel( aPlotPanel )
     {
+        SetVisible( false );
         SetDrawOutsideMargins( false );
+        wxPrintf("[SK} trace addr2: %p\n", m_trace);
+
     }
-    CURSOR( SIM_PLOT_PANEL* aPlotPanel )
-        : mpInfoLayer( wxRect( 0, 0, DRAG_MARGIN, DRAG_MARGIN ), wxTRANSPARENT_BRUSH ),
-        m_updateRequired( true ), m_updateRef( false ),
-        m_coords( 0.0, 0.0 ), m_window( nullptr ), m_plotPanel( aPlotPanel )
-    {
-        SetDrawOutsideMargins( false );
-    }
+//    CURSOR( SIM_PLOT_PANEL* aPlotPanel )
+//        : mpInfoLayer( wxRect( 0, 0, DRAG_MARGIN, DRAG_MARGIN ), wxTRANSPARENT_BRUSH ),
+//        m_updateRequired( true ), m_updateRef( false ),
+//        m_coords( 0.0, 0.0 ), m_window( nullptr ), m_plotPanel( aPlotPanel )
+//    {
+//        SetDrawOutsideMargins( false );
+//    }
 
     void Plot( wxDC& aDC, mpWindow& aWindow ) override;
 
@@ -87,11 +90,11 @@ public:
     }
 
 private:
-    const TRACE* m_trace;
+    const TRACE* m_trace;  //TODO delete it
     bool m_updateRequired, m_updateRef;
-    wxRealPoint m_coords;
+    wxRealPoint m_coords;  //TODO delete it
     double m_x;
-    std::vector<double> m_y;
+    std::map<wxString, double> m_y;
     mpWindow* m_window;
     SIM_PLOT_PANEL* m_plotPanel;
 
@@ -102,16 +105,13 @@ private:
 class DIFF_CURSORS
 {
 public:
-    DIFF_CURSORS( SIM_PLOT_PANEL* panel ) :
-        parent( panel ),
-        cursors { CURSOR( parent ), CURSOR( parent ) }
-    {};
-    void ToggleCursor();
-    bool IsCursorActive();
+    DIFF_CURSORS( SIM_PLOT_PANEL* panel );
+    bool Toggle();
+    bool AreCursorsActive();
 
 private:
-    SIM_PLOT_PANEL* parent;
-    std::array<CURSOR, 2> cursors;
+    SIM_PLOT_PANEL* m_panel;
+    std::array<CURSOR, 2> m_cursors;
 };
 
 
@@ -124,6 +124,9 @@ public:
         SetContinuity( true );
         SetDrawOutsideMargins( false );
         ShowName( false );
+
+        wxPrintf("[SK} trace addr3: %p\n", this);
+        wxPrintf("[SK} m_scaleX: %p\n", m_scaleX);
     }
 
     /**
@@ -295,14 +298,14 @@ public:
 
     ///> Toggles cursor for a particular trace.
     void EnableCursor( const wxString& aName, bool aEnable );
-    void ToggleCursor()
+    bool ToggleCursor()
     {
-        cursors.ToggleCursor();
+        return m_cursors.Toggle();
     }
 
-    bool IsCursorActive()
+    bool AreCursorsActive()
     {
-        return cursors.IsCursorActive();
+        return m_cursors.AreCursorsActive();
     }
 
     ///> Resets scale ranges to fit the current traces
@@ -340,7 +343,7 @@ private:
 
     // Traces to be plotted
     std::map<wxString, TRACE*> m_traces;
-    DIFF_CURSORS cursors;
+    DIFF_CURSORS m_cursors;
 
     mpScaleXBase* m_axis_x;
     mpScaleY* m_axis_y1;

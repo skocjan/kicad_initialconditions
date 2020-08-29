@@ -271,46 +271,50 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
     if( !m_visible )
         return;
 
-    const auto& dataX = m_trace->GetDataX();
-    const auto& dataY = m_trace->GetDataY();
-
-    if( dataX.size() <= 1 )
-        return;
-
     if( m_updateRequired )
     {
-        m_coords.x = m_trace->s2x( aWindow.p2x( m_dim.x ) );
 
-        // Find the closest point coordinates
-        auto maxXIt = std::upper_bound( dataX.begin(), dataX.end(), m_coords.x );
-        int maxIdx = maxXIt - dataX.begin();
-        int minIdx = maxIdx - 1;
-
-        // Out of bounds checks
-        if( minIdx < 0 )
+        for( auto trace : m_plotPanel->GetTraces() )
         {
-            minIdx = 0;
-            maxIdx = 1;
-            m_coords.x = dataX[0];
-        }
-        else if( maxIdx >= (int) dataX.size() )
-        {
-            maxIdx = dataX.size() - 1;
-            minIdx = maxIdx - 1;
-            m_coords.x = dataX[maxIdx];
-        }
+            const auto& dataX = trace.second->GetDataX();
+            const auto& dataY = trace.second->GetDataY();
 
-        const double leftX = dataX[minIdx];
-        const double rightX = dataX[maxIdx];
-        const double leftY = dataY[minIdx];
-        const double rightY = dataY[maxIdx];
+            if( dataX.size() <= 1 )
+                return;
 
-        // Linear interpolation
-        m_coords.y = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_coords.x - leftX );
-        m_updateRequired = false;
+            m_x = trace.second->s2x( aWindow.p2x( m_dim.x ) );
+
+            // Find the closest point coordinates
+            auto maxXIt = std::upper_bound( dataX.begin(), dataX.end(), m_x );
+            int maxIdx = maxXIt - dataX.begin();
+            int minIdx = maxIdx - 1;
+
+            // Out of bounds checks
+            if( minIdx < 0 )
+            {
+                minIdx = 0;
+                maxIdx = 1;
+                m_x = dataX[0];
+            }
+            else if( maxIdx >= (int) dataX.size() )
+            {
+                maxIdx = dataX.size() - 1;
+                minIdx = maxIdx - 1;
+                m_x = dataX[maxIdx];
+            }
+
+            const double leftX = dataX[minIdx];
+            const double rightX = dataX[maxIdx];
+            const double leftY = dataY[minIdx];
+            const double rightY = dataY[maxIdx];
+
+            // Linear interpolation
+            m_y[trace.first] = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
+        }
 
         // Notify the parent window about the changes
         wxQueueEvent( aWindow.GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+        m_updateRequired = false;
     }
     else
     {
@@ -322,6 +326,9 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
         UpdateReference();
         m_updateRef = false;
     }
+
+    wxPrintf("[SK} trace addr0: %p\n", m_trace);
+
 
     // Line length in horizontal and vertical dimensions
     const wxPoint cursorPos( aWindow.x2p( m_trace->x2s( m_coords.x ) ),
@@ -335,11 +342,16 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
     aDC.SetPen( wxPen( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ), 1,
                        m_continuous ? wxPENSTYLE_SOLID : wxPENSTYLE_LONG_DASH ) );
 
-    if( topPx < cursorPos.y && cursorPos.y < bottomPx )
-        aDC.DrawLine( leftPx, cursorPos.y, rightPx, cursorPos.y );
+//    if( topPx < cursorPos.y && cursorPos.y < bottomPx )
+//        aDC.DrawLine( leftPx, cursorPos.y, rightPx, cursorPos.y );
 
     if( leftPx < cursorPos.x && cursorPos.x < rightPx )
-        aDC.DrawLine( cursorPos.x, topPx, cursorPos.x, bottomPx );
+        aDC.DrawLine( m_x, topPx, m_x, bottomPx );
+
+    //TODO
+    //for( x : traces)
+    //  x->GetTraceColour()
+    //  DrawCircle (wxCoord x, wxCoord y, wxCoord radius)
 }
 
 
@@ -348,8 +360,8 @@ bool CURSOR::Inside( wxPoint& aPoint )
     if( !m_window )
         return false;
 
-    return ( std::abs( (double) aPoint.x - m_window->x2p( m_trace->x2s( m_coords.x ) ) ) <= DRAG_MARGIN )
-        || ( std::abs( (double) aPoint.y - m_window->y2p( m_trace->y2s( m_coords.y ) ) ) <= DRAG_MARGIN );
+    return ( std::abs( (double) aPoint.x - m_reference.x ) <= DRAG_MARGIN )
+        || ( std::abs( (double) aPoint.y - m_reference.y ) <= DRAG_MARGIN );
 }
 
 
@@ -358,8 +370,8 @@ void CURSOR::UpdateReference()
     if( !m_window )
         return;
 
-    m_reference.x = m_window->x2p( m_trace->x2s( m_coords.x ) );
-    m_reference.y = m_window->y2p( m_trace->y2s( m_coords.y ) );
+    m_reference.x = m_window->x2p( m_trace->x2s( m_x ) );
+    //m_reference.y = m_window->y2p( m_trace->y2s( m_y ) );
 }
 
 
@@ -367,7 +379,8 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
         wxWindowID id, const wxPoint& pos, const wxSize& size, long style, const wxString& name )
         : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name ),
           m_colorIdx( 0 ),
-          cursors( this ),
+          m_plotWin( new mpWindow( this, wxID_ANY, pos, size, style ) ),
+          m_cursors( this ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
           m_axis_y2( nullptr ),
@@ -375,7 +388,7 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
           m_masterFrame( aMainFrame )
 {
     m_sizer   = new wxBoxSizer( wxVERTICAL );
-    m_plotWin = new mpWindow( this, wxID_ANY, pos, size, style );
+    //m_plotWin = new mpWindow( this, wxID_ANY, pos, size, style );
 
     m_plotWin->LimitView( true );
     m_plotWin->SetMargins( 50, 80, 50, 80 );
@@ -635,16 +648,42 @@ void SIM_PLOT_PANEL::EnableCursor( const wxString& aName, bool aEnable )
 }
 
 
-void DIFF_CURSORS::ToggleCursor()
+DIFF_CURSORS::DIFF_CURSORS( SIM_PLOT_PANEL* panel ) :
+    m_panel( panel ),
+    m_cursors { CURSOR( m_panel->GetTraces().begin()->second, m_panel ),
+                CURSOR( m_panel->GetTraces().begin()->second, m_panel ) }
 {
-    cursors[0].SetVisible( !cursors[0].IsVisible() );
-    cursors[1].SetVisible( !cursors[1].IsVisible() );
+    wxPrintf("[SK} trace addr1: %p\n", m_panel->GetTraces().begin()->second);
+
+    mpWindow* win = m_panel->GetPlotWin();
+    int     quarterOfScreenWidth = ( win->GetXScreen() -
+                                 win->GetMarginLeft() - win->GetMarginRight() )
+                               / 4;
+    m_cursors[0].SetX( win->GetMarginLeft() +   quarterOfScreenWidth );
+    m_cursors[1].SetX( win->GetMarginLeft() + 3*quarterOfScreenWidth );
+
+    win->AddLayer( &m_cursors[0] );
+    win->AddLayer( &m_cursors[1] );
 }
 
 
-bool DIFF_CURSORS::IsCursorActive()
+bool DIFF_CURSORS::Toggle()
 {
-    return cursors[0].IsVisible();
+    if( m_panel->GetTraces().size() > 0 )
+    {
+        bool visible = m_cursors[0].IsVisible();
+        m_cursors[0].SetVisible( !visible );
+        m_cursors[1].SetVisible( !visible );
+        return !visible;
+    }
+    else
+        return false;
+}
+
+
+bool DIFF_CURSORS::AreCursorsActive()
+{
+    return m_cursors[0].IsVisible();
 }
 
 
