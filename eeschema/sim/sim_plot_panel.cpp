@@ -724,8 +724,11 @@ bool SIM_PLOT_PANEL::ToggleCursors()
 
         m_plotWin->UpdateAll();
 
-        // Notify the parent window about the changes
-        wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+        // Notify the parent window about turning cursors off
+        // When they are activated, notification will arrive from CURSOR::Plot()
+        if( visible )
+            wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+
         return !visible;
     }
     else
