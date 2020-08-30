@@ -46,7 +46,7 @@ public:
     CURSOR( /*const TRACE* aTrace,*/ SIM_PLOT_PANEL* aPlotPanel )
         : mpInfoLayer( wxRect( 0, 0, DRAG_MARGIN, DRAG_MARGIN ), wxTRANSPARENT_BRUSH ),
         m_updateRequired( true ), m_updateRef( false ), m_coords( 0.0, 0.0 ),
-        m_x( 0.0 ), /*m_window( nullptr ),*/ m_plotPanel( aPlotPanel ), label( 'X')
+        m_x( 0.0 ), /*m_window( nullptr ),*/ m_plotPanel( aPlotPanel ), m_label( 'X' )
     {
         SetVisible( false );
         SetDrawOutsideMargins( false );
@@ -78,10 +78,22 @@ public:
 
 //    void UpdateReference() override;
 
+    std::map<wxString, double>& GetData( double& aX )
+    {
+        aX = m_x;
+        return m_y;
+    }
+
     const wxRealPoint& GetCoords() const
     {
         return m_coords;
     }
+
+    char GetLabel() const
+    {
+        return m_label;
+    }
+
 
 private:
     void draw( wxDC& aDC, mpWindow& aWindow );
@@ -97,9 +109,9 @@ private:
     // wx related stuff
 //    mpWindow* m_window;  //TODO delete it
 
-    char label;
+    wxChar m_label;
     static constexpr int DRAG_MARGIN = 10;
-    static constexpr int TRIANGLE_DIM = 16;
+    static constexpr int TRIANGLE_DIM = 14;
     static constexpr int TRACE_DOT_RADIUS = 4;
 };
 
@@ -107,8 +119,8 @@ private:
 class TRACE : public mpFXYVector
 {
 public:
-    TRACE( const wxString& aName ) :
-        mpFXYVector( aName ), m_cursor( nullptr ), m_flags( 0 )
+    TRACE( const wxString& aName, enum SIM_COLOR_SET aColour ) :
+        mpFXYVector( aName ), m_cursor( nullptr ), m_flags( 0 ), m_traceColour( aColour )
     {
         SetContinuity( true );
         SetDrawOutsideMargins( false );
@@ -164,11 +176,6 @@ public:
     int GetFlags() const
     {
         return m_flags;
-    }
-
-    void SetTraceColour( enum SIM_COLOR_SET aColour )
-    {
-        m_traceColour = aColour;
     }
 
     enum SIM_COLOR_SET GetTraceColour()
@@ -288,7 +295,15 @@ public:
     ///> Toggles cursor for a particular trace.
     void EnableCursor( const wxString& aName, bool aEnable );
     bool ToggleCursors();
-    bool AreCursorsActive();
+    bool AreCursorsActive( char& aLabelFirst, char& aLabelSecond );
+
+    std::map<wxString, double>& GetCursorData( int aCursor, double& aX )
+    {
+        if( aCursor == 0 )
+            return m_cursors.first .GetData( aX );
+        else
+            return m_cursors.second.GetData( aX );
+    }
 
     ///> Resets scale ranges to fit the current traces
     void ResetScales();

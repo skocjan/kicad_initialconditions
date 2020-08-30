@@ -805,7 +805,21 @@ void SIM_PLOT_FRAME::updateSignalList()
         return;
 
     wxSize size = m_signals->GetClientSize();
-    m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x );
+
+    char firstCursorLabel, secondCursorLabel;
+    bool drawCursors = plotPanel->AreCursorsActive( firstCursorLabel, secondCursorLabel );
+    if( drawCursors )
+    {
+        m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x / 4 );
+        m_signals->AppendColumn( wxString( firstCursorLabel ), wxLIST_FORMAT_LEFT, size.x / 4 );
+        m_signals->AppendColumn( wxString( secondCursorLabel ), wxLIST_FORMAT_LEFT, size.x / 4 );
+        m_signals->AppendColumn( wxString::Format( "%c - %c", secondCursorLabel, firstCursorLabel ),
+                wxLIST_FORMAT_LEFT, size.x / 4 );
+    }
+    else
+    {
+        m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x );
+    }
 
     // Build an image list, to show the color of the corresponding trace
     // in the plot panel
@@ -852,15 +866,35 @@ void SIM_PLOT_FRAME::updateSignalList()
     // the order of icon color identical, because the icons
     // are also used in cursor list, and the color index is
     // calculated from the trace name index
-    int imgidx = 0;
-
-    for( const auto& trace : m_plots[plotPanel].m_traces )
+    if( !drawCursors )
     {
-        m_signals->InsertItem( imgidx, trace.first, imgidx );
-        imgidx++;
-    }
+        int imgidx = 0;
 
-    //TODO sk onCursorUpdate();
+        for( const auto& trace : m_plots[plotPanel].m_traces )
+        {
+            m_signals->InsertItem( imgidx, trace.first, imgidx );
+            imgidx++;
+        }
+    }
+    else
+    {
+        double x;
+        std::map<wxString, double> differences;
+        int item = 0;
+        for( const auto& cursorVal : plotPanel->GetCursorData(0, x) )
+        {
+            m_signals->InsertItem( item, cursorVal.first, item );
+            m_signals->SetItem( item++, 1, SPICE_VALUE( cursorVal.second ).ToSpiceString() );
+            differences[cursorVal.first] = -cursorVal.second;
+        }
+        item = 0;
+        for( const auto& cursorVal : plotPanel->GetCursorData(1, x) )
+        {
+            m_signals->SetItem( item, 2, SPICE_VALUE( cursorVal.second ).ToSpiceString() );
+            differences[cursorVal.first] += cursorVal.second;
+            m_signals->SetItem( item++, 3, SPICE_VALUE( differences[cursorVal.first] ).ToSpiceString() );
+        }
+    }
 }
 
 
@@ -1439,14 +1473,13 @@ void SIM_PLOT_FRAME::doCloseWindow()
 
 void SIM_PLOT_FRAME::onCursorUpdate( wxCommandEvent& event )
 {
-    //TODO sk implement proper list view
     wxSize size = m_cursors->GetClientSize();
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
     m_cursors->ClearAll();
 
     if( !plotPanel )
         return;
-
+#if 0
     if( m_signalsIconColorList )
         m_cursors->SetImageList(m_signalsIconColorList, wxIMAGE_LIST_SMALL);
 
@@ -1482,6 +1515,8 @@ void SIM_PLOT_FRAME::onCursorUpdate( wxCommandEvent& event )
             m_cursors->SetItem( idx, Y_COL, SPICE_VALUE( coords.y ).ToSpiceString() );
         }
     }
+#endif
+    updateSignalList();
 }
 
 

@@ -362,14 +362,16 @@ void CURSOR::draw( wxDC& aDC, mpWindow& aWindow  )
 
         aDC.DrawLine( xCursorPosPx, topPx, xCursorPosPx, bottomPx );
 
-        wxPoint triangle[] = { wxPoint(xCursorPosPx, topPx + TRIANGLE_DIM),
-                               wxPoint(xCursorPosPx - ( TRIANGLE_DIM / 2 ), topPx),
-                               wxPoint(xCursorPosPx + ( TRIANGLE_DIM / 2 ), topPx) };
+        wxPoint triangle[] = { wxPoint( xCursorPosPx, topPx + TRIANGLE_DIM ),
+                               wxPoint( xCursorPosPx - ( 2* TRIANGLE_DIM / 3 ), topPx ),
+                               wxPoint( xCursorPosPx + ( 2* TRIANGLE_DIM / 3 ), topPx ) };
         aDC.DrawPolygon( 3, triangle );
 
-        updatePen  ( aDC, SIM_BG_COLOR );
-        updateBrush( aDC, SIM_BG_COLOR );
-        aDC.DrawText( wxString(label), xCursorPosPx, topPx );
+        aDC.SetTextForeground( m_plotPanel->GetPlotColor( SIM_BG_COLOR ) );
+        aDC.SetTextBackground( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ) );
+        wxCoord textWidth, textHeight;
+        aDC.GetTextExtent( m_label, &textWidth, &textHeight );
+        aDC.DrawText( m_label, xCursorPosPx - ( textWidth / 2 ) , topPx );
 
         for( auto trace : m_plotPanel->GetTraces() )
         {
@@ -579,8 +581,7 @@ bool SIM_PLOT_PANEL::AddTrace( const wxString& aName, int aPoints,
         }
 
         // New entry
-        trace = new TRACE( aName );
-        trace->SetTraceColour( generateColor() );
+        trace = new TRACE( aName, generateColor() );
         UpdateTraceStyle( trace );
         m_traces[aName] = trace;
 
@@ -721,8 +722,10 @@ bool SIM_PLOT_PANEL::ToggleCursors()
         m_cursors.first .SetX( m_plotWin->GetMarginLeft() +   quarterOfScreenWidth );
         m_cursors.second.SetX( m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth );
 
-
         m_plotWin->UpdateAll();
+
+        // Notify the parent window about the changes
+        wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
         return !visible;
     }
     else
@@ -730,8 +733,10 @@ bool SIM_PLOT_PANEL::ToggleCursors()
 }
 
 
-bool SIM_PLOT_PANEL::AreCursorsActive()
+bool SIM_PLOT_PANEL::AreCursorsActive( char& aLabelFirst, char& aLabelSecond )
 {
+    aLabelFirst  = m_cursors.first .GetLabel();
+    aLabelSecond = m_cursors.second.GetLabel();
     return m_cursors.first.IsVisible();
 }
 
