@@ -377,14 +377,8 @@ void CURSOR::draw( wxDC& aDC, mpWindow& aWindow  )
 
             if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
             {
-//                updatePen  ( aDC, trace.second->GetTraceColour() );
-//                updateBrush( aDC, trace.second->GetTraceColour() );
-                wxPen* pen =  wxThePenList->FindOrCreatePen( trace.second->GetTraceColour(), 1,
-                                   m_continuous ? wxPENSTYLE_SOLID : wxPENSTYLE_LONG_DASH );
-                aDC.SetPen( *pen );
-                wxBrush* brush =  wxTheBrushList->FindOrCreateBrush(
-                        trace.second->GetTraceColour(), wxBRUSHSTYLE_SOLID  );
-                aDC.SetBrush( *brush );
+                updatePen  ( aDC, trace.second->GetTraceColour() );
+                updateBrush( aDC, trace.second->GetTraceColour() );
 
                 aDC.DrawCircle( xCursorPosPx, yCursorPosPx, TRACE_DOT_RADIUS );
             }
@@ -550,7 +544,7 @@ void SIM_PLOT_PANEL::UpdateTraceStyle( TRACE* trace )
     wxPenStyle penStyle = ( ( flags & SPT_AC_PHASE || flags & SPT_CURRENT ) && m_dotted_cp ) ?
                                   wxPENSTYLE_DOT :
                                   wxPENSTYLE_SOLID;
-    trace->SetPen( wxPen( trace->GetTraceColour(), 2, penStyle ) );
+    trace->SetPen( wxPen( m_masterFrame->GetPlotColor( trace->GetTraceColour() ), 2, penStyle ) );
 }
 
 
@@ -758,20 +752,19 @@ void SIM_PLOT_PANEL::ResetScales()
 }
 
 
-wxColour SIM_PLOT_PANEL::generateColor()
+enum SIM_COLOR_SET SIM_PLOT_PANEL::generateColor()
 {
     const unsigned int colorCount = m_masterFrame->GetPlotColorCount() - SIM_TRACE_COLOR;
 
-    for( int i = 0; i < (int)colorCount - 1; i++ )
+    for( int i = SIM_TRACE_COLOR; i < (int)colorCount - 1; i++ )
     {
-        const wxColour color = GetPlotColor( i+SIM_TRACE_COLOR );
         bool hasColor = false;
 
         for( auto& t : m_traces )
         {
             TRACE* trace = t.second;
 
-            if( trace->GetTraceColour() == color )
+            if( trace->GetTraceColour() == i )
             {
                 hasColor = true;
                 break;
@@ -779,12 +772,12 @@ wxColour SIM_PLOT_PANEL::generateColor()
         }
 
         if( !hasColor )
-            return color;
+            return static_cast<enum SIM_COLOR_SET>( i );
     }
 
     // If all colors are in use, choose a suitable color in list
     int idx = m_traces.size() % colorCount;
-    return wxColour( GetPlotColor( idx + SIM_TRACE_COLOR ) );
+    return static_cast<enum SIM_COLOR_SET>( idx + SIM_TRACE_COLOR );
 }
 
 wxDEFINE_EVENT( EVT_SIM_CURSOR_UPDATE, wxCommandEvent );

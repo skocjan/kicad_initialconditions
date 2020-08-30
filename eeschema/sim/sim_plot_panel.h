@@ -166,12 +166,12 @@ public:
         return m_flags;
     }
 
-    void SetTraceColour( wxColour aColour )
+    void SetTraceColour( enum SIM_COLOR_SET aColour )
     {
         m_traceColour = aColour;
     }
 
-    wxColour GetTraceColour()
+    enum SIM_COLOR_SET GetTraceColour()
     {
         return m_traceColour;
     }
@@ -179,7 +179,7 @@ public:
 protected:
     CURSOR* m_cursor;
     int m_flags;
-    wxColour m_traceColour;
+    enum SIM_COLOR_SET m_traceColour;
 };
 
 
@@ -314,7 +314,7 @@ public:
 
 private:
     ///> @return a new color from the palette
-    wxColour generateColor();
+    enum SIM_COLOR_SET generateColor();
 
     // Color index to get a new color from the palette
     unsigned int m_colorIdx;

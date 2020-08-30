@@ -859,6 +859,8 @@ void SIM_PLOT_FRAME::updateSignalList()
         m_signals->InsertItem( imgidx, trace.first, imgidx );
         imgidx++;
     }
+
+    //TODO sk onCursorUpdate();
 }
 
 
