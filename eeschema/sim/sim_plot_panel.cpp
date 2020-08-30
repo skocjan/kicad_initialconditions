@@ -265,8 +265,8 @@ public:
 
 void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
 {
-    if( !m_window )
-        m_window = &aWindow;
+//    if( !m_window )
+//        m_window = &aWindow;
 
     wxPrintf("[SK] CURSOR::Plot() m_plotPanel: %p\n", m_plotPanel);
     wxPrintf("[SK] CURSOR::Plot() m_plotPanel: %p\n", &m_plotPanel->GetTraces());
@@ -407,8 +407,8 @@ void CURSOR::updateBrush( wxDC& aDC, enum SIM_COLOR_SET aColour )
 
 bool CURSOR::Inside( wxPoint& aPoint )
 {
-    if( !m_window )
-        return false;
+//    if( !m_window )
+//        return false;
 
     return ( std::abs( (double) aPoint.x - m_reference.x ) <= DRAG_MARGIN )
         || ( std::abs( (double) aPoint.y - m_reference.y ) <= DRAG_MARGIN );

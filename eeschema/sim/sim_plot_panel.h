@@ -45,8 +45,8 @@ public:
     CURSOR() = delete;
     CURSOR( /*const TRACE* aTrace,*/ SIM_PLOT_PANEL* aPlotPanel )
         : mpInfoLayer( wxRect( 0, 0, DRAG_MARGIN, DRAG_MARGIN ), wxTRANSPARENT_BRUSH ),
-        m_updateRequired( true ), m_updateRef( false ), label( 'X'),
-        m_coords( 0.0, 0.0 ), m_x( 0.0 ), m_window( nullptr ), m_plotPanel( aPlotPanel )
+        m_updateRequired( true ), m_updateRef( false ), m_coords( 0.0, 0.0 ),
+        m_x( 0.0 ), /*m_window( nullptr ),*/ m_plotPanel( aPlotPanel ), label( 'X')
     {
         SetVisible( false );
         SetDrawOutsideMargins( false );
@@ -95,7 +95,7 @@ private:
     SIM_PLOT_PANEL* m_plotPanel;
 
     // wx related stuff
-    mpWindow* m_window;  //TODO delete it
+//    mpWindow* m_window;  //TODO delete it
 
     char label;
     static constexpr int DRAG_MARGIN = 10;
