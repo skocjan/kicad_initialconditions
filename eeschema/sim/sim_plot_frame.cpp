@@ -669,8 +669,6 @@ void SIM_PLOT_FRAME::removePlot( const wxString& aPlotName, bool aErase )
     plotPanel->GetPlotWin()->Fit();
 
     updateSignalList();
-    wxCommandEvent dummy;
-    onCursorUpdate( dummy );
 }
 
 
@@ -1277,16 +1275,12 @@ void SIM_PLOT_FRAME::onPlotClose( wxAuiNotebookEvent& event )
 
     m_plots.erase( plotPanel );
     updateSignalList();
-    wxCommandEvent dummy;
-    onCursorUpdate( dummy );
 }
 
 
 void SIM_PLOT_FRAME::onPlotChanged( wxAuiNotebookEvent& event )
 {
     updateSignalList();
-    wxCommandEvent dummy;
-    onCursorUpdate( dummy );
 }
 
 
