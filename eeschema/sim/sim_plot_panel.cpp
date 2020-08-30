@@ -268,48 +268,61 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
     if( !m_window )
         m_window = &aWindow;
 
-    if( !m_visible )
+    wxPrintf("[SK] CURSOR::Plot() m_plotPanel: %p\n", m_plotPanel);
+    wxPrintf("[SK] CURSOR::Plot() m_plotPanel: %p\n", &m_plotPanel->GetTraces());
+
+    if( !m_visible || m_plotPanel->GetTraces().empty() )
         return;
+
+    TRACE* firstTrace = m_plotPanel->GetTraces().begin()->second;
+
+    wxPrintf("[SK} trace addr0: %p\n", firstTrace);
 
     if( m_updateRequired )
     {
+        // assume first traces contains the same x data as any other
+
+        const auto& dataX = firstTrace->GetDataX();
+
+        if( dataX.size() <= 1 )
+            return;
+
+        m_x = firstTrace->s2x( aWindow.p2x( m_dim.x ) );
+
+        // Find the closest point coordinates
+        auto maxXIt = std::upper_bound( dataX.begin(), dataX.end(), m_x );
+        int maxIdx = maxXIt - dataX.begin();
+        int minIdx = maxIdx - 1;
+
+        // Out of bounds checks
+        if( minIdx < 0 )
+        {
+            minIdx = 0;
+            maxIdx = 1;
+            m_x = dataX[0];
+        }
+        else if( maxIdx >= (int) dataX.size() )
+        {
+            maxIdx = dataX.size() - 1;
+            minIdx = maxIdx - 1;
+            m_x = dataX[maxIdx];
+        }
+
+        const double leftX = dataX[minIdx];
+        const double rightX = dataX[maxIdx];
 
         for( auto trace : m_plotPanel->GetTraces() )
         {
-            const auto& dataX = trace.second->GetDataX();
             const auto& dataY = trace.second->GetDataY();
 
-            if( dataX.size() <= 1 )
-                return;
-
-            m_x = trace.second->s2x( aWindow.p2x( m_dim.x ) );
-
-            // Find the closest point coordinates
-            auto maxXIt = std::upper_bound( dataX.begin(), dataX.end(), m_x );
-            int maxIdx = maxXIt - dataX.begin();
-            int minIdx = maxIdx - 1;
-
-            // Out of bounds checks
-            if( minIdx < 0 )
-            {
-                minIdx = 0;
-                maxIdx = 1;
-                m_x = dataX[0];
-            }
-            else if( maxIdx >= (int) dataX.size() )
-            {
-                maxIdx = dataX.size() - 1;
-                minIdx = maxIdx - 1;
-                m_x = dataX[maxIdx];
-            }
-
-            const double leftX = dataX[minIdx];
-            const double rightX = dataX[maxIdx];
             const double leftY = dataY[minIdx];
             const double rightY = dataY[maxIdx];
 
             // Linear interpolation
-            m_y[trace.first] = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
+            double curValue= leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
+            m_y[trace.first] = curValue;
+
+            wxPrintf("[SK} Cursor Y value: %f %f\n", m_y[trace.first], curValue);
         }
 
         // Notify the parent window about the changes
@@ -327,31 +340,74 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
         m_updateRef = false;
     }
 
-    wxPrintf("[SK} trace addr0: %p\n", m_trace);
+    draw( aDC, aWindow );
+}
 
 
-    // Line length in horizontal and vertical dimensions
-    const wxPoint cursorPos( aWindow.x2p( m_trace->x2s( m_coords.x ) ),
-                             aWindow.y2p( m_trace->y2s( m_coords.y ) ) );
+void CURSOR::draw( wxDC& aDC, mpWindow& aWindow  )
+{
+    wxCoord xCursorPosPx = m_dim.x;
 
     wxCoord leftPx   = m_drawOutsideMargins ? 0 : aWindow.GetMarginLeft();
     wxCoord rightPx  = m_drawOutsideMargins ? aWindow.GetScrX() : aWindow.GetScrX() - aWindow.GetMarginRight();
     wxCoord topPx    = m_drawOutsideMargins ? 0 : aWindow.GetMarginTop();
     wxCoord bottomPx = m_drawOutsideMargins ? aWindow.GetScrY() : aWindow.GetScrY() - aWindow.GetMarginBottom();
 
-    aDC.SetPen( wxPen( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ), 1,
-                       m_continuous ? wxPENSTYLE_SOLID : wxPENSTYLE_LONG_DASH ) );
+    wxPrintf("[SK] leftPx: %d, rightPx: %d, xCursorPosPx: %d\n", leftPx, rightPx, xCursorPosPx);
 
-//    if( topPx < cursorPos.y && cursorPos.y < bottomPx )
-//        aDC.DrawLine( leftPx, cursorPos.y, rightPx, cursorPos.y );
+    if( leftPx < xCursorPosPx && xCursorPosPx < rightPx )
+    {
+        updatePen  ( aDC, SIM_CURSOR_COLOR );
+        updateBrush( aDC, SIM_CURSOR_COLOR );
 
-    if( leftPx < cursorPos.x && cursorPos.x < rightPx )
-        aDC.DrawLine( m_x, topPx, m_x, bottomPx );
+        aDC.DrawLine( xCursorPosPx, topPx, xCursorPosPx, bottomPx );
 
-    //TODO
-    //for( x : traces)
-    //  x->GetTraceColour()
-    //  DrawCircle (wxCoord x, wxCoord y, wxCoord radius)
+        wxPoint triangle[] = { wxPoint(xCursorPosPx, topPx + TRIANGLE_DIM),
+                               wxPoint(xCursorPosPx - ( TRIANGLE_DIM / 2 ), topPx),
+                               wxPoint(xCursorPosPx + ( TRIANGLE_DIM / 2 ), topPx) };
+        aDC.DrawPolygon( 3, triangle );
+
+        updatePen  ( aDC, SIM_BG_COLOR );
+        updateBrush( aDC, SIM_BG_COLOR );
+        aDC.DrawText( wxString(label), xCursorPosPx, topPx );
+
+        for( auto trace : m_plotPanel->GetTraces() )
+        {
+            wxCoord yCursorPosPx = aWindow.y2p( trace.second->y2s( m_y[trace.first] ) );
+
+            if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
+            {
+//                updatePen  ( aDC, trace.second->GetTraceColour() );
+//                updateBrush( aDC, trace.second->GetTraceColour() );
+                wxPen* pen =  wxThePenList->FindOrCreatePen( trace.second->GetTraceColour(), 1,
+                                   m_continuous ? wxPENSTYLE_SOLID : wxPENSTYLE_LONG_DASH );
+                aDC.SetPen( *pen );
+                wxBrush* brush =  wxTheBrushList->FindOrCreateBrush(
+                        trace.second->GetTraceColour(), wxBRUSHSTYLE_SOLID  );
+                aDC.SetBrush( *brush );
+
+                aDC.DrawCircle( xCursorPosPx, yCursorPosPx, TRACE_DOT_RADIUS );
+            }
+            else
+                continue;
+        }
+    }
+}
+
+
+void CURSOR::updatePen( wxDC& aDC, enum SIM_COLOR_SET aColour )
+{
+    wxPen* pen =  wxThePenList->FindOrCreatePen( m_plotPanel->GetPlotColor( aColour ), 1,
+                       m_continuous ? wxPENSTYLE_SOLID : wxPENSTYLE_LONG_DASH );
+    aDC.SetPen( *pen );
+}
+
+
+void CURSOR::updateBrush( wxDC& aDC, enum SIM_COLOR_SET aColour )
+{
+    wxBrush* brush =  wxTheBrushList->FindOrCreateBrush(
+            m_plotPanel->GetPlotColor( aColour ), wxBRUSHSTYLE_SOLID  );
+    aDC.SetBrush( *brush );
 }
 
 
@@ -365,14 +421,14 @@ bool CURSOR::Inside( wxPoint& aPoint )
 }
 
 
-void CURSOR::UpdateReference()
-{
-    if( !m_window )
-        return;
-
-    m_reference.x = m_window->x2p( m_trace->x2s( m_x ) );
-    //m_reference.y = m_window->y2p( m_trace->y2s( m_y ) );
-}
+//void CURSOR::UpdateReference()
+//{
+//    if( !m_window )
+//        return;
+//
+//    m_reference.x = m_window->x2p( m_plotPanel->GetTraces().begin()->second->x2s( m_x ) );
+//    //m_reference.y = m_window->y2p( m_trace->y2s( m_y ) );
+//}
 
 
 SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
@@ -380,7 +436,7 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
         : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name ),
           m_colorIdx( 0 ),
           m_plotWin( new mpWindow( this, wxID_ANY, pos, size, style ) ),
-          m_cursors( this ),
+          m_cursors ( std::make_pair<CURSOR, CURSOR>( CURSOR( this ), CURSOR( this ) ) ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
           m_axis_y2( nullptr ),
@@ -454,6 +510,9 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
     m_legend = new mpInfoLegend( wxRect( 0, 40, 200, 40 ), wxTRANSPARENT_BRUSH );
     m_legend->SetVisible( false );
     m_plotWin->AddLayer( m_legend );
+
+    m_plotWin->AddLayer( &m_cursors.first  );
+    m_plotWin->AddLayer( &m_cursors.second );
 
     m_plotWin->EnableDoubleBuffer( true );
     m_plotWin->UpdateAll();
@@ -627,7 +686,7 @@ void SIM_PLOT_PANEL::EnableCursor( const wxString& aName, bool aEnable )
 
     if( aEnable )
     {
-        CURSOR* c = new CURSOR( t, this );
+        CURSOR* c = nullptr; //new CURSOR( t, this );
         int     plotCenter = GetPlotWin()->GetMarginLeft()
                          + ( GetPlotWin()->GetXScreen() - GetPlotWin()->GetMarginLeft()
                                    - GetPlotWin()->GetMarginRight() )
@@ -648,32 +707,28 @@ void SIM_PLOT_PANEL::EnableCursor( const wxString& aName, bool aEnable )
 }
 
 
-DIFF_CURSORS::DIFF_CURSORS( SIM_PLOT_PANEL* panel ) :
-    m_panel( panel ),
-    m_cursors { CURSOR( m_panel->GetTraces().begin()->second, m_panel ),
-                CURSOR( m_panel->GetTraces().begin()->second, m_panel ) }
+
+bool SIM_PLOT_PANEL::ToggleCursors()
 {
-    wxPrintf("[SK} trace addr1: %p\n", m_panel->GetTraces().begin()->second);
-
-    mpWindow* win = m_panel->GetPlotWin();
-    int     quarterOfScreenWidth = ( win->GetXScreen() -
-                                 win->GetMarginLeft() - win->GetMarginRight() )
-                               / 4;
-    m_cursors[0].SetX( win->GetMarginLeft() +   quarterOfScreenWidth );
-    m_cursors[1].SetX( win->GetMarginLeft() + 3*quarterOfScreenWidth );
-
-    win->AddLayer( &m_cursors[0] );
-    win->AddLayer( &m_cursors[1] );
-}
-
-
-bool DIFF_CURSORS::Toggle()
-{
-    if( m_panel->GetTraces().size() > 0 )
+    if( GetTraces().size() > 0 )
     {
-        bool visible = m_cursors[0].IsVisible();
-        m_cursors[0].SetVisible( !visible );
-        m_cursors[1].SetVisible( !visible );
+        bool visible = m_cursors.first.IsVisible();
+        wxPrintf( "[SK] Setting cursors %svisible\n", visible ? "" : "in" );
+        m_cursors.first .SetVisible( !visible );
+        m_cursors.second.SetVisible( !visible );
+
+        // Configure diff cursors
+        //TODO temporary, move it to proper constructor
+        int     quarterOfScreenWidth = ( m_plotWin->GetXScreen() -
+                m_plotWin->GetMarginLeft() - m_plotWin->GetMarginRight() )
+                                   / 4;
+        wxPrintf("[SK] Setting cursors at: %d, %d",
+                m_plotWin->GetMarginLeft() +   quarterOfScreenWidth, m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth);
+        m_cursors.first .SetX( m_plotWin->GetMarginLeft() +   quarterOfScreenWidth );
+        m_cursors.second.SetX( m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth );
+
+
+        m_plotWin->UpdateAll();
         return !visible;
     }
     else
@@ -681,9 +736,9 @@ bool DIFF_CURSORS::Toggle()
 }
 
 
-bool DIFF_CURSORS::AreCursorsActive()
+bool SIM_PLOT_PANEL::AreCursorsActive()
 {
-    return m_cursors[0].IsVisible();
+    return m_cursors.first.IsVisible();
 }
 
 

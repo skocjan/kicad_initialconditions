@@ -59,17 +59,6 @@ class SIM_THREAD_REPORTER;
 class TUNER_SLIDER;
 
 
-// Identifiers (indexes) for color choice in color table
-enum SIM_COLOR_SET
-{
-    SIM_BG_COLOR,
-    SIM_FG_COLOR,
-    SIM_AXIS_COLOR,
-    SIM_CURSOR_COLOR,
-    SIM_TRACE_COLOR     // First index for trace colors list
-};
-
-
 ///> Trace descriptor class
 class TRACE_DESC
 {

@@ -822,7 +822,8 @@ void SIM_PLOT_FRAME::updateSignalList()
     {
         wxBitmap bitmap( isize, isize );
         bmDC.SelectObject( bitmap );
-        wxColour tcolor = trace.second->GetTraceColour();
+        //wxColour tcolor = trace.second->GetTraceColour();
+        wxColour tcolor = trace.second->GetPen().GetColour();
 
         wxColour bgColor = m_signals->wxWindow::GetBackgroundColour();
         bmDC.SetPen( wxPen( bgColor ) );
@@ -1294,7 +1295,7 @@ void SIM_PLOT_FRAME::onCursorToggle( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( currentPlotWindow() );
     if( plotPanel )
-        plotPanel->ToggleCursor();
+        plotPanel->ToggleCursors();
 }
 
 
