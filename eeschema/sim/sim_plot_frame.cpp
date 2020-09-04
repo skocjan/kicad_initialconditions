@@ -184,7 +184,7 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     m_toolSettings = m_toolBar->AddTool( wxID_ANY, _( "Settings" ),
             KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_NORMAL );
     m_toggleCursors = m_toolBar->AddTool( wxID_ANY, _( "Toggle Cursors" ),
-            KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_CHECK );
+            KiBitmap( sim_settings_xpm ), _( "Toggle Cursors" ), wxITEM_CHECK );
 
     Connect( m_toolSimulate->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
              wxCommandEventHandler( SIM_PLOT_FRAME::onSimulate ), NULL, this );
@@ -206,6 +206,8 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onTune,        this, m_tuneValue->GetId() );
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onShowNetlist, this, m_showNetlist->GetId() );
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onSettings,    this, m_settings->GetId() );
+
+    m_signals->Bind( wxEVT_CONTEXT_MENU, &SIM_PLOT_FRAME::onSignalContextMenu, this );
 
     m_toolBar->Realize();
 
@@ -1294,14 +1296,9 @@ void SIM_PLOT_FRAME::onSignalDblClick( wxMouseEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onSignalRClick( wxListEvent& event )
+void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
 {
-    int idx = event.GetIndex();
-
-    if( idx != wxNOT_FOUND )
-        m_signals->Select( idx );
-
-    idx = m_signals->GetFirstSelected();
+    int idx = m_signals->GetFirstSelected();
 
     if( idx != wxNOT_FOUND )
     {
@@ -1628,16 +1625,20 @@ SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::SIGNAL_CONTEXT_MENU( const wxString& aSigna
 {
     SIM_PLOT_PANEL* plot = m_plotFrame->CurrentPlot();
 
-    AddMenuItem( this, HIDE_SIGNAL, _( "Hide Signal" ),
+    AddMenuItem( this, DELETE_SIGNAL, _( "Remove Signal" ),
                  _( "Erase the signal from plot screen" ),
                  KiBitmap( delete_xpm ) );
 
     TRACE* trace = plot->GetTrace( m_signal );
 
-    if( trace->HasCursor() )
-        AddMenuItem( this, HIDE_CURSOR, _( "Hide Cursor" ), KiBitmap( pcb_target_xpm ) );
+    if( trace->IsVisible() )
+        AddMenuItem( this, HIDE_SIGNAL, _( "Hide Signal" ),
+                _( "Show the hidden signal" ),
+                KiBitmap( delete_xpm ) );
     else
-        AddMenuItem( this, SHOW_CURSOR, _( "Show Cursor" ), KiBitmap( pcb_target_xpm ) );
+        AddMenuItem( this, SHOW_SIGNAL, _( "Show Signal" ),
+                _( "Hide the signal on a plot screen" ),
+                KiBitmap( delete_xpm ) );
 
     Connect( wxEVT_COMMAND_MENU_SELECTED, wxMenuEventHandler( SIGNAL_CONTEXT_MENU::onMenuEvent ), NULL, this );
 }
@@ -1649,8 +1650,18 @@ void SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::onMenuEvent( wxMenuEvent& aEvent )
 
     switch( aEvent.GetId() )
     {
-        case HIDE_SIGNAL:
+        case DELETE_SIGNAL:
             m_plotFrame->removePlot( m_signal );
+            break;
+
+        case SHOW_SIGNAL:
+            plot->GetTrace( m_signal )->SetVisible( true );
+            plot->Refresh();
+            break;
+
+        case HIDE_SIGNAL:
+            plot->GetTrace( m_signal )->SetVisible( false );
+            plot->Refresh();
             break;
 
         case SHOW_CURSOR:

@@ -308,7 +308,7 @@ private:
     void onPlotClose( wxAuiNotebookEvent& event ) override;
 
     void onSignalDblClick( wxMouseEvent& event ) override;
-    void onSignalRClick( wxListEvent& event ) override;
+    void onSignalContextMenu( wxContextMenuEvent& event );
 
     void onSimulate( wxCommandEvent& event );
     void onCursorToggle( wxCommandEvent& event );
@@ -382,7 +382,9 @@ private:
 
             enum SIGNAL_CONTEXT_MENU_EVENTS
             {
+                DELETE_SIGNAL,
                 HIDE_SIGNAL,
+                SHOW_SIGNAL,
                 SHOW_CURSOR,
                 HIDE_CURSOR
             };
