@@ -375,14 +375,19 @@ void CURSOR::draw( wxDC& aDC, mpWindow& aWindow  )
 
         for( auto trace : m_plotPanel->GetTraces() )
         {
-            wxCoord yCursorPosPx = aWindow.y2p( trace.second->y2s( m_y[trace.first] ) );
-
-            if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
+            if( trace.second->IsVisible() )
             {
-                updatePen  ( aDC, trace.second->GetTraceColour() );
-                updateBrush( aDC, trace.second->GetTraceColour() );
+                wxCoord yCursorPosPx = aWindow.y2p( trace.second->y2s( m_y[trace.first] ) );
 
-                aDC.DrawCircle( xCursorPosPx, yCursorPosPx, TRACE_DOT_RADIUS );
+                if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
+                {
+                    updatePen  ( aDC, trace.second->GetTraceColour() );
+                    updateBrush( aDC, trace.second->GetTraceColour() );
+
+                    aDC.DrawCircle( xCursorPosPx, yCursorPosPx, TRACE_DOT_RADIUS );
+                }
+                else
+                    continue;
             }
             else
                 continue;
