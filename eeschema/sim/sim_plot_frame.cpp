@@ -1464,49 +1464,6 @@ void SIM_PLOT_FRAME::doCloseWindow()
 
 void SIM_PLOT_FRAME::onCursorUpdate( wxCommandEvent& event )
 {
-    wxSize size = m_cursors->GetClientSize();
-    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
-    m_cursors->ClearAll();
-
-    if( !plotPanel )
-        return;
-#if 0
-    if( m_signalsIconColorList )
-        m_cursors->SetImageList(m_signalsIconColorList, wxIMAGE_LIST_SMALL);
-
-    // Fill the signals listctrl
-    m_cursors->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x / 2 );
-    const long X_COL = m_cursors->AppendColumn( plotPanel->GetLabelX(), wxLIST_FORMAT_LEFT, size.x / 4 );
-
-    wxString labelY1 = plotPanel->GetLabelY1();
-    wxString labelY2 = plotPanel->GetLabelY2();
-    wxString labelY;
-
-    if( !labelY2.IsEmpty() )
-        labelY = labelY1 + " / " + labelY2;
-    else
-        labelY = labelY1;
-
-    const long Y_COL = m_cursors->AppendColumn( labelY, wxLIST_FORMAT_LEFT, size.x / 4 );
-
-    // Update cursor values
-    int itemidx = 0;
-
-    for( const auto& trace : plotPanel->GetTraces() )
-    {
-        if( CURSOR* cursor = trace.second->GetCursor() )
-        {
-           // Find the right icon color in list.
-            // It is the icon used in m_signals list for the same trace
-            long iconColor = m_signals->FindItem( -1, trace.first );
-
-            const wxRealPoint coords = cursor->GetCoords();
-            long idx = m_cursors->InsertItem( itemidx++, trace.first, iconColor );
-            m_cursors->SetItem( idx, X_COL, SPICE_VALUE( coords.x ).ToSpiceString() );
-            m_cursors->SetItem( idx, Y_COL, SPICE_VALUE( coords.y ).ToSpiceString() );
-        }
-    }
-#endif
     updateSignalList();
 }
 
@@ -1662,14 +1619,6 @@ void SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::onMenuEvent( wxMenuEvent& aEvent )
         case HIDE_SIGNAL:
             plot->GetTrace( m_signal )->SetVisible( false );
             plot->Refresh();
-            break;
-
-        case SHOW_CURSOR:
-            plot->EnableCursor( m_signal, true );
-            break;
-
-        case HIDE_CURSOR:
-            plot->EnableCursor( m_signal, false );
             break;
     }
 }

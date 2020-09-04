@@ -289,11 +289,7 @@ public:
         return m_dotted_cp;
     }
 
-    ///> Returns true if the trace has cursor shown.
-    bool HasCursorEnabled( const wxString& aName ) const;
-
     ///> Toggles cursor for a particular trace.
-    void EnableCursor( const wxString& aName, bool aEnable );
     bool ToggleCursors();
     bool AreCursorsActive( char& aLabelFirst, char& aLabelSecond );
 

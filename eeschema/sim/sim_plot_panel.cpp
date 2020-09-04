@@ -664,45 +664,6 @@ void SIM_PLOT_PANEL::DeleteAllTraces()
 }
 
 
-bool SIM_PLOT_PANEL::HasCursorEnabled( const wxString& aName ) const
-{
-    TRACE* t = GetTrace( aName );
-
-    return t ? t->HasCursor() : false;
-}
-
-
-void SIM_PLOT_PANEL::EnableCursor( const wxString& aName, bool aEnable )
-{
-    TRACE* t = GetTrace( aName );
-
-    if( t == nullptr || t->HasCursor() == aEnable )
-        return;
-
-    if( aEnable )
-    {
-        CURSOR* c = nullptr; //new CURSOR( t, this );
-        int     plotCenter = GetPlotWin()->GetMarginLeft()
-                         + ( GetPlotWin()->GetXScreen() - GetPlotWin()->GetMarginLeft()
-                                   - GetPlotWin()->GetMarginRight() )
-                                   / 2;
-        c->SetX( plotCenter );
-        t->SetCursor( c );
-        m_plotWin->AddLayer( c );
-    }
-    else
-    {
-        CURSOR* c = t->GetCursor();
-        t->SetCursor( NULL );
-        m_plotWin->DelLayer( c, true );
-    }
-
-    // Notify the parent window about the changes
-    wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
-}
-
-
-
 bool SIM_PLOT_PANEL::ToggleCursors()
 {
     if( GetTraces().size() > 0 )

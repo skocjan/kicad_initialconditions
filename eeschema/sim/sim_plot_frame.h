@@ -384,9 +384,7 @@ private:
             {
                 DELETE_SIGNAL,
                 HIDE_SIGNAL,
-                SHOW_SIGNAL,
-                SHOW_CURSOR,
-                HIDE_CURSOR
+                SHOW_SIGNAL
             };
     };
 
