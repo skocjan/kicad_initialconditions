@@ -56,6 +56,7 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		wxMenuItem* m_showNetlist;
 		wxMenuItem* m_settings;
 		wxMenu* m_traceMenu;
+		wxMenuItem* m_toggleCursors;
 		wxMenuItem* m_addSignals;
 		wxMenuItem* m_deleteSignal;
 		wxMenuItem* m_showHideMenu;
@@ -99,6 +100,14 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		virtual void menuSaveImage( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuSaveCsv( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuExit( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuRunSim( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuProbe( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuTune( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuShowNetlist( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuSettings( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuCursorToggle( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuAddSignal( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuRemoveSignal( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomIn( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomOut( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomFit( wxCommandEvent& event ) { event.Skip(); }

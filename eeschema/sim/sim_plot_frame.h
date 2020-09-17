@@ -307,16 +307,17 @@ private:
     void onPlotChanged( wxAuiNotebookEvent& event ) override;
     void onPlotClose( wxAuiNotebookEvent& event ) override;
 
+    void menuRemoveSignal( wxCommandEvent& event ) override;
     void onSignalDblClick( wxMouseEvent& event ) override;
     void onSignalContextMenu( wxContextMenuEvent& event );
 
-    void onSimulate( wxCommandEvent& event );
-    void onCursorToggle( wxCommandEvent& event );
-    void onSettings( wxCommandEvent& event );
-    void onAddSignal( wxCommandEvent& event );
-    void onProbe( wxCommandEvent& event );
-    void onTune( wxCommandEvent& event );
-    void onShowNetlist( wxCommandEvent& event );
+    void menuRunSim( wxCommandEvent& event ) override;
+    void menuCursorToggle( wxCommandEvent& event ) override;
+    void menuSettings( wxCommandEvent& event ) override;
+    void menuAddSignal( wxCommandEvent& event ) override;
+    void menuProbe( wxCommandEvent& event ) override;
+    void menuTune( wxCommandEvent& event ) override;
+    void menuShowNetlist( wxCommandEvent& event ) override;
 
     void doCloseWindow() override;
 
@@ -338,7 +339,7 @@ private:
     wxToolBarToolBase* m_toolProbe;
     wxToolBarToolBase* m_toolTune;
     wxToolBarToolBase* m_toolSettings;
-    wxToolBarToolBase* m_toggleCursors;
+    wxToolBarToolBase* m_toolCursors;
 
     SCH_EDIT_FRAME* m_schematicFrame;
     std::unique_ptr<NETLIST_EXPORTER_PSPICE_SIM> m_exporter;

@@ -66,6 +66,11 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_mainMenu->Append( m_simulationMenu, _("Simulation") );
 
 	m_traceMenu = new wxMenu();
+	m_toggleCursors = new wxMenuItem( m_traceMenu, wxID_ANY, wxString( _("Toggle Cursors") ) , wxEmptyString, wxITEM_CHECK );
+	m_traceMenu->Append( m_toggleCursors );
+
+	m_traceMenu->AppendSeparator();
+
 	m_addSignals = new wxMenuItem( m_traceMenu, wxID_ADD, wxString( _("Add Signals...") ) + wxT('\t') + wxT("A"), wxEmptyString, wxITEM_NORMAL );
 	m_traceMenu->Append( m_addSignals );
 
@@ -245,6 +250,14 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_fileMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuSaveImage ), this, m_saveImage->GetId());
 	m_fileMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuSaveCsv ), this, m_saveCsv->GetId());
 	m_fileMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuExit ), this, m_exitSim->GetId());
+	m_simulationMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuRunSim ), this, m_runSimulation->GetId());
+	m_simulationMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuProbe ), this, m_probeSignals->GetId());
+	m_simulationMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuTune ), this, m_tuneValue->GetId());
+	m_simulationMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuShowNetlist ), this, m_showNetlist->GetId());
+	m_simulationMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuSettings ), this, m_settings->GetId());
+	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuCursorToggle ), this, m_toggleCursors->GetId());
+	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuAddSignal ), this, m_addSignals->GetId());
+	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuRemoveSignal ), this, m_deleteSignal->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomIn ), this, m_zoomIn->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomOut ), this, m_zoomOut->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomFit ), this, m_zoomFit->GetId());

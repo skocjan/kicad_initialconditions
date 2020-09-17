@@ -165,46 +165,33 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
 
     updateNetlistExporter();
 
-    Connect( EVT_SIM_UPDATE, wxCommandEventHandler( SIM_PLOT_FRAME::onSimUpdate ), NULL, this );
-    Connect( EVT_SIM_REPORT, wxCommandEventHandler( SIM_PLOT_FRAME::onSimReport ), NULL, this );
-    Connect( EVT_SIM_STARTED, wxCommandEventHandler( SIM_PLOT_FRAME::onSimStarted ), NULL, this );
-    Connect( EVT_SIM_FINISHED, wxCommandEventHandler( SIM_PLOT_FRAME::onSimFinished ), NULL, this );
-    Connect( EVT_SIM_CURSOR_UPDATE, wxCommandEventHandler( SIM_PLOT_FRAME::onCursorUpdate ), NULL, this );
+    Bind( EVT_SIM_UPDATE,        &SIM_PLOT_FRAME::onSimUpdate,    this );
+    Bind( EVT_SIM_REPORT,        &SIM_PLOT_FRAME::onSimReport,    this );
+    Bind( EVT_SIM_STARTED,       &SIM_PLOT_FRAME::onSimStarted,   this );
+    Bind( EVT_SIM_FINISHED,      &SIM_PLOT_FRAME::onSimFinished,  this );
+    Bind( EVT_SIM_CURSOR_UPDATE, &SIM_PLOT_FRAME::onCursorUpdate, this );
 
     // Toolbar buttons
-    m_toolSimulate = m_toolBar->AddTool( m_runSimulation->GetId(), _( "Run/Stop Simulation" ),
+    m_toolSimulate = m_toolBar->AddTool( wxID_ANY, _( "Run/Stop Simulation" ),
             KiBitmap( sim_run_xpm ), _( "Run Simulation" ), wxITEM_NORMAL );
-    m_toolAddSignals = m_toolBar->AddTool( m_addSignals->GetId(), _( "Add Signals" ),
+    m_toolAddSignals = m_toolBar->AddTool( wxID_ANY, _( "Add Signals" ),
             KiBitmap( sim_add_signal_xpm ), _( "Add signals to plot" ), wxITEM_NORMAL );
-    m_toolProbe = m_toolBar->AddTool( m_probeSignals->GetId(),  _( "Probe" ),
+    m_toolProbe = m_toolBar->AddTool( wxID_ANY,  _( "Probe" ),
             KiBitmap( sim_probe_xpm ), _( "Probe signals on the schematic" ), wxITEM_NORMAL );
-    m_toolTune = m_toolBar->AddTool( m_tuneValue->GetId(), _( "Tune" ),
+    m_toolTune = m_toolBar->AddTool( wxID_ANY, _( "Tune" ),
             KiBitmap( sim_tune_xpm ), _( "Tune component values" ), wxITEM_NORMAL );
-    m_toolSettings = m_toolBar->AddTool( wxID_ANY /*m_settings->GetId()*/, _( "Settings" ),
+    m_toolSettings = m_toolBar->AddTool( wxID_ANY, _( "Settings" ),
             KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_NORMAL );
-    m_toggleCursors = m_toolBar->AddTool( wxID_ANY /*m_toggleCursors->GetId()*/, _( "Toggle Cursors" ),
+    m_toolCursors = m_toolBar->AddTool( wxID_ANY, _( "Toggle Cursors" ),
             KiBitmap( sim_settings_xpm ), _( "Toggle Cursors" ), wxITEM_CHECK );
 
-    Connect( m_toolSimulate->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
-             wxCommandEventHandler( SIM_PLOT_FRAME::onSimulate ), NULL, this );
-    Connect( m_toolAddSignals->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
-             wxCommandEventHandler( SIM_PLOT_FRAME::onAddSignal ), NULL, this );
-    Connect( m_toolProbe->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
-             wxCommandEventHandler( SIM_PLOT_FRAME::onProbe ), NULL, this );
-    Connect( m_toolTune->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
-             wxCommandEventHandler( SIM_PLOT_FRAME::onTune ), NULL, this );
-    Connect( m_toolSettings->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
-             wxCommandEventHandler( SIM_PLOT_FRAME::onSettings ), NULL, this );
-    Connect( m_toggleCursors->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
-             wxCommandEventHandler( SIM_PLOT_FRAME::onCursorToggle ), NULL, this );
-
-    // Bind toolbar buttons event to existing menu event handlers, so they behave the same
-    Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onSimulate,    this, m_runSimulation->GetId() );
-    Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onAddSignal,   this, m_addSignals->GetId() );
-    Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onProbe,       this, m_probeSignals->GetId() );
-    Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onTune,        this, m_tuneValue->GetId() );
-    Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onShowNetlist, this, m_showNetlist->GetId() );
-    Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::onSettings,    this, m_settings->GetId() );
+    // Bind toolbar buttons and menus event to existing menu event handlers, so they behave the same
+    Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuRunSim,    this, m_toolSimulate->GetId() );
+    Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuAddSignal, this, m_toolAddSignals->GetId() );
+    Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuProbe,     this, m_toolProbe->GetId() );
+    Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuTune,      this, m_toolTune->GetId() );
+    Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuSettings,  this, m_toolSettings->GetId() );
+    Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuCursorToggle, this, m_toolCursors->GetId() );
 
     m_signals->Bind( wxEVT_CONTEXT_MENU, &SIM_PLOT_FRAME::onSignalContextMenu, this );
 
@@ -1285,6 +1272,13 @@ void SIM_PLOT_FRAME::onPlotChanged( wxAuiNotebookEvent& event )
 
 void SIM_PLOT_FRAME::onSignalDblClick( wxMouseEvent& event )
 {
+    wxCommandEvent dummy;
+    menuRemoveSignal( dummy );
+}
+
+
+void SIM_PLOT_FRAME::menuRemoveSignal( wxCommandEvent& event )
+{
     // Remove signal from the plot panel when double clicked
     long idx = m_signals->GetFocusedItem();
 
@@ -1306,7 +1300,7 @@ void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onSimulate( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuRunSim( wxCommandEvent& event )
 {
     if( IsSimulationRunning() )
         StopSimulation();
@@ -1315,7 +1309,7 @@ void SIM_PLOT_FRAME::onSimulate( wxCommandEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onCursorToggle( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuCursorToggle( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( currentPlotWindow() );
     if( plotPanel )
@@ -1323,7 +1317,7 @@ void SIM_PLOT_FRAME::onCursorToggle( wxCommandEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuSettings( wxCommandEvent& event )
 {
     SIM_PANEL_BASE* plotPanelWindow = currentPlotWindow();
 
@@ -1360,7 +1354,7 @@ void SIM_PLOT_FRAME::onSettings( wxCommandEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onAddSignal( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuAddSignal( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
@@ -1375,7 +1369,7 @@ void SIM_PLOT_FRAME::onAddSignal( wxCommandEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onProbe( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuProbe( wxCommandEvent& event )
 {
     if( m_schematicFrame == NULL )
         return;
@@ -1385,7 +1379,7 @@ void SIM_PLOT_FRAME::onProbe( wxCommandEvent& event )
 }
 
 
-void SIM_PLOT_FRAME::onTune( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuTune( wxCommandEvent& event )
 {
     if( m_schematicFrame == NULL )
         return;
@@ -1394,7 +1388,7 @@ void SIM_PLOT_FRAME::onTune( wxCommandEvent& event )
     m_schematicFrame->Raise();
 }
 
-void SIM_PLOT_FRAME::onShowNetlist( wxCommandEvent& event )
+void SIM_PLOT_FRAME::menuShowNetlist( wxCommandEvent& event )
 {
     class NETLIST_VIEW_DIALOG : public wxDialog
     {
