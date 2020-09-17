@@ -27,7 +27,6 @@
 #include <wx/stc/stc.h>
 
 #include <sch_edit_frame.h>
-#include <eeschema_id.h>
 #include <kiway.h>
 #include <confirm.h>
 #include <bitmaps.h>
@@ -173,17 +172,17 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     Connect( EVT_SIM_CURSOR_UPDATE, wxCommandEventHandler( SIM_PLOT_FRAME::onCursorUpdate ), NULL, this );
 
     // Toolbar buttons
-    m_toolSimulate = m_toolBar->AddTool( ID_SIM_RUN, _( "Run/Stop Simulation" ),
+    m_toolSimulate = m_toolBar->AddTool( m_runSimulation->GetId(), _( "Run/Stop Simulation" ),
             KiBitmap( sim_run_xpm ), _( "Run Simulation" ), wxITEM_NORMAL );
-    m_toolAddSignals = m_toolBar->AddTool( ID_SIM_ADD_SIGNALS, _( "Add Signals" ),
+    m_toolAddSignals = m_toolBar->AddTool( m_addSignals->GetId(), _( "Add Signals" ),
             KiBitmap( sim_add_signal_xpm ), _( "Add signals to plot" ), wxITEM_NORMAL );
-    m_toolProbe = m_toolBar->AddTool( ID_SIM_PROBE,  _( "Probe" ),
+    m_toolProbe = m_toolBar->AddTool( m_probeSignals->GetId(),  _( "Probe" ),
             KiBitmap( sim_probe_xpm ), _( "Probe signals on the schematic" ), wxITEM_NORMAL );
-    m_toolTune = m_toolBar->AddTool( ID_SIM_TUNE, _( "Tune" ),
+    m_toolTune = m_toolBar->AddTool( m_tuneValue->GetId(), _( "Tune" ),
             KiBitmap( sim_tune_xpm ), _( "Tune component values" ), wxITEM_NORMAL );
-    m_toolSettings = m_toolBar->AddTool( wxID_ANY, _( "Settings" ),
+    m_toolSettings = m_toolBar->AddTool( wxID_ANY /*m_settings->GetId()*/, _( "Settings" ),
             KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_NORMAL );
-    m_toggleCursors = m_toolBar->AddTool( wxID_ANY, _( "Toggle Cursors" ),
+    m_toggleCursors = m_toolBar->AddTool( wxID_ANY /*m_toggleCursors->GetId()*/, _( "Toggle Cursors" ),
             KiBitmap( sim_settings_xpm ), _( "Toggle Cursors" ), wxITEM_CHECK );
 
     Connect( m_toolSimulate->GetId(), wxEVT_COMMAND_TOOL_CLICKED,
@@ -256,7 +255,7 @@ void SIM_PLOT_FRAME::SaveSettings( APP_SETTINGS_BASE* aCfg )
         cfg->m_Simulator.plot_panel_width     = m_splitterLeftRight->GetSashPosition();
         cfg->m_Simulator.plot_panel_height    = m_splitterPlotAndConsole->GetSashPosition();
         cfg->m_Simulator.signal_panel_height  = m_splitterSignals->GetSashPosition();
-        cfg->m_Simulator.cursors_panel_height = m_splitterTuneValues->GetSashPosition();
+//        cfg->m_Simulator.cursors_panel_height = m_splitterTuneValues->GetSashPosition();
         cfg->m_Simulator.white_background     = m_plotUseWhiteBg;
     }
 }
@@ -275,7 +274,7 @@ void SIM_PLOT_FRAME::LoadSettings( APP_SETTINGS_BASE* aCfg )
         m_splitterLeftRightSashPosition      = cfg->m_Simulator.plot_panel_width;
         m_splitterPlotAndConsoleSashPosition = cfg->m_Simulator.plot_panel_height;
         m_splitterSignalsSashPosition        = cfg->m_Simulator.signal_panel_height;
-        m_splitterTuneValuesSashPosition     = cfg->m_Simulator.cursors_panel_height;
+//        m_splitterTuneValuesSashPosition     = cfg->m_Simulator.cursors_panel_height;
         m_plotUseWhiteBg                     = cfg->m_Simulator.white_background;
     }
 }
@@ -293,7 +292,7 @@ WINDOW_SETTINGS* SIM_PLOT_FRAME::GetWindowSettings( APP_SETTINGS_BASE* aCfg )
 // A small helper struct to handle bitmaps initialisation in menus
 struct BM_MENU_INIT_ITEM
 {
-    int m_MenuId;
+    wxMenuItem* m_MenuItem;
     BITMAP_DEF m_Bitmap;
 };
 
@@ -304,31 +303,31 @@ void SIM_PLOT_FRAME::setIconsForMenuItems()
     BM_MENU_INIT_ITEM bm_list[]
     {
         // File menu:
-        { wxID_NEW, simulator_xpm },
-        { wxID_OPEN,directory_browser_xpm },
-        { wxID_SAVE, directory_xpm},
-        { ID_SAVE_AS_IMAGE, export_xpm},
-        { ID_SAVE_AS_CSV, export_xpm},
-        { wxID_CLOSE, exit_xpm},
+        { m_newPlot, simulator_xpm },
+        { m_openWorkbook,directory_browser_xpm },
+        { m_saveWorkbook, directory_xpm},
+        { m_saveImage, export_xpm},
+        { m_saveCsv, export_xpm},
+        { m_exitSim, exit_xpm},
 
         // simulator menu:
-        { ID_MENU_RUN_SIM, sim_run_xpm},
-        { ID_MENU_ADD_SIGNAL, sim_add_signal_xpm},
-        { ID_MENU_PROBE_SIGNALS, sim_probe_xpm},
-        { ID_MENU_TUNE_SIGNALS, sim_tune_xpm},
-        { ID_MENU_SHOW_NETLIST, netlist_xpm},
-        { ID_MENU_SET_SIMUL, sim_settings_xpm},
+        { m_runSimulation, sim_run_xpm},
+        { m_addSignals, sim_add_signal_xpm},
+        { m_probeSignals, sim_probe_xpm},
+        { m_tuneValue, sim_tune_xpm},
+        { m_showNetlist, netlist_xpm},
+        { m_settings, sim_settings_xpm},
 
         // View menu
-        { wxID_ZOOM_IN, zoom_in_xpm},
-        { wxID_ZOOM_OUT, zoom_out_xpm},
-        { wxID_ZOOM_FIT, zoom_fit_in_page_xpm},
-        { ID_MENU_SHOW_GRID, grid_xpm},
-        { ID_MENU_SHOW_LEGEND, text_xpm},
-        { ID_MENU_DOTTED, add_dashed_line_xpm},
-        { ID_MENU_WHITE_BG, swap_layer_xpm},
+        { m_zoomIn, zoom_in_xpm},
+        { m_zoomOut, zoom_out_xpm},
+        { m_zoomFit, zoom_fit_in_page_xpm},
+        { m_showGrid, grid_xpm},
+        { m_showLegend, text_xpm},
+        { m_showDotted, add_dashed_line_xpm},
+        { m_showWhiteBackground, swap_layer_xpm},
 
-        { 0, nullptr }  // Sentinel
+        { nullptr, nullptr }  // Sentinel
     };
 
     // wxMenuItems are already created and attached to the m_mainMenu wxMenuBar.
@@ -338,25 +337,23 @@ void SIM_PLOT_FRAME::setIconsForMenuItems()
     // Remove the wxMenuItem from its wxMenu
     // Set the bitmap
     // Insert the modified wxMenuItem to its previous place
-    for( int ii = 0; bm_list[ii].m_MenuId; ++ii )
+    for( int ii = 0; bm_list[ii].m_MenuItem; ++ii )
     {
-        wxMenuItem* item = m_mainMenu->FindItem( bm_list[ii].m_MenuId );
-
-        if( !item || !bm_list[ii].m_Bitmap)
+        if( !bm_list[ii].m_Bitmap )
             continue;
 
-        wxMenu* menu = item->GetMenu();
+        wxMenu* menu = bm_list[ii].m_MenuItem->GetMenu();
         // Calculate the initial index of item inside the wxMenu parent
         wxMenuItemList& mlist = menu->GetMenuItems();
-        int mpos = mlist.IndexOf( item );
+        int mpos = mlist.IndexOf( bm_list[ii].m_MenuItem );
 
         if( mpos >= 0 ) // Should be always the case
         {
             // Modify the bitmap
-            menu->Remove( item );
-            AddBitmapToMenuItem( item, KiBitmap( bm_list[ii].m_Bitmap ) );
+            menu->Remove( bm_list[ii].m_MenuItem );
+            AddBitmapToMenuItem( bm_list[ii].m_MenuItem, KiBitmap( bm_list[ii].m_Bitmap ) );
             // Insert item to its the initial index
-            menu->Insert( mpos, item );
+            menu->Insert( mpos, bm_list[ii].m_MenuItem );
         }
     }
 }
@@ -373,8 +370,8 @@ void SIM_PLOT_FRAME::setSubWindowsSashSize()
     if( m_splitterSignalsSashPosition > 0 )
         m_splitterSignals->SetSashPosition( m_splitterSignalsSashPosition );
 
-    if( m_splitterTuneValuesSashPosition > 0 )
-        m_splitterTuneValues->SetSashPosition( m_splitterTuneValuesSashPosition );
+//    if( m_splitterTuneValuesSashPosition > 0 )
+//        m_splitterTuneValues->SetSashPosition( m_splitterTuneValuesSashPosition );
 }
 
 
@@ -1470,14 +1467,14 @@ void SIM_PLOT_FRAME::onCursorUpdate( wxCommandEvent& event )
 
 void SIM_PLOT_FRAME::onSimStarted( wxCommandEvent& aEvent )
 {
-    m_toolBar->SetToolNormalBitmap( ID_SIM_RUN, KiBitmap( sim_stop_xpm ) );
+    m_toolBar->SetToolNormalBitmap( m_runSimulation->GetId(), KiBitmap( sim_stop_xpm ) );
     SetCursor( wxCURSOR_ARROWWAIT );
 }
 
 
 void SIM_PLOT_FRAME::onSimFinished( wxCommandEvent& aEvent )
 {
-    m_toolBar->SetToolNormalBitmap( ID_SIM_RUN, KiBitmap( sim_run_xpm ) );
+    m_toolBar->SetToolNormalBitmap( m_runSimulation->GetId(), KiBitmap( sim_run_xpm ) );
     SetCursor( wxCURSOR_ARROW );
 
     SIM_TYPE simType = m_exporter->GetSimType();

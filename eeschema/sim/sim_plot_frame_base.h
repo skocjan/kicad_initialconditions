@@ -7,43 +7,31 @@
 
 #pragma once
 
-#include "kiway_player.h"
 #include <wx/artprov.h>
-#include <wx/aui/auibook.h>
-#include <wx/bitmap.h>
-#include <wx/colour.h>
-#include <wx/font.h>
-#include <wx/frame.h>
-#include <wx/gdicmn.h>
-#include <wx/icon.h>
-#include <wx/image.h>
+#include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-#include <wx/listctrl.h>
+#include "kiway_player.h"
+#include <wx/string.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
+#include <wx/icon.h>
 #include <wx/menu.h>
-#include <wx/panel.h>
+#include <wx/gdicmn.h>
+#include <wx/font.h>
+#include <wx/colour.h>
 #include <wx/settings.h>
+#include <wx/toolbar.h>
+#include <wx/aui/auibook.h>
 #include <wx/sizer.h>
+#include <wx/panel.h>
+#include <wx/textctrl.h>
 #include <wx/splitter.h>
 #include <wx/stattext.h>
-#include <wx/string.h>
-#include <wx/textctrl.h>
-#include <wx/toolbar.h>
-#include <wx/xrc/xmlres.h>
+#include <wx/listctrl.h>
+#include <wx/frame.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
-#define ID_SAVE_AS_IMAGE 1000
-#define ID_SAVE_AS_CSV 1001
-#define ID_MENU_RUN_SIM 1002
-#define ID_MENU_ADD_SIGNAL 1003
-#define ID_MENU_PROBE_SIGNALS 1004
-#define ID_MENU_TUNE_SIGNALS 1005
-#define ID_MENU_SHOW_NETLIST 1006
-#define ID_MENU_SET_SIMUL 1007
-#define ID_MENU_SHOW_GRID 1008
-#define ID_MENU_SHOW_LEGEND 1009
-#define ID_MENU_DOTTED 1010
-#define ID_MENU_WHITE_BG 1011
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class SIM_PLOT_FRAME_BASE
@@ -55,14 +43,32 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 	protected:
 		wxMenuBar* m_mainMenu;
 		wxMenu* m_fileMenu;
+		wxMenuItem* m_newPlot;
+		wxMenuItem* m_openWorkbook;
+		wxMenuItem* m_saveWorkbook;
+		wxMenuItem* m_saveImage;
+		wxMenuItem* m_saveCsv;
+		wxMenuItem* m_exitSim;
 		wxMenu* m_simulationMenu;
 		wxMenuItem* m_runSimulation;
-		wxMenuItem* m_addSignals;
 		wxMenuItem* m_probeSignals;
 		wxMenuItem* m_tuneValue;
 		wxMenuItem* m_showNetlist;
 		wxMenuItem* m_settings;
+		wxMenu* m_traceMenu;
+		wxMenuItem* m_addSignals;
+		wxMenuItem* m_deleteSignal;
+		wxMenuItem* m_showHideMenu;
+		wxMenuItem* m_copyMenu;
+		wxMenuItem* m_copyAllMenu;
 		wxMenu* m_viewMenu;
+		wxMenuItem* m_zoomIn;
+		wxMenuItem* m_zoomOut;
+		wxMenuItem* m_zoomFit;
+		wxMenuItem* m_showGrid;
+		wxMenuItem* m_showLegend;
+		wxMenuItem* m_showDotted;
+		wxMenuItem* m_showWhiteBackground;
 		wxBoxSizer* m_sizerMain;
 		wxToolBar* m_toolBar;
 		wxSplitterWindow* m_splitterLeftRight;
@@ -81,12 +87,8 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		wxPanel* m_panelSignals;
 		wxStaticText* m_staticTextSignals;
 		wxListView* m_signals;
-		wxPanel* m_panelCursorsAndTune;
-		wxSplitterWindow* m_splitterTuneValues;
-		wxPanel* m_panelCursors;
-		wxStaticText* m_staticTextCursors;
-		wxListCtrl* m_cursors;
 		wxPanel* m_tunePanel;
+		wxTextCtrl* m_cursors;
 		wxStaticText* m_staticTextTune;
 		wxBoxSizer* m_tuneSizer;
 
@@ -111,7 +113,7 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		virtual void onPlotChanged( wxAuiNotebookEvent& event ) { event.Skip(); }
 		virtual void onPlotClose( wxAuiNotebookEvent& event ) { event.Skip(); }
 		virtual void onSignalDblClick( wxMouseEvent& event ) { event.Skip(); }
-		//virtual void onSignalRClick( wxListEvent& event ) { event.Skip(); }
+		virtual void onSignalRClick( wxListEvent& event ) { event.Skip(); }
 
 
 	public:
@@ -136,12 +138,6 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		{
 			m_splitterSignals->SetSashPosition( 0 );
 			m_splitterSignals->Disconnect( wxEVT_IDLE, wxIdleEventHandler( SIM_PLOT_FRAME_BASE::m_splitterSignalsOnIdle ), NULL, this );
-		}
-
-		void m_splitterTuneValuesOnIdle( wxIdleEvent& )
-		{
-			m_splitterTuneValues->SetSashPosition( 0 );
-			m_splitterTuneValues->Disconnect( wxEVT_IDLE, wxIdleEventHandler( SIM_PLOT_FRAME_BASE::m_splitterTuneValuesOnIdle ), NULL, this );
 		}
 
 };

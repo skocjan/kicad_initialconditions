@@ -15,96 +15,100 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 
 	m_mainMenu = new wxMenuBar( 0 );
 	m_fileMenu = new wxMenu();
-	wxMenuItem* m_newPlot;
 	m_newPlot = new wxMenuItem( m_fileMenu, wxID_NEW, wxString( _("New Plot") ) , wxEmptyString, wxITEM_NORMAL );
 	m_fileMenu->Append( m_newPlot );
 
 	m_fileMenu->AppendSeparator();
 
-	wxMenuItem* m_openWorkbook;
 	m_openWorkbook = new wxMenuItem( m_fileMenu, wxID_OPEN, wxString( _("Open Workbook") ) , wxEmptyString, wxITEM_NORMAL );
 	m_fileMenu->Append( m_openWorkbook );
 
-	wxMenuItem* m_saveWorkbook;
 	m_saveWorkbook = new wxMenuItem( m_fileMenu, wxID_SAVE, wxString( _("Save Workbook") ) , wxEmptyString, wxITEM_NORMAL );
 	m_fileMenu->Append( m_saveWorkbook );
 
 	m_fileMenu->AppendSeparator();
 
-	wxMenuItem* m_saveImage;
-	m_saveImage = new wxMenuItem( m_fileMenu, ID_SAVE_AS_IMAGE, wxString( _("Save as Image") ) , wxEmptyString, wxITEM_NORMAL );
+	m_saveImage = new wxMenuItem( m_fileMenu, wxID_ANY, wxString( _("Save as Image") ) , wxEmptyString, wxITEM_NORMAL );
 	m_fileMenu->Append( m_saveImage );
 
-	wxMenuItem* m_saveCsv;
-	m_saveCsv = new wxMenuItem( m_fileMenu, ID_SAVE_AS_CSV, wxString( _("Save as .csv File") ) , wxEmptyString, wxITEM_NORMAL );
+	m_saveCsv = new wxMenuItem( m_fileMenu, wxID_ANY, wxString( _("Save as .csv File") ) , wxEmptyString, wxITEM_NORMAL );
 	m_fileMenu->Append( m_saveCsv );
 
 	m_fileMenu->AppendSeparator();
 
-	wxMenuItem* m_exitSim;
 	m_exitSim = new wxMenuItem( m_fileMenu, wxID_CLOSE, wxString( _("Close Simulation") ) + wxT('\t') + wxT("CTRL+W"), wxEmptyString, wxITEM_NORMAL );
 	m_fileMenu->Append( m_exitSim );
 
 	m_mainMenu->Append( m_fileMenu, _("File") );
 
 	m_simulationMenu = new wxMenu();
-	m_runSimulation = new wxMenuItem( m_simulationMenu, ID_MENU_RUN_SIM, wxString( _("Run Simulation") ) + wxT('\t') + wxT("R"), wxEmptyString, wxITEM_NORMAL );
+	m_runSimulation = new wxMenuItem( m_simulationMenu, wxID_ANY, wxString( _("Run Simulation") ) + wxT('\t') + wxT("R"), wxEmptyString, wxITEM_NORMAL );
 	m_simulationMenu->Append( m_runSimulation );
 
 	m_simulationMenu->AppendSeparator();
 
-	m_addSignals = new wxMenuItem( m_simulationMenu, ID_MENU_ADD_SIGNAL, wxString( _("Add Signals...") ) + wxT('\t') + wxT("A"), wxEmptyString, wxITEM_NORMAL );
-	m_simulationMenu->Append( m_addSignals );
-
-	m_probeSignals = new wxMenuItem( m_simulationMenu, ID_MENU_PROBE_SIGNALS, wxString( _("Probe from schematics") ) + wxT('\t') + wxT("P"), wxEmptyString, wxITEM_NORMAL );
+	m_probeSignals = new wxMenuItem( m_simulationMenu, wxID_ANY, wxString( _("Probe from schematics") ) + wxT('\t') + wxT("P"), wxEmptyString, wxITEM_NORMAL );
 	m_simulationMenu->Append( m_probeSignals );
 
-	m_tuneValue = new wxMenuItem( m_simulationMenu, ID_MENU_TUNE_SIGNALS, wxString( _("Tune Component Value") ) + wxT('\t') + wxT("T"), wxEmptyString, wxITEM_NORMAL );
+	m_tuneValue = new wxMenuItem( m_simulationMenu, wxID_ANY, wxString( _("Tune Component Value") ) + wxT('\t') + wxT("T"), wxEmptyString, wxITEM_NORMAL );
 	m_simulationMenu->Append( m_tuneValue );
 
 	m_simulationMenu->AppendSeparator();
 
-	m_showNetlist = new wxMenuItem( m_simulationMenu, ID_MENU_SHOW_NETLIST, wxString( _("Show SPICE Netlist...") ) , _("Shows current simulation's netlist. Useful for debugging SPICE errors."), wxITEM_NORMAL );
+	m_showNetlist = new wxMenuItem( m_simulationMenu, wxID_ANY, wxString( _("Show SPICE Netlist...") ) , _("Shows current simulation's netlist. Useful for debugging SPICE errors."), wxITEM_NORMAL );
 	m_simulationMenu->Append( m_showNetlist );
 
 	m_simulationMenu->AppendSeparator();
 
-	m_settings = new wxMenuItem( m_simulationMenu, ID_MENU_SET_SIMUL, wxString( _("Settings...") ) , wxEmptyString, wxITEM_NORMAL );
+	m_settings = new wxMenuItem( m_simulationMenu, wxID_SETUP, wxString( _("Settings...") ) , wxEmptyString, wxITEM_NORMAL );
 	m_simulationMenu->Append( m_settings );
 
 	m_mainMenu->Append( m_simulationMenu, _("Simulation") );
 
+	m_traceMenu = new wxMenu();
+	m_addSignals = new wxMenuItem( m_traceMenu, wxID_ADD, wxString( _("Add Signals...") ) + wxT('\t') + wxT("A"), wxEmptyString, wxITEM_NORMAL );
+	m_traceMenu->Append( m_addSignals );
+
+	m_deleteSignal = new wxMenuItem( m_traceMenu, wxID_REMOVE, wxString( _("Delete Signals") ) + wxT('\t') + wxT("Delete"), wxEmptyString, wxITEM_NORMAL );
+	m_traceMenu->Append( m_deleteSignal );
+
+	m_showHideMenu = new wxMenuItem( m_traceMenu, wxID_ANY, wxString( _("Hide Signal") ) , wxEmptyString, wxITEM_NORMAL );
+	m_traceMenu->Append( m_showHideMenu );
+
+	m_traceMenu->AppendSeparator();
+
+	m_copyMenu = new wxMenuItem( m_traceMenu, wxID_COPY, wxString( _("Copy") ) + wxT('\t') + wxT("Ctrl+C"), wxEmptyString, wxITEM_NORMAL );
+	m_traceMenu->Append( m_copyMenu );
+
+	m_copyAllMenu = new wxMenuItem( m_traceMenu, wxID_ANY, wxString( _("Copy All") ) + wxT('\t') + wxT("Ctrl+C"), wxEmptyString, wxITEM_CHECK );
+	m_traceMenu->Append( m_copyAllMenu );
+
+	m_mainMenu->Append( m_traceMenu, _("Trace") );
+
 	m_viewMenu = new wxMenu();
-	wxMenuItem* m_zoomIn;
 	m_zoomIn = new wxMenuItem( m_viewMenu, wxID_ZOOM_IN, wxString( _("Zoom In") ) , wxEmptyString, wxITEM_NORMAL );
 	m_viewMenu->Append( m_zoomIn );
 
-	wxMenuItem* m_zoomOut;
 	m_zoomOut = new wxMenuItem( m_viewMenu, wxID_ZOOM_OUT, wxString( _("Zoom Out") ) , wxEmptyString, wxITEM_NORMAL );
 	m_viewMenu->Append( m_zoomOut );
 
-	wxMenuItem* m_zoomFit;
 	m_zoomFit = new wxMenuItem( m_viewMenu, wxID_ZOOM_FIT, wxString( _("Fit on Screen") ) , wxEmptyString, wxITEM_NORMAL );
 	m_viewMenu->Append( m_zoomFit );
 
 	m_viewMenu->AppendSeparator();
 
-	wxMenuItem* m_showGrid;
-	m_showGrid = new wxMenuItem( m_viewMenu, ID_MENU_SHOW_GRID, wxString( _("Show &Grid") ) , wxEmptyString, wxITEM_CHECK );
+	m_showGrid = new wxMenuItem( m_viewMenu, wxID_ANY, wxString( _("Show &Grid") ) , wxEmptyString, wxITEM_CHECK );
 	m_viewMenu->Append( m_showGrid );
 
-	wxMenuItem* m_showLegend;
-	m_showLegend = new wxMenuItem( m_viewMenu, ID_MENU_SHOW_LEGEND, wxString( _("Show &Legend") ) , wxEmptyString, wxITEM_CHECK );
+	m_showLegend = new wxMenuItem( m_viewMenu, wxID_ANY, wxString( _("Show &Legend") ) , wxEmptyString, wxITEM_CHECK );
 	m_viewMenu->Append( m_showLegend );
 
 	m_viewMenu->AppendSeparator();
 
-	wxMenuItem* m_showDotted;
-	m_showDotted = new wxMenuItem( m_viewMenu, ID_MENU_DOTTED, wxString( _("Dotted Current/Phase") ) , wxEmptyString, wxITEM_CHECK );
+	m_showDotted = new wxMenuItem( m_viewMenu, wxID_ANY, wxString( _("Dotted Current/Phase") ) , wxEmptyString, wxITEM_CHECK );
 	m_viewMenu->Append( m_showDotted );
 
-	wxMenuItem* m_showWhiteBackground;
-	m_showWhiteBackground = new wxMenuItem( m_viewMenu, ID_MENU_WHITE_BG, wxString( _("White Background") ) , wxEmptyString, wxITEM_CHECK );
+	m_showWhiteBackground = new wxMenuItem( m_viewMenu, wxID_ANY, wxString( _("White Background") ) , wxEmptyString, wxITEM_CHECK );
 	m_viewMenu->Append( m_showWhiteBackground );
 
 	m_mainMenu->Append( m_viewMenu, _("View") );
@@ -196,61 +200,29 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_panelSignals->SetSizer( bSizer10 );
 	m_panelSignals->Layout();
 	bSizer10->Fit( m_panelSignals );
-	m_panelCursorsAndTune = new wxPanel( m_splitterSignals, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
-	m_panelCursorsAndTune->SetMinSize( wxSize( -1,300 ) );
+	m_tunePanel = new wxPanel( m_splitterSignals, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	m_tunePanel->SetMinSize( wxSize( -1,300 ) );
 
 	wxBoxSizer* bSizer9;
 	bSizer9 = new wxBoxSizer( wxVERTICAL );
 
-	m_splitterTuneValues = new wxSplitterWindow( m_panelCursorsAndTune, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_3DSASH|wxSP_LIVE_UPDATE|wxBORDER_NONE );
-	m_splitterTuneValues->SetSashGravity( 0.5 );
-	m_splitterTuneValues->Connect( wxEVT_IDLE, wxIdleEventHandler( SIM_PLOT_FRAME_BASE::m_splitterTuneValuesOnIdle ), NULL, this );
-	m_splitterTuneValues->SetMinimumPaneSize( 20 );
-
-	m_panelCursors = new wxPanel( m_splitterTuneValues, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
-	m_panelCursors->SetMinSize( wxSize( -1,100 ) );
-
-	wxBoxSizer* bSizer12;
-	bSizer12 = new wxBoxSizer( wxVERTICAL );
-
-	m_staticTextCursors = new wxStaticText( m_panelCursors, wxID_ANY, _("Cursors"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextCursors->Wrap( -1 );
-	bSizer12->Add( m_staticTextCursors, 0, wxTOP|wxBOTTOM|wxRIGHT, 5 );
-
-	m_cursors = new wxListCtrl( m_panelCursors, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_HRULES|wxLC_REPORT|wxLC_SINGLE_SEL );
-	bSizer12->Add( m_cursors, 1, wxEXPAND, 5 );
-
-
-	m_panelCursors->SetSizer( bSizer12 );
-	m_panelCursors->Layout();
-	bSizer12->Fit( m_panelCursors );
-	m_tunePanel = new wxPanel( m_splitterTuneValues, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
-	m_tunePanel->SetMinSize( wxSize( -1,100 ) );
-
-	wxBoxSizer* bSizer13;
-	bSizer13 = new wxBoxSizer( wxVERTICAL );
+	m_cursors = new wxTextCtrl( m_tunePanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	bSizer9->Add( m_cursors, 0, wxALL|wxEXPAND, 5 );
 
 	m_staticTextTune = new wxStaticText( m_tunePanel, wxID_ANY, _("Tune"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextTune->Wrap( -1 );
-	bSizer13->Add( m_staticTextTune, 0, wxTOP|wxBOTTOM|wxRIGHT, 5 );
+	bSizer9->Add( m_staticTextTune, 0, wxTOP|wxBOTTOM|wxRIGHT, 5 );
 
 	m_tuneSizer = new wxBoxSizer( wxHORIZONTAL );
 
 
-	bSizer13->Add( m_tuneSizer, 1, wxEXPAND, 5 );
+	bSizer9->Add( m_tuneSizer, 1, wxEXPAND, 5 );
 
 
-	m_tunePanel->SetSizer( bSizer13 );
+	m_tunePanel->SetSizer( bSizer9 );
 	m_tunePanel->Layout();
-	bSizer13->Fit( m_tunePanel );
-	m_splitterTuneValues->SplitHorizontally( m_panelCursors, m_tunePanel, 0 );
-	bSizer9->Add( m_splitterTuneValues, 1, wxEXPAND, 5 );
-
-
-	m_panelCursorsAndTune->SetSizer( bSizer9 );
-	m_panelCursorsAndTune->Layout();
-	bSizer9->Fit( m_panelCursorsAndTune );
-	m_splitterSignals->SplitHorizontally( m_panelSignals, m_panelCursorsAndTune, 0 );
+	bSizer9->Fit( m_tunePanel );
+	m_splitterSignals->SplitHorizontally( m_panelSignals, m_tunePanel, 0 );
 	m_sideSizer->Add( m_splitterSignals, 1, wxEXPAND, 5 );
 
 
@@ -287,19 +259,19 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_plotNotebook->Connect( wxEVT_COMMAND_AUINOTEBOOK_PAGE_CHANGED, wxAuiNotebookEventHandler( SIM_PLOT_FRAME_BASE::onPlotChanged ), NULL, this );
 	m_plotNotebook->Connect( wxEVT_COMMAND_AUINOTEBOOK_PAGE_CLOSE, wxAuiNotebookEventHandler( SIM_PLOT_FRAME_BASE::onPlotClose ), NULL, this );
 	m_signals->Connect( wxEVT_LEFT_DCLICK, wxMouseEventHandler( SIM_PLOT_FRAME_BASE::onSignalDblClick ), NULL, this );
-//	m_signals->Connect( wxEVT_COMMAND_LIST_ITEM_RIGHT_CLICK, wxListEventHandler( SIM_PLOT_FRAME_BASE::onSignalRClick ), NULL, this );
+	m_signals->Connect( wxEVT_COMMAND_LIST_ITEM_RIGHT_CLICK, wxListEventHandler( SIM_PLOT_FRAME_BASE::onSignalRClick ), NULL, this );
 }
 
 SIM_PLOT_FRAME_BASE::~SIM_PLOT_FRAME_BASE()
 {
 	// Disconnect Events
-	this->Disconnect( ID_MENU_SHOW_GRID, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowGridUpdate ) );
-	this->Disconnect( ID_MENU_SHOW_LEGEND, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowLegendUpdate ) );
-	this->Disconnect( ID_MENU_DOTTED, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowDottedUpdate ) );
-	this->Disconnect( ID_MENU_WHITE_BG, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowWhiteBackgroundUpdate ) );
+	this->Disconnect( wxID_ANY, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowGridUpdate ) );
+	this->Disconnect( wxID_ANY, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowLegendUpdate ) );
+	this->Disconnect( wxID_ANY, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowDottedUpdate ) );
+	this->Disconnect( wxID_ANY, wxEVT_UPDATE_UI, wxUpdateUIEventHandler( SIM_PLOT_FRAME_BASE::menuShowWhiteBackgroundUpdate ) );
 	m_plotNotebook->Disconnect( wxEVT_COMMAND_AUINOTEBOOK_PAGE_CHANGED, wxAuiNotebookEventHandler( SIM_PLOT_FRAME_BASE::onPlotChanged ), NULL, this );
 	m_plotNotebook->Disconnect( wxEVT_COMMAND_AUINOTEBOOK_PAGE_CLOSE, wxAuiNotebookEventHandler( SIM_PLOT_FRAME_BASE::onPlotClose ), NULL, this );
 	m_signals->Disconnect( wxEVT_LEFT_DCLICK, wxMouseEventHandler( SIM_PLOT_FRAME_BASE::onSignalDblClick ), NULL, this );
-	//m_signals->Disconnect( wxEVT_COMMAND_LIST_ITEM_RIGHT_CLICK, wxListEventHandler( SIM_PLOT_FRAME_BASE::onSignalRClick ), NULL, this );
+	m_signals->Disconnect( wxEVT_COMMAND_LIST_ITEM_RIGHT_CLICK, wxListEventHandler( SIM_PLOT_FRAME_BASE::onSignalRClick ), NULL, this );
 
 }

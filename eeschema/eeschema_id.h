@@ -71,11 +71,6 @@ enum id_eeschema_frm
     ID_LIBVIEW_LIB_LIST,
     ID_LIBVIEW_CMP_LIST,
 
-    ID_SIM_RUN,
-    ID_SIM_TUNE,
-    ID_SIM_PROBE,
-    ID_SIM_ADD_SIGNALS,
-
     ID_END_EESCHEMA_ID_LIST,    // End of IDs specific to Eeschema
 
     // These ID are used in context menus,
