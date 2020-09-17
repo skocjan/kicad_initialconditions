@@ -120,7 +120,7 @@ class TRACE : public mpFXYVector
 {
 public:
     TRACE( const wxString& aName, enum SIM_COLOR_SET aColour ) :
-        mpFXYVector( aName ), m_cursor( nullptr ), m_flags( 0 ), m_traceColour( aColour )
+        mpFXYVector( aName ), m_flags( 0 ), m_traceColour( aColour )
     {
         SetContinuity( true );
         SetDrawOutsideMargins( false );
@@ -128,19 +128,6 @@ public:
 
         wxPrintf("[SK} trace addr3: %p\n", this);
         wxPrintf("[SK} m_scaleX: %p\n", m_scaleX);
-    }
-
-    /**
-     * @brief Assigns new data set for the trace. aX and aY need to have the same length.
-     * @param aX are the X axis values.
-     * @param aY are the Y axis values.
-     */
-    void SetData( const std::vector<double>& aX, const std::vector<double>& aY ) override
-    {
-        if( m_cursor )
-            m_cursor->Update();
-
-        mpFXYVector::SetData( aX, aY );
     }
 
     const std::vector<double>& GetDataX() const
@@ -151,21 +138,6 @@ public:
     const std::vector<double>& GetDataY() const
     {
         return m_ys;
-    }
-
-    bool HasCursor() const
-    {
-        return m_cursor != nullptr;
-    }
-
-    void SetCursor( CURSOR* aCursor )
-    {
-        m_cursor = aCursor;
-    }
-
-    CURSOR* GetCursor() const
-    {
-        return m_cursor;
     }
 
     void SetFlags( int aFlags )
@@ -184,7 +156,6 @@ public:
     }
 
 protected:
-    CURSOR* m_cursor;
     int m_flags;
     enum SIM_COLOR_SET m_traceColour;
 };

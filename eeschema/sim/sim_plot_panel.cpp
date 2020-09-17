@@ -621,6 +621,8 @@ bool SIM_PLOT_PANEL::AddTrace( const wxString& aName, int aPoints,
     }
 
     trace->SetData( std::vector<double>( aX, aX + aPoints ), tmp );
+    m_cursors.first.Update();
+    m_cursors.second.Update();
 
     if( ( aFlags & SPT_AC_PHASE ) || ( aFlags & SPT_CURRENT ) )
         trace->SetScale( m_axis_x, m_axis_y2 );
@@ -643,9 +645,6 @@ bool SIM_PLOT_PANEL::DeleteTrace( const wxString& aName )
     {
         TRACE* trace = it->second;
         m_traces.erase( it );
-
-        if( CURSOR* cursor = trace->GetCursor() )
-            m_plotWin->DelLayer( cursor, true );
 
         m_plotWin->DelLayer( trace, true, true );
         ResetScales();
