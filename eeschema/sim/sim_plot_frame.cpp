@@ -790,15 +790,33 @@ void SIM_PLOT_FRAME::updateSignalList()
 
     wxSize size = m_signals->GetClientSize();
 
-    char firstCursorLabel, secondCursorLabel;
+    wxChar firstCursorLabel, secondCursorLabel;
+    double cursorValue[2];
+
+    // Set the labels on the column headers
     bool drawCursors = plotPanel->AreCursorsActive( firstCursorLabel, secondCursorLabel );
     if( drawCursors )
     {
+        wxString label;
+
         m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x / 4 );
-        m_signals->AppendColumn( wxString( firstCursorLabel ), wxLIST_FORMAT_LEFT, size.x / 4 );
-        m_signals->AppendColumn( wxString( secondCursorLabel ), wxLIST_FORMAT_LEFT, size.x / 4 );
-        m_signals->AppendColumn( wxString::Format( "%c - %c", secondCursorLabel, firstCursorLabel ),
-                wxLIST_FORMAT_LEFT, size.x / 4 );
+
+        label.Printf( "%s %c: ", plotPanel->GetLabelX(), firstCursorLabel );
+        cursorValue[0] = plotPanel->GetCursorPos( firstCursorLabel );
+        label.Append( SPICE_VALUE( cursorValue[0] ).ToSpiceString() );
+        label.Append( plotPanel->GetUnitX() );
+        m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
+
+        label.Printf( "%s %c: ", plotPanel->GetLabelX(), secondCursorLabel );
+        cursorValue[1] = plotPanel->GetCursorPos( secondCursorLabel );
+        label.Append( SPICE_VALUE( cursorValue[1] ).ToSpiceString() );
+        label.Append( plotPanel->GetUnitX() );
+        m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
+
+        label.Printf( "%s (%c - %c): ", plotPanel->GetLabelX(), secondCursorLabel, firstCursorLabel );
+        label.Append( SPICE_VALUE( cursorValue[1] - cursorValue[0] ).ToSpiceString() );
+        label.Append( plotPanel->GetUnitX() );
+        m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
     }
     else
     {
@@ -816,7 +834,7 @@ void SIM_PLOT_FRAME::updateSignalList()
     else
         m_signalsIconColorList->RemoveAll();
 
-    for( const auto& trace : CurrentPlot()->GetTraces() )
+    for( const auto& trace : plotPanel->GetTraces() )
     {
         wxBitmap bitmap( isize, isize );
         bmDC.SelectObject( bitmap );
@@ -850,34 +868,24 @@ void SIM_PLOT_FRAME::updateSignalList()
     // the order of icon color identical, because the icons
     // are also used in cursor list, and the color index is
     // calculated from the trace name index
-    if( !drawCursors )
-    {
-        int imgidx = 0;
+    int imgidx = 0;
 
-        for( const auto& trace : m_plots[plotPanel].m_traces )
-        {
-            m_signals->InsertItem( imgidx, trace.first, imgidx );
-            imgidx++;
-        }
-    }
-    else
+    for( const auto& trace : plotPanel->GetTraces() )
     {
-        double x;
-        std::map<wxString, double> differences;
-        int item = 0;
-        for( const auto& cursorVal : plotPanel->GetCursorData(0, x) )
+        m_signals->InsertItem( imgidx, trace.first, imgidx );
+
+        if( drawCursors )
         {
-            m_signals->InsertItem( item, cursorVal.first, item );
-            m_signals->SetItem( item++, 1, SPICE_VALUE( cursorVal.second ).ToSpiceString() );
-            differences[cursorVal.first] = -cursorVal.second;
+            cursorValue[0] = trace.second->GetCursorValue( 'A' );
+            cursorValue[1] = trace.second->GetCursorValue( 'B' );
+
+            m_signals->SetItem( imgidx, 1, SPICE_VALUE( cursorValue[0] ).ToSpiceString() );
+            m_signals->SetItem( imgidx, 2, SPICE_VALUE( cursorValue[1] ).ToSpiceString() );
+            m_signals->SetItem( imgidx, 3, SPICE_VALUE( cursorValue[1] - cursorValue[0] )
+                            .ToSpiceString() );
         }
-        item = 0;
-        for( const auto& cursorVal : plotPanel->GetCursorData(1, x) )
-        {
-            m_signals->SetItem( item, 2, SPICE_VALUE( cursorVal.second ).ToSpiceString() );
-            differences[cursorVal.first] += cursorVal.second;
-            m_signals->SetItem( item++, 3, SPICE_VALUE( differences[cursorVal.first] ).ToSpiceString() );
-        }
+
+        imgidx++;
     }
 }
 

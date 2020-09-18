@@ -774,6 +774,11 @@ public:
 
     virtual double TransformToPlot( double x ) { return 0.0; };
     virtual double TransformFromPlot( double xplot ) { return 0.0; };
+    virtual const wxString& GetUnit()
+    {
+        static const wxString unit("");
+        return unit;
+    };
 
     struct TickLabel
     {

@@ -154,13 +154,12 @@ public:
 
     void formatLabels() override
     {
-        const wxString unit = wxT( "Hz" );
         wxString suffix;
         int power;
 
         for( auto &l : TickLabels() )
         {
-            getSISuffix( l.pos, unit, power, suffix );
+            getSISuffix( l.pos, GetUnit(), power, suffix );
             double sf = pow( 10.0, power );
             int k = countDecimalDigits( l.pos / sf, 3 );
 
@@ -168,6 +167,8 @@ public:
             l.visible = true;
         }
     }
+
+    const wxString& GetUnit() override { return wxT( "Hz" ); };
 };
 
 
@@ -179,8 +180,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "Hz" ), 3 );
+        formatSILabels( this, GetUnit(), 3 );
     }
+
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "Hz" );
+        return unit;
+    };
 };
 
 
@@ -192,8 +199,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "s" ), 3 );
+        formatSILabels( this, GetUnit(), 3 );
     }
+
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "s" );
+        return unit;
+    };
 };
 
 
@@ -205,8 +218,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "V" ), 3 );
+        formatSILabels( this, GetUnit(), 3 );
     }
+
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "V" );
+        return unit;
+    };
 };
 
 
@@ -218,9 +237,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "dBV" ), 3 );
+        formatSILabels( this, GetUnit(), 3 );
     }
 
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "dBV" );
+        return unit;
+    };
 };
 
 
@@ -232,8 +256,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "\u00B0" ), 3 );     // degree sign
+        formatSILabels( this, GetUnit(), 3 );
     }
+
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "\u00B0" ); // degree sign
+        return unit;
+    };
 };
 
 
@@ -245,8 +275,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "V" ), 3 );
+        formatSILabels( this, GetUnit(), 3 );
     }
+
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "V" );
+        return unit;
+    };
 };
 
 
@@ -258,8 +294,14 @@ public:
 
     void formatLabels() override
     {
-        formatSILabels( this, wxT( "A" ), 3 );
+        formatSILabels( this, GetUnit(), 3 );
     }
+
+    const wxString& GetUnit() override
+    {
+        static const wxString unit( "A" );
+        return unit;
+    };
 };
 
 
@@ -319,10 +361,10 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
             const double rightY = dataY[maxIdx];
 
             // Linear interpolation
-            double curValue= leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
-            m_y[trace.first] = curValue;
+            double curValue = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
+            trace.second->SetCursorValue( m_label, curValue );
 
-            wxPrintf("[SK} Cursor Y value: %f %f\n", m_y[trace.first], curValue);
+            wxPrintf("[SK} Cursor Y value: %f %f\n", trace.second->GetCursorValue( m_label ), curValue);
         }
 
         // Notify the parent window about the changes
@@ -377,7 +419,8 @@ void CURSOR::draw( wxDC& aDC, mpWindow& aWindow  )
         {
             if( trace.second->IsVisible() )
             {
-                wxCoord yCursorPosPx = aWindow.y2p( trace.second->y2s( m_y[trace.first] ) );
+                wxCoord yCursorPosPx = aWindow.y2p(
+                                trace.second->y2s( trace.second->GetCursorValue( m_label ) ) );
 
                 if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
                 {
@@ -431,13 +474,15 @@ bool CURSOR::Inside( wxPoint& aPoint )
 //    //m_reference.y = m_window->y2p( m_trace->y2s( m_y ) );
 //}
 
+wxChar CURSOR::CURSOR_LABEL_BASE = 'A';
+
 
 SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
         wxWindowID id, const wxPoint& pos, const wxSize& size, long style, const wxString& name )
         : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name ),
           m_colorIdx( 0 ),
           m_plotWin( new mpWindow( this, wxID_ANY, pos, size, style ) ),
-          m_cursors ( std::make_pair<CURSOR, CURSOR>( CURSOR( this ), CURSOR( this ) ) ),
+          m_cursors ( std::make_pair<CURSOR, CURSOR>( CURSOR( 'A', this ), CURSOR( 'B', this ) ) ),
           m_axis_x( nullptr ),
           m_axis_y1( nullptr ),
           m_axis_y2( nullptr ),
@@ -701,7 +746,7 @@ bool SIM_PLOT_PANEL::ToggleCursors()
 }
 
 
-bool SIM_PLOT_PANEL::AreCursorsActive( char& aLabelFirst, char& aLabelSecond )
+bool SIM_PLOT_PANEL::AreCursorsActive( wxChar& aLabelFirst, wxChar& aLabelSecond )
 {
     aLabelFirst  = m_cursors.first .GetLabel();
     aLabelSecond = m_cursors.second.GetLabel();

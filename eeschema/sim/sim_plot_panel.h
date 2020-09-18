@@ -43,10 +43,10 @@ class CURSOR : public mpInfoLayer
 {
 public:
     CURSOR() = delete;
-    CURSOR( /*const TRACE* aTrace,*/ SIM_PLOT_PANEL* aPlotPanel )
+    CURSOR( wxChar aLabel, SIM_PLOT_PANEL* aPlotPanel )
         : mpInfoLayer( wxRect( 0, 0, DRAG_MARGIN, DRAG_MARGIN ), wxTRANSPARENT_BRUSH ),
         m_updateRequired( true ), m_updateRef( false ), m_coords( 0.0, 0.0 ),
-        m_x( 0.0 ), /*m_window( nullptr ),*/ m_plotPanel( aPlotPanel ), m_label( 'X' )
+        m_x( 0.0 ), m_plotPanel( aPlotPanel ), m_label( aLabel )
     {
         SetVisible( false );
         SetDrawOutsideMargins( false );
@@ -78,10 +78,9 @@ public:
 
 //    void UpdateReference() override;
 
-    std::map<wxString, double>& GetData( double& aX )
+    double GetPos()
     {
-        aX = m_x;
-        return m_y;
+        return m_x;
     }
 
     const wxRealPoint& GetCoords() const
@@ -89,11 +88,14 @@ public:
         return m_coords;
     }
 
-    char GetLabel() const
+    wxChar GetLabel() const
     {
         return m_label;
     }
 
+    ///> This variable is used for calculations. For cursors named
+    ///> 'A' and 'B', or '1' and '2', this should be the first char
+    static wxChar CURSOR_LABEL_BASE;
 
 private:
     void draw( wxDC& aDC, mpWindow& aWindow );
@@ -103,11 +105,7 @@ private:
     bool m_updateRequired, m_updateRef;
     wxRealPoint m_coords;  //TODO delete it
     double m_x;
-    std::map<wxString, double> m_y;
     SIM_PLOT_PANEL* m_plotPanel;
-
-    // wx related stuff
-//    mpWindow* m_window;  //TODO delete it
 
     wxChar m_label;
     static constexpr int DRAG_MARGIN = 10;
@@ -120,7 +118,7 @@ class TRACE : public mpFXYVector
 {
 public:
     TRACE( const wxString& aName, enum SIM_COLOR_SET aColour ) :
-        mpFXYVector( aName ), m_flags( 0 ), m_traceColour( aColour )
+        mpFXYVector( aName ), m_cursorVal{ 0.0, 0.0 }, m_flags( 0 ), m_traceColour( aColour )
     {
         SetContinuity( true );
         SetDrawOutsideMargins( false );
@@ -155,7 +153,24 @@ public:
         return m_traceColour;
     }
 
+    /**
+     * @brief Accessor for value at the cursor position of this particular trace
+     * @param aLabel - indicates cursor.
+     * @return R/W reference to cursor value.
+     */
+    double GetCursorValue( wxChar aLabel )
+    {
+        return m_cursorVal[aLabel - CURSOR::CURSOR_LABEL_BASE];
+    }
+
+    double SetCursorValue( wxChar aLabel, double aValue )
+    {
+        m_cursorVal[aLabel - CURSOR::CURSOR_LABEL_BASE] = aValue;
+        return aValue;
+    }
+
 protected:
+    double m_cursorVal[2];
     int m_flags;
     enum SIM_COLOR_SET m_traceColour;
 };
@@ -179,6 +194,11 @@ public:
     wxString GetLabelX() const
     {
         return m_axis_x ? m_axis_x->GetName() : "";
+    }
+
+    wxString GetUnitX() const
+    {
+        return m_axis_x ? m_axis_x->GetUnit() : "";
     }
 
     wxString GetLabelY1() const
@@ -262,14 +282,14 @@ public:
 
     ///> Toggles cursor for a particular trace.
     bool ToggleCursors();
-    bool AreCursorsActive( char& aLabelFirst, char& aLabelSecond );
+    bool AreCursorsActive( wxChar& aLabelFirst, wxChar& aLabelSecond );
 
-    std::map<wxString, double>& GetCursorData( int aCursor, double& aX )
+    double GetCursorPos( wxChar aCursor )
     {
-        if( aCursor == 0 )
-            return m_cursors.first .GetData( aX );
+        if( aCursor == CURSOR::CURSOR_LABEL_BASE )
+            return m_cursors.first .GetPos();
         else
-            return m_cursors.second.GetData( aX );
+            return m_cursors.second.GetPos();
     }
 
     ///> Resets scale ranges to fit the current traces
