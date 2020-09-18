@@ -211,9 +211,6 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	wxBoxSizer* bSizer9;
 	bSizer9 = new wxBoxSizer( wxVERTICAL );
 
-	m_cursors = new wxTextCtrl( m_tunePanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
-	bSizer9->Add( m_cursors, 0, wxALL|wxEXPAND, 5 );
-
 	m_staticTextTune = new wxStaticText( m_tunePanel, wxID_ANY, _("Tune"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextTune->Wrap( -1 );
 	bSizer9->Add( m_staticTextTune, 0, wxTOP|wxBOTTOM|wxRIGHT, 5 );

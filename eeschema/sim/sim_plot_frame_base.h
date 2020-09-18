@@ -89,7 +89,6 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		wxStaticText* m_staticTextSignals;
 		wxListView* m_signals;
 		wxPanel* m_tunePanel;
-		wxTextCtrl* m_cursors;
 		wxStaticText* m_staticTextTune;
 		wxBoxSizer* m_tuneSizer;
 
