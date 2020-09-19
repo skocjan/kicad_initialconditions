@@ -36,7 +36,7 @@
 
 class SIM_PLOT_FRAME;
 class SIM_PLOT_PANEL;
-class TRACE;
+
 
 ///> Cursor attached to a trace to follow its values:
 class CURSOR : public mpInfoLayer
@@ -156,13 +156,19 @@ public:
     /**
      * @brief Accessor for value at the cursor position of this particular trace
      * @param aLabel - indicates cursor.
-     * @return R/W reference to cursor value.
+     * @return cursor value.
      */
     double GetCursorValue( wxChar aLabel )
     {
         return m_cursorVal[aLabel - CURSOR::CURSOR_LABEL_BASE];
     }
 
+    /**
+     * @brief Setter for value at the cursor position of this particular trace
+     * @param aLabel - indicates cursor
+     * @param aValue - cursor value to be stored
+     * @return cursor value, the same as aValue (mimics behaviour of assignment operator)
+     */
     double SetCursorValue( wxChar aLabel, double aValue )
     {
         m_cursorVal[aLabel - CURSOR::CURSOR_LABEL_BASE] = aValue;
