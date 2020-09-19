@@ -107,6 +107,7 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		virtual void menuCursorToggle( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuAddSignal( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuRemoveSignal( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuShowHideSignal( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomIn( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomOut( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomFit( wxCommandEvent& event ) { event.Skip(); }

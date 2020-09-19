@@ -119,6 +119,7 @@ wxString SIM_PLOT_FRAME::m_savedWorkbooksPath;
 
 SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
         : SIM_PLOT_FRAME_BASE( aParent ),
+          m_signalContextMenu( new wxMenu() ),
           m_lastSimPlot( nullptr ),
           m_welcomePanel( nullptr ),
           m_plotNumber( 0 )
@@ -299,11 +300,17 @@ void SIM_PLOT_FRAME::setIconsForMenuItems()
 
         // simulator menu:
         { m_runSimulation, sim_run_xpm},
-        { m_addSignals, sim_add_signal_xpm},
         { m_probeSignals, sim_probe_xpm},
         { m_tuneValue, sim_tune_xpm},
         { m_showNetlist, netlist_xpm},
         { m_settings, sim_settings_xpm},
+
+        // trace menu:
+        { m_addSignals, sim_add_signal_xpm},
+        { m_deleteSignal, delete_xpm},
+        { m_showHideMenu, delete_xpm},
+        { m_copyMenu, copy_xpm},
+        { m_copyAllMenu, copy_xpm},
 
         // View menu
         { m_zoomIn, zoom_in_xpm},
@@ -1302,8 +1309,8 @@ void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
     if( idx != wxNOT_FOUND )
     {
         const wxString& netName = m_signals->GetItemText( idx, 0 );
-        SIGNAL_CONTEXT_MENU ctxMenu( netName, this );
-        m_signals->PopupMenu( &ctxMenu );
+        prepareSignalContextMenu( netName );
+        m_signals->PopupMenu( m_signalContextMenu );
     }
 }
 
@@ -1575,50 +1582,83 @@ void SIM_PLOT_FRAME::onSimReport( wxCommandEvent& aEvent )
 }
 
 
-SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::SIGNAL_CONTEXT_MENU( const wxString& aSignal,
-        SIM_PLOT_FRAME* aPlotFrame )
-    : m_signal( aSignal ), m_plotFrame( aPlotFrame )
+//SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::SIGNAL_CONTEXT_MENU( const wxString& aSignal,
+//        SIM_PLOT_FRAME* aPlotFrame )
+//    : m_signal( aSignal ), m_plotFrame( aPlotFrame )
+void SIM_PLOT_FRAME::prepareSignalContextMenu( const wxString& aSignal )
 {
-    SIM_PLOT_PANEL* plot = m_plotFrame->CurrentPlot();
+//    SIM_PLOT_PANEL* plot = m_plotFrame->CurrentPlot();
+    wxMenuItem* item;
 
-    AddMenuItem( this, DELETE_SIGNAL, _( "Remove Signal" ),
-                 _( "Erase the signal from plot screen" ),
-                 KiBitmap( delete_xpm ) );
+    // remove all from context menu
+    while( m_signalContextMenu->GetMenuItemCount() > 0 )
+    {
+        item = m_signalContextMenu->FindItemByPosition( 0 );
+        m_signalContextMenu->Destroy( item );
+    }
 
+    item = AddMenuItem( m_signalContextMenu, wxID_ANY,
+                    m_deleteSignal->GetItemLabel(),
+                    m_deleteSignal->GetHelp(),
+                    m_deleteSignal->GetBitmap() );
+    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuRemoveSignal,
+                    this, item->GetId() );
+#if 1
+    item = AddMenuItem( m_signalContextMenu, wxID_ANY,
+                    m_showHideMenu->GetItemLabel(),
+                    m_showHideMenu->GetHelp(),
+                    m_showHideMenu->GetBitmap() );
+    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuShowHideSignal,
+                    this, item->GetId() );
+
+    item = AddMenuItem( m_signalContextMenu, wxID_ANY,
+                    m_copyMenu->GetItemLabel(),
+                    m_copyMenu->GetHelp(),
+                    m_copyMenu->GetBitmap() );
+    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuShowHideSignal,
+                    this, item->GetId() );
+
+    item = AddMenuItem( m_signalContextMenu, wxID_ANY,
+                    m_copyAllMenu->GetItemLabel(),
+                    m_copyAllMenu->GetHelp(),
+                    m_copyAllMenu->GetBitmap() );
+    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuShowHideSignal,
+                    this, item->GetId() );
+#endif
+    /*
     TRACE* trace = plot->GetTrace( m_signal );
 
     if( trace->IsVisible() )
-        AddMenuItem( this, HIDE_SIGNAL, _( "Hide Signal" ),
+        AddMenuItem( this, SHOW_HIDE_SIGNAL, _( "Hide Signal" ),
                 _( "Show the hidden signal" ),
                 KiBitmap( delete_xpm ) );
     else
         AddMenuItem( this, SHOW_SIGNAL, _( "Show Signal" ),
                 _( "Hide the signal on a plot screen" ),
                 KiBitmap( delete_xpm ) );
-
-    Connect( wxEVT_COMMAND_MENU_SELECTED, wxMenuEventHandler( SIGNAL_CONTEXT_MENU::onMenuEvent ), NULL, this );
+*/
+//    Connect( wxEVT_COMMAND_MENU_SELECTED, wxMenuEventHandler( SIGNAL_CONTEXT_MENU::onMenuEvent ), NULL, this );
 }
 
 
-void SIM_PLOT_FRAME::SIGNAL_CONTEXT_MENU::onMenuEvent( wxMenuEvent& aEvent )
+void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
 {
-    SIM_PLOT_PANEL* plot = m_plotFrame->CurrentPlot();
-
-    switch( aEvent.GetId() )
+    SIM_PLOT_PANEL* plot = CurrentPlot();
+    if( plot )
     {
-        case DELETE_SIGNAL:
-            m_plotFrame->removePlot( m_signal );
-            break;
+        int idx = m_signals->GetFirstSelected();
 
-        case SHOW_SIGNAL:
-            plot->GetTrace( m_signal )->SetVisible( true );
-            plot->Refresh();
-            break;
+        if( idx != wxNOT_FOUND )
+        {
+            const wxString& netName = m_signals->GetItemText( idx, 0 );
+            TRACE* trace = plot->GetTrace( netName );
 
-        case HIDE_SIGNAL:
-            plot->GetTrace( m_signal )->SetVisible( false );
-            plot->Refresh();
-            break;
+            if( trace )
+            {
+                trace->SetVisible( !trace->IsVisible() );
+                plot->Refresh();
+            }
+        }
     }
 }
 

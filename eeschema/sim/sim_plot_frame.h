@@ -194,11 +194,11 @@ public:
 
 private:
 
-    /** Give icons to menuitems of the main menubar
+    /** @brief Give icons to menuitems of the main menubar
      */
     void setIconsForMenuItems();
 
-    /** Fills m_colorList by a default set of colors.
+    /** @brief Fills m_colorList by a default set of colors.
      *  @param aWhiteBg = true to use a white (or clear) background
      * false to use a dark background
      */
@@ -308,6 +308,7 @@ private:
     void onPlotClose( wxAuiNotebookEvent& event ) override;
 
     void menuRemoveSignal( wxCommandEvent& event ) override;
+    void menuShowHideSignal( wxCommandEvent& event ) override;
     void onSignalDblClick( wxMouseEvent& event ) override;
     void onSignalContextMenu( wxContextMenuEvent& event );
 
@@ -369,26 +370,12 @@ private:
     // and will be destroyed only when closing the simulator frame.
     DIALOG_SIM_SETTINGS* m_settingsDlg;
 
-    // Right click context menu for signals in the listbox
-    class SIGNAL_CONTEXT_MENU : public wxMenu
-    {
-        public:
-            SIGNAL_CONTEXT_MENU( const wxString& aSignal, SIM_PLOT_FRAME* aPlotFrame );
+    ///> Context menu for signals in the listbox
+    wxMenu* m_signalContextMenu;
 
-        private:
-            void onMenuEvent( wxMenuEvent& aEvent );
-
-            const wxString& m_signal;
-            SIM_PLOT_FRAME* m_plotFrame;
-
-            enum SIGNAL_CONTEXT_MENU_EVENTS
-            {
-                DELETE_SIGNAL,
-                HIDE_SIGNAL,
-                SHOW_SIGNAL
-            };
-    };
-
+    /** @brief Appends required items from upper menu bar to signal context menu
+     */
+    void prepareSignalContextMenu( const wxString& aSignal );
     ///> Panel that was used as the most recent one for simulations
     SIM_PLOT_PANEL* m_lastSimPlot;
 

@@ -74,7 +74,7 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_addSignals = new wxMenuItem( m_traceMenu, wxID_ADD, wxString( _("Add Signals...") ) + wxT('\t') + wxT("A"), wxEmptyString, wxITEM_NORMAL );
 	m_traceMenu->Append( m_addSignals );
 
-	m_deleteSignal = new wxMenuItem( m_traceMenu, wxID_REMOVE, wxString( _("Delete Signals") ) + wxT('\t') + wxT("Delete"), wxEmptyString, wxITEM_NORMAL );
+	m_deleteSignal = new wxMenuItem( m_traceMenu, wxID_REMOVE, wxString( _("Delete Signals") ) + wxT('\t') + wxT("Delete"), _("Erase the signal from plot screen"), wxITEM_NORMAL );
 	m_traceMenu->Append( m_deleteSignal );
 
 	m_showHideMenu = new wxMenuItem( m_traceMenu, wxID_ANY, wxString( _("Hide Signal") ) , wxEmptyString, wxITEM_NORMAL );
@@ -255,6 +255,7 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuCursorToggle ), this, m_toggleCursors->GetId());
 	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuAddSignal ), this, m_addSignals->GetId());
 	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuRemoveSignal ), this, m_deleteSignal->GetId());
+	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuShowHideSignal ), this, m_showHideMenu->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomIn ), this, m_zoomIn->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomOut ), this, m_zoomOut->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomFit ), this, m_zoomFit->GetId());
