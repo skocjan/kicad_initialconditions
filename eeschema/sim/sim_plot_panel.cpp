@@ -386,9 +386,10 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
 }
 
 
-void CURSOR::draw( wxDC& aDC, mpWindow& aWindow  )
+void CURSOR::draw( wxDC& aDC, mpWindow& aWindow )
 {
-    wxCoord xCursorPosPx = m_dim.x;
+    TRACE* firstTrace = m_plotPanel->GetTraces().begin()->second;
+    wxCoord xCursorPosPx = aWindow.x2p( firstTrace->x2s( m_x ) );
 
     wxCoord leftPx   = m_drawOutsideMargins ? 0 : aWindow.GetMarginLeft();
     wxCoord rightPx  = m_drawOutsideMargins ? aWindow.GetScrX() : aWindow.GetScrX() - aWindow.GetMarginRight();
