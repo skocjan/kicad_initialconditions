@@ -400,15 +400,19 @@ void CURSOR::draw( wxDC& aDC, mpWindow& aWindow )
 
     if( leftPx < xCursorPosPx && xCursorPosPx < rightPx )
     {
-        updatePen  ( aDC, SIM_CURSOR_COLOR );
+        // Triangle should be drawn solid
+        wxPen* pen =  wxThePenList->FindOrCreatePen( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ),
+                        1, wxPENSTYLE_SOLID );
+        aDC.SetPen( *pen );
         updateBrush( aDC, SIM_CURSOR_COLOR );
-
-        aDC.DrawLine( xCursorPosPx, topPx, xCursorPosPx, bottomPx );
 
         wxPoint triangle[] = { wxPoint( xCursorPosPx, topPx + TRIANGLE_DIM ),
                                wxPoint( xCursorPosPx - ( 2* TRIANGLE_DIM / 3 ), topPx ),
                                wxPoint( xCursorPosPx + ( 2* TRIANGLE_DIM / 3 ), topPx ) };
         aDC.DrawPolygon( 3, triangle );
+
+        updatePen  ( aDC, SIM_CURSOR_COLOR );
+        aDC.DrawLine( xCursorPosPx, topPx, xCursorPosPx, bottomPx );
 
         aDC.SetTextForeground( m_plotPanel->GetPlotColor( SIM_BG_COLOR ) );
         aDC.SetTextBackground( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ) );
