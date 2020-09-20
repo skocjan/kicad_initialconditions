@@ -810,19 +810,19 @@ void SIM_PLOT_FRAME::updateSignalList()
 
         m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x / 4 );
 
-        label.Printf( "%s %c: ", plotPanel->GetLabelX(), firstCursorLabel );
+        label.Printf( _( "%s at %c: " ), plotPanel->GetLabelX(), firstCursorLabel );
         cursorValue[0] = plotPanel->GetCursorPos( firstCursorLabel );
         label.Append( SPICE_VALUE( cursorValue[0] ).ToSpiceString() );
         label.Append( plotPanel->GetUnitX() );
         m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
 
-        label.Printf( "%s %c: ", plotPanel->GetLabelX(), secondCursorLabel );
+        label.Printf( _( "%s at %c: " ), plotPanel->GetLabelX(), secondCursorLabel );
         cursorValue[1] = plotPanel->GetCursorPos( secondCursorLabel );
         label.Append( SPICE_VALUE( cursorValue[1] ).ToSpiceString() );
         label.Append( plotPanel->GetUnitX() );
         m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
 
-        label.Printf( "%s (%c - %c): ", plotPanel->GetLabelX(), secondCursorLabel, firstCursorLabel );
+        label.Printf( _( "Difference (%c - %c): " ), plotPanel->GetLabelX(), secondCursorLabel, firstCursorLabel );
         label.Append( SPICE_VALUE( cursorValue[1] - cursorValue[0] ).ToSpiceString() );
         label.Append( plotPanel->GetUnitX() );
         m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
