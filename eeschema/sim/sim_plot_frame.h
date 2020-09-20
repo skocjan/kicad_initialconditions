@@ -303,6 +303,9 @@ private:
         event.Check( m_plotUseWhiteBg );
     }
 
+    void menuCopySignal( wxCommandEvent& event ) override;
+    void menuSelectAllSignals( wxCommandEvent& event ) override;
+
     // Event handlers
     void onPlotChanged( wxAuiNotebookEvent& event ) override;
     void onPlotClose( wxAuiNotebookEvent& event ) override;

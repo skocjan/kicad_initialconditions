@@ -61,7 +61,7 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		wxMenuItem* m_deleteSignal;
 		wxMenuItem* m_showHideMenu;
 		wxMenuItem* m_copyMenu;
-		wxMenuItem* m_copyAllMenu;
+		wxMenuItem* m_selectAllMenu;
 		wxMenu* m_viewMenu;
 		wxMenuItem* m_zoomIn;
 		wxMenuItem* m_zoomOut;
@@ -108,6 +108,8 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		virtual void menuAddSignal( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuRemoveSignal( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuShowHideSignal( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuCopySignal( wxCommandEvent& event ) { event.Skip(); }
+		virtual void menuSelectAllSignals( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomIn( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomOut( wxCommandEvent& event ) { event.Skip(); }
 		virtual void menuZoomFit( wxCommandEvent& event ) { event.Skip(); }

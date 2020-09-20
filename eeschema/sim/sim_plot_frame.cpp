@@ -25,6 +25,8 @@
  */
 
 #include <wx/stc/stc.h>
+#include <wx/clipbrd.h>
+#include <wx/dataobj.h>
 
 #include <sch_edit_frame.h>
 #include <kiway.h>
@@ -310,7 +312,7 @@ void SIM_PLOT_FRAME::setIconsForMenuItems()
         { m_deleteSignal, delete_xpm},
         { m_showHideMenu, delete_xpm},
         { m_copyMenu, copy_xpm},
-        { m_copyAllMenu, copy_xpm},
+        { m_selectAllMenu, copy_xpm},
 
         // View menu
         { m_zoomIn, zoom_in_xpm},
@@ -1287,6 +1289,7 @@ void SIM_PLOT_FRAME::onPlotChanged( wxAuiNotebookEvent& event )
 
 void SIM_PLOT_FRAME::onSignalDblClick( wxMouseEvent& event )
 {
+    // Remove signal from the plot panel when double clicked
     wxCommandEvent dummy;
     menuRemoveSignal( dummy );
 }
@@ -1294,17 +1297,73 @@ void SIM_PLOT_FRAME::onSignalDblClick( wxMouseEvent& event )
 
 void SIM_PLOT_FRAME::menuRemoveSignal( wxCommandEvent& event )
 {
-    // Remove signal from the plot panel when double clicked
-    long idx = m_signals->GetFocusedItem();
+    long idx = m_signals->GetFirstSelected();
+    std::vector<wxString> itemsToDelete;
 
-    if( idx != wxNOT_FOUND )
-        removePlot( m_signals->GetItemText( idx, 0 ) );
+    while( idx != wxNOT_FOUND )
+    {
+        itemsToDelete.push_back( m_signals->GetItemText( idx, 0 ) );
+        idx = m_signals->GetNextSelected( idx );
+    }
+
+    for( auto signal : itemsToDelete )
+        removePlot( signal );
+}
+
+
+void SIM_PLOT_FRAME::menuCopySignal( wxCommandEvent& event )
+{
+    int noOfColumns = m_signals->GetColumnCount();
+    wxString clipboardData( wxEmptyString );
+    wxString line( wxEmptyString );
+
+    // Attach info from columns
+    for( int col = 0; col < noOfColumns; col++ )
+    {
+        wxListItem item;
+        item.SetColumn( col );
+        item.SetMask( wxLIST_MASK_TEXT );
+
+        m_signals->GetColumn( col , item );
+        line.Append( item.GetText() + wxT( ";" ) );
+    }
+
+    clipboardData = line.Append( wxT( "\n" ) );
+    line.Clear();
+
+    // Attach info from selected signals
+    long row = m_signals->GetFirstSelected();
+    while( row != wxNOT_FOUND )
+    {
+        for( int col = 0; col < noOfColumns; col++ )
+            line.Append( m_signals->GetItemText( row, col ) + wxT( ";" ) );
+
+        clipboardData.Append( line.Append( wxT( "\n" ) ) );
+        line.Clear();
+
+        row = m_signals->GetNextSelected( row );
+    }
+
+    // Move data to clipboard
+    if( wxTheClipboard->Open() )
+    {
+        wxTheClipboard->SetData( new wxTextDataObject( clipboardData ) );
+        wxTheClipboard->Close();
+    }
+}
+
+
+void SIM_PLOT_FRAME::menuSelectAllSignals( wxCommandEvent& event )
+{
+    int noOfSignals = m_signals->GetItemCount();
+    for( int i = 0; i < noOfSignals; i++ )
+        m_signals->SetItemState( i, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED );
 }
 
 
 void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
 {
-    int idx = m_signals->GetFirstSelected();
+    int idx = m_signals->GetFocusedItem();
 
     if( idx != wxNOT_FOUND )
     {
@@ -1615,14 +1674,14 @@ void SIM_PLOT_FRAME::prepareSignalContextMenu( const wxString& aSignal )
                     m_copyMenu->GetItemLabel(),
                     m_copyMenu->GetHelp(),
                     m_copyMenu->GetBitmap() );
-    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuShowHideSignal,
+    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuCopySignal,
                     this, item->GetId() );
 
     item = AddMenuItem( m_signalContextMenu, wxID_ANY,
-                    m_copyAllMenu->GetItemLabel(),
-                    m_copyAllMenu->GetHelp(),
-                    m_copyAllMenu->GetBitmap() );
-    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuShowHideSignal,
+                    m_selectAllMenu->GetItemLabel(),
+                    m_selectAllMenu->GetHelp(),
+                    m_selectAllMenu->GetBitmap() );
+    m_signalContextMenu->Bind( wxEVT_COMMAND_MENU_SELECTED, &SIM_PLOT_FRAME::menuSelectAllSignals,
                     this, item->GetId() );
 #endif
     /*
@@ -1648,7 +1707,7 @@ void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
     {
         int idx = m_signals->GetFirstSelected();
 
-        if( idx != wxNOT_FOUND )
+        while( idx != wxNOT_FOUND )
         {
             const wxString& netName = m_signals->GetItemText( idx, 0 );
             TRACE* trace = plot->GetTrace( netName );
@@ -1658,6 +1717,8 @@ void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
                 trace->SetVisible( !trace->IsVisible() );
                 plot->Refresh();
             }
+
+            idx = m_signals->GetNextSelected( idx );
         }
     }
 }

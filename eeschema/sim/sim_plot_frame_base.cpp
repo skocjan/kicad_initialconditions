@@ -85,8 +85,8 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_copyMenu = new wxMenuItem( m_traceMenu, wxID_COPY, wxString( _("Copy") ) + wxT('\t') + wxT("Ctrl+C"), wxEmptyString, wxITEM_NORMAL );
 	m_traceMenu->Append( m_copyMenu );
 
-	m_copyAllMenu = new wxMenuItem( m_traceMenu, wxID_ANY, wxString( _("Copy All") ) + wxT('\t') + wxT("Ctrl+C"), wxEmptyString, wxITEM_CHECK );
-	m_traceMenu->Append( m_copyAllMenu );
+	m_selectAllMenu = new wxMenuItem( m_traceMenu, wxID_ANY, wxString( _("Select All") ) + wxT('\t') + wxT("Ctrl+A"), wxEmptyString, wxITEM_NORMAL );
+	m_traceMenu->Append( m_selectAllMenu );
 
 	m_mainMenu->Append( m_traceMenu, _("Trace") );
 
@@ -198,7 +198,7 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_staticTextSignals->Wrap( -1 );
 	bSizer10->Add( m_staticTextSignals, 0, wxTOP|wxBOTTOM|wxRIGHT, 5 );
 
-	m_signals = new wxListView( m_panelSignals, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT|wxLC_SINGLE_SEL );
+	m_signals = new wxListView( m_panelSignals, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_HRULES|wxLC_REPORT|wxLC_SORT_ASCENDING|wxLC_VRULES );
 	bSizer10->Add( m_signals, 1, wxEXPAND, 5 );
 
 
@@ -256,6 +256,8 @@ SIM_PLOT_FRAME_BASE::SIM_PLOT_FRAME_BASE( wxWindow* parent, wxWindowID id, const
 	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuAddSignal ), this, m_addSignals->GetId());
 	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuRemoveSignal ), this, m_deleteSignal->GetId());
 	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuShowHideSignal ), this, m_showHideMenu->GetId());
+	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuCopySignal ), this, m_copyMenu->GetId());
+	m_traceMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuSelectAllSignals ), this, m_selectAllMenu->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomIn ), this, m_zoomIn->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomOut ), this, m_zoomOut->GetId());
 	m_viewMenu->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( SIM_PLOT_FRAME_BASE::menuZoomFit ), this, m_zoomFit->GetId());
