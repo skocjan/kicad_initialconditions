@@ -1272,6 +1272,7 @@
                                                                 <property name="window_style"></property>
                                                                 <event name="OnLeftDClick">onSignalDblClick</event>
                                                                 <event name="OnListItemRightClick">onSignalRClick</event>
+                                                                <event name="OnSize">onSignalListResize</event>
                                                             </object>
                                                         </object>
                                                     </object>

@@ -314,6 +314,7 @@ private:
     void menuShowHideSignal( wxCommandEvent& event ) override;
     void onSignalDblClick( wxMouseEvent& event ) override;
     void onSignalContextMenu( wxContextMenuEvent& event );
+    void onSignalListResize( wxSizeEvent& event ) override;
 
     void menuRunSim( wxCommandEvent& event ) override;
     void menuCursorToggle( wxCommandEvent& event ) override;

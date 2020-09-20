@@ -1374,6 +1374,31 @@ void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
 }
 
 
+void SIM_PLOT_FRAME::onSignalListResize( wxSizeEvent& event )
+{
+    wxSize size = m_signals->GetClientSize();
+
+    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    if( plotPanel )
+    {
+        wxChar dummy1, dummy2;
+        int noOfColumns;
+
+        if( plotPanel->AreCursorsActive( dummy1, dummy2) )
+        {
+            noOfColumns = 4;
+        }
+        else
+        {
+            noOfColumns = 1;
+        }
+
+        for( int i = 0; i < noOfColumns; i++ )
+            m_signals->SetColumnWidth( i, size.x / noOfColumns );
+    }
+}
+
+
 void SIM_PLOT_FRAME::menuRunSim( wxCommandEvent& event )
 {
     if( IsSimulationRunning() )
@@ -1385,7 +1410,7 @@ void SIM_PLOT_FRAME::menuRunSim( wxCommandEvent& event )
 
 void SIM_PLOT_FRAME::menuCursorToggle( wxCommandEvent& event )
 {
-    SIM_PLOT_PANEL* plotPanel = dynamic_cast<SIM_PLOT_PANEL*>( currentPlotWindow() );
+    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
     if( plotPanel )
         plotPanel->ToggleCursors();
 }
