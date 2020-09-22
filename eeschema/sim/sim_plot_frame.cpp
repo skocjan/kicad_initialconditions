@@ -822,7 +822,7 @@ void SIM_PLOT_FRAME::updateSignalList()
         label.Append( plotPanel->GetUnitX() );
         m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
 
-        label.Printf( _( "Difference (%c - %c): " ), plotPanel->GetLabelX(), secondCursorLabel, firstCursorLabel );
+        label.Printf( _( "Difference (%c - %c): " ), secondCursorLabel, firstCursorLabel );
         label.Append( SPICE_VALUE( cursorValue[1] - cursorValue[0] ).ToSpiceString() );
         label.Append( plotPanel->GetUnitX() );
         m_signals->AppendColumn( label, wxLIST_FORMAT_LEFT, size.x / 4 );
