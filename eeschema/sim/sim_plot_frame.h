@@ -254,6 +254,11 @@ private:
     void updateSignalFontStyle( bool aVisible, int aIdx );
 
     /**
+     * @brief Updates the list of coloured icons of signals
+     */
+    void updateSignalIconList();
+
+    /**
      * @brief Filters out tuners for components that do not exist anymore.
      * Decisions are based on the current NETLIST_EXPORTER data.
      */

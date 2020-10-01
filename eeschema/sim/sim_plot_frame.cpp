@@ -832,46 +832,7 @@ void SIM_PLOT_FRAME::updateSignalList()
         m_signals->AppendColumn( _( "Signal" ), wxLIST_FORMAT_LEFT, size.x );
     }
 
-    // Build an image list, to show the color of the corresponding trace
-    // in the plot panel
-    // This image list is used for trace and cursor lists
-    wxMemoryDC bmDC;
-    const int isize = bmDC.GetCharHeight();
-
-    if( m_signalsIconColorList == NULL )
-        m_signalsIconColorList = new wxImageList( isize, isize, false );
-    else
-        m_signalsIconColorList->RemoveAll();
-
-    for( const auto& trace : plotPanel->GetTraces() )
-    {
-        wxBitmap bitmap( isize, isize );
-        bmDC.SelectObject( bitmap );
-        //wxColour tcolor = trace.second->GetTraceColour();
-        wxColour tcolor = trace.second->GetPen().GetColour();
-
-        wxColour bgColor = m_signals->wxWindow::GetBackgroundColour();
-        bmDC.SetPen( wxPen( bgColor ) );
-        bmDC.SetBrush( wxBrush( bgColor ) );
-        bmDC.DrawRectangle( 0, 0, isize, isize ); // because bmDC.Clear() does not work in wxGTK
-
-        bmDC.SetPen( wxPen( tcolor ) );
-        bmDC.SetBrush( wxBrush( tcolor ) );
-        bmDC.DrawRectangle( 0, isize / 4 + 1, isize, isize / 2 );
-
-        bmDC.SelectObject( wxNullBitmap );  // Needed to initialize bitmap
-
-        bitmap.SetMask( new wxMask( bitmap, *wxBLACK ) );
-        m_signalsIconColorList->Add( bitmap );
-    }
-
-    if( bmDC.IsOk() )
-    {
-        bmDC.SetBrush( wxNullBrush );
-        bmDC.SetPen( wxNullPen );
-    }
-
-    m_signals->SetImageList( m_signalsIconColorList, wxIMAGE_LIST_SMALL );
+    updateSignalIconList();
 
     // Fill the signals listctrl. Keep the order of names and
     // the order of icon color identical, because the icons
@@ -1786,25 +1747,92 @@ void SIM_PLOT_FRAME::updateSignalFontStyle( bool aVisible, int aIdx )
 }
 
 
+void SIM_PLOT_FRAME::updateSignalIconList()
+{
+    // Build an image list, to show the color of the corresponding trace
+    // in the plot panel
+    // This image list is used for trace and cursor lists
+    wxMemoryDC bmDC;
+    const int isize = bmDC.GetCharHeight();
+
+    if( m_signalsIconColorList == NULL )
+        m_signalsIconColorList = new wxImageList( isize, isize, false );
+    else
+        m_signalsIconColorList->RemoveAll();
+
+    for( const auto& trace : CurrentPlot()->GetTraces() )
+    {
+        wxBitmap bitmap( isize, isize );
+        bmDC.SelectObject( bitmap );
+
+        wxColour bgColor = m_signals->wxWindow::GetBackgroundColour();
+        bmDC.SetPen( wxPen( bgColor ) );
+        bmDC.SetBrush( wxBrush( bgColor ) );
+        bmDC.DrawRectangle( 0, 0, isize, isize ); // because bmDC.Clear() does not work in wxGTK
+
+        if( trace.second->IsVisible() )
+        {
+            wxColour tcolor = trace.second->GetPen().GetColour();
+            bmDC.SetPen( wxPen( tcolor ) );
+            bmDC.SetBrush( wxBrush( tcolor ) );
+            bmDC.DrawRectangle( 0, isize / 4 + 1, isize, isize / 2 );
+        }
+
+        bmDC.SelectObject( wxNullBitmap );  // Needed to initialize bitmap
+
+        bitmap.SetMask( new wxMask( bitmap, *wxBLACK ) );
+        m_signalsIconColorList->Add( bitmap );
+    }
+
+    if( bmDC.IsOk() )
+    {
+        bmDC.SetBrush( wxNullBrush );
+        bmDC.SetPen( wxNullPen );
+    }
+
+    m_signals->SetImageList( m_signalsIconColorList, wxIMAGE_LIST_SMALL );
+}
+
+
 void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plot = CurrentPlot();
     if( plot )
     {
-        int idx = m_signals->GetFirstSelected();
+        enum _showHide {SHOW, HIDE, UNDEFINED} showHide = UNDEFINED;
+        int idx = m_signals->GetFocusedItem();
+        if( idx != wxNOT_FOUND )
+        {
+            const wxString& netName = m_signals->GetItemText( idx, 0 );
+            TRACE* trace = plot->GetTrace( netName );
+            if( trace->IsVisible() )
+                showHide = HIDE;
+            else
+                showHide = SHOW;
+        }
 
+        idx = m_signals->GetFirstSelected();
         while( idx != wxNOT_FOUND )
         {
             const wxString& netName = m_signals->GetItemText( idx, 0 );
             TRACE* trace = plot->GetTrace( netName );
 
-            trace->SetVisible( !trace->IsVisible() );
+            if( showHide == UNDEFINED )
+            {
+                if( trace->IsVisible() )
+                    showHide = HIDE;
+                else
+                    showHide = SHOW;
+            }
+
+            trace->SetVisible( showHide == SHOW );
             plot->Refresh();
             updateSignalFontStyle( trace->IsVisible(), idx );
 
             idx = m_signals->GetNextSelected( idx );
         }
     }
+    updateSignalIconList();
 
     // force update menu labels
     wxListEvent dummy;
