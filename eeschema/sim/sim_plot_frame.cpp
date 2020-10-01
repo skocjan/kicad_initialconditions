@@ -882,6 +882,7 @@ void SIM_PLOT_FRAME::updateSignalList()
     for( const auto& trace : plotPanel->GetTraces() )
     {
         m_signals->InsertItem( imgidx, trace.first, imgidx );
+        updateSignalFontStyle( trace.second->IsVisible(), imgidx );
 
         if( drawCursors )
         {
@@ -1768,6 +1769,23 @@ void SIM_PLOT_FRAME::prepareSignalContextMenu( const wxString& aSignal )
 }
 
 
+void SIM_PLOT_FRAME::updateSignalFontStyle( bool aVisible, int aIdx )
+{
+    if( !aVisible )
+        m_signals->SetItemFont( aIdx,
+                    m_signals->GetItemFont( aIdx ).MakeItalic().MakeStrikethrough()
+                );
+    else
+    {
+        wxFont font = m_signals->GetItemFont( aIdx );
+        font.SetStyle( wxFONTSTYLE_NORMAL );
+        font.SetStrikethrough( false );
+
+        m_signals->SetItemFont( aIdx, font );
+    }
+}
+
+
 void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plot = CurrentPlot();
@@ -1780,11 +1798,9 @@ void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
             const wxString& netName = m_signals->GetItemText( idx, 0 );
             TRACE* trace = plot->GetTrace( netName );
 
-            if( trace )
-            {
-                trace->SetVisible( !trace->IsVisible() );
-                plot->Refresh();
-            }
+            trace->SetVisible( !trace->IsVisible() );
+            plot->Refresh();
+            updateSignalFontStyle( trace->IsVisible(), idx );
 
             idx = m_signals->GetNextSelected( idx );
         }

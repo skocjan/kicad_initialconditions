@@ -247,6 +247,13 @@ private:
     void updateSignalList();
 
     /**
+     * @brief Updates the style of signal on the list
+     * @param aVisible indicates whether signal is hidden or not
+     * @param aIdx signal index on the list
+     */
+    void updateSignalFontStyle( bool aVisible, int aIdx );
+
+    /**
      * @brief Filters out tuners for components that do not exist anymore.
      * Decisions are based on the current NETLIST_EXPORTER data.
      */
