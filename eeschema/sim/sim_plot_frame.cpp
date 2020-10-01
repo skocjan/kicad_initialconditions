@@ -663,6 +663,9 @@ void SIM_PLOT_FRAME::removePlot( const wxString& aPlotName, bool aErase )
     plotPanel->DeleteTrace( aPlotName );
     plotPanel->GetPlotWin()->Fit();
 
+    if( plotPanel->GetTraces().size() == 0 )
+        plotPanel->EnableCursors( false );
+
     updateSignalList();
 }
 
@@ -1417,7 +1420,14 @@ void SIM_PLOT_FRAME::menuCursorToggle( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
     if( plotPanel )
-        plotPanel->ToggleCursors();
+    {
+        wxChar dummy1, dummy2;
+        bool enable = !plotPanel->AreCursorsActive( dummy1, dummy2);
+
+        plotPanel->EnableCursors( enable );
+        m_toolCursors->SetToggle( enable ); //TODO
+        m_toggleCursors->Check( enable );
+    }
 }
 
 

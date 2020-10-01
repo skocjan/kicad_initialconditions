@@ -718,36 +718,33 @@ void SIM_PLOT_PANEL::DeleteAllTraces()
 }
 
 
-bool SIM_PLOT_PANEL::ToggleCursors()
+bool SIM_PLOT_PANEL::EnableCursors( bool aEnable )
 {
-    if( GetTraces().size() > 0 )
-    {
-        bool visible = m_cursors.first.IsVisible();
-        wxPrintf( "[SK] Setting cursors %svisible\n", visible ? "" : "in" );
-        m_cursors.first .SetVisible( !visible );
-        m_cursors.second.SetVisible( !visible );
+    if( GetTraces().size() == 0 )
+        aEnable = false;
 
-        // Configure diff cursors
-        //TODO temporary, move it to proper constructor
-        int     quarterOfScreenWidth = ( m_plotWin->GetXScreen() -
-                m_plotWin->GetMarginLeft() - m_plotWin->GetMarginRight() )
-                                   / 4;
-        wxPrintf("[SK] Setting cursors at: %d, %d",
-                m_plotWin->GetMarginLeft() +   quarterOfScreenWidth, m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth);
-        m_cursors.first .SetX( m_plotWin->GetMarginLeft() +   quarterOfScreenWidth );
-        m_cursors.second.SetX( m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth );
+    wxPrintf( "[SK] Setting cursors %svisible\n", aEnable ? "" : "in" );
+    m_cursors.first .SetVisible( aEnable );
+    m_cursors.second.SetVisible( aEnable );
 
-        m_plotWin->UpdateAll();
+    // Configure diff cursors
+    //TODO temporary, move it to proper constructor
+    int     quarterOfScreenWidth = ( m_plotWin->GetXScreen() -
+            m_plotWin->GetMarginLeft() - m_plotWin->GetMarginRight() )
+                               / 4;
+    wxPrintf("[SK] Setting cursors at: %d, %d",
+            m_plotWin->GetMarginLeft() +   quarterOfScreenWidth, m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth);
+    m_cursors.first .SetX( m_plotWin->GetMarginLeft() +   quarterOfScreenWidth );
+    m_cursors.second.SetX( m_plotWin->GetMarginLeft() + 3*quarterOfScreenWidth );
 
-        // Notify the parent window about turning cursors off
-        // When they are activated, notification will arrive from CURSOR::Plot()
-        if( visible )
-            wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+    m_plotWin->UpdateAll();
 
-        return !visible;
-    }
-    else
-        return false;
+    // Notify the parent window about turning cursors off
+    // When they are activated, notification will arrive from CURSOR::Plot()
+    if( !aEnable )
+        wxQueueEvent( GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+
+    return aEnable;
 }
 
 

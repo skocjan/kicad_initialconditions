@@ -287,7 +287,7 @@ public:
     }
 
     ///> Toggles cursor for a particular trace.
-    bool ToggleCursors();
+    bool EnableCursors( bool aEnable );
     bool AreCursorsActive( wxChar& aLabelFirst, wxChar& aLabelSecond );
 
     double GetCursorPos( wxChar aCursor )
