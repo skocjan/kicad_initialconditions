@@ -1396,6 +1396,7 @@ void SIM_PLOT_FRAME::onSignalListResize( wxSizeEvent& event )
         for( int i = 0; i < noOfColumns; i++ )
             m_signals->SetColumnWidth( i, size.x / noOfColumns );
     }
+    m_panelSignals->Layout();
 }
 
 
