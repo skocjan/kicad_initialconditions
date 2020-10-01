@@ -1273,7 +1273,7 @@
                                                                 <property name="window_name"></property>
                                                                 <property name="window_style"></property>
                                                                 <event name="OnLeftDClick">onSignalDblClick</event>
-                                                                <event name="OnListItemRightClick">onSignalRClick</event>
+                                                                <event name="OnListItemFocused">onSignalFocused</event>
                                                             </object>
                                                         </object>
                                                     </object>

@@ -313,6 +313,7 @@ private:
     void menuRemoveSignal( wxCommandEvent& event ) override;
     void menuShowHideSignal( wxCommandEvent& event ) override;
     void onSignalDblClick( wxMouseEvent& event ) override;
+    void onSignalFocused( wxListEvent& event ) override;
     void onSignalContextMenu( wxContextMenuEvent& event );
     void onSignalListResize( wxSizeEvent& event ) override;
 

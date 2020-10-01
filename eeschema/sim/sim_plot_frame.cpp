@@ -1361,15 +1361,57 @@ void SIM_PLOT_FRAME::menuSelectAllSignals( wxCommandEvent& event )
 }
 
 
+void SIM_PLOT_FRAME::onSignalFocused( wxListEvent& event )
+{
+    const int idx = m_signals->GetFocusedItem();
+    bool enableMenu;
+
+    if( idx == wxNOT_FOUND )
+        enableMenu = false;
+    else
+    {
+        enableMenu = true;
+        const wxString& netName = m_signals->GetItemText( idx, 0 );
+
+        if( CurrentPlot()->GetTrace( netName )->IsVisible() )
+            m_showHideMenu->SetItemLabel( _("Hide Signals") );
+        else
+            m_showHideMenu->SetItemLabel( _("Show Signals") );
+    }
+
+    m_deleteSignal->Enable( enableMenu );
+    m_showHideMenu->Enable( enableMenu );
+    m_copyMenu->Enable( enableMenu );
+}
+
+
 void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
 {
-    int idx = m_signals->GetFocusedItem();
+    const int idx = m_signals->GetFocusedItem();
 
     if( idx != wxNOT_FOUND )
     {
         const wxString& netName = m_signals->GetItemText( idx, 0 );
         prepareSignalContextMenu( netName );
-        m_signals->PopupMenu( m_signalContextMenu );
+
+        // when event was generated from keyboard
+        if( event.GetPosition() == wxDefaultPosition )
+        {
+            // get coordinates of focused item to show menu on a list element
+            wxRect rect;
+            wxPoint pos;
+
+            m_signals->GetItemRect( idx, rect, wxLIST_RECT_LABEL );
+            pos.x = rect.x + ( rect.width  / 2 );
+            pos.y = rect.y + ( rect.height / 2 );
+
+            m_signals->PopupMenu( m_signalContextMenu, pos );
+        }
+        else
+        {
+            // use wxDefaultPosition to display menu at mouse cursor position
+            m_signals->PopupMenu( m_signalContextMenu );
+        }
     }
 }
 
@@ -1747,6 +1789,10 @@ void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
             idx = m_signals->GetNextSelected( idx );
         }
     }
+
+    // force update menu labels
+    wxListEvent dummy;
+    onSignalFocused( dummy );
 }
 
 wxDEFINE_EVENT( EVT_SIM_UPDATE, wxCommandEvent );
