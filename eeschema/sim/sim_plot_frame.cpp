@@ -798,13 +798,14 @@ bool SIM_PLOT_FRAME::updatePlot( const TRACE_DESC& aDescriptor, SIM_PLOT_PANEL* 
 void SIM_PLOT_FRAME::updateSignalList()
 {
     m_signals->ClearAll();
-
+    wxSize size = m_signals->GetClientSize();
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
     if( !plotPanel )
+    {
+        m_signals->AppendColumn( wxEmptyString, wxLIST_FORMAT_LEFT, m_signals->GetClientSize().GetX() );
         return;
-
-    wxSize size = m_signals->GetClientSize();
+    }
 
     wxChar firstCursorLabel, secondCursorLabel;
     double cursorValue[2];
@@ -1252,6 +1253,7 @@ void SIM_PLOT_FRAME::onPlotClose( wxAuiNotebookEvent& event )
 
 void SIM_PLOT_FRAME::onPlotChanged( wxAuiNotebookEvent& event )
 {
+    updateCursorGui();
     updateSignalList();
 }
 
@@ -1423,15 +1425,36 @@ void SIM_PLOT_FRAME::menuRunSim( wxCommandEvent& event )
 void SIM_PLOT_FRAME::menuCursorToggle( wxCommandEvent& event )
 {
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    wxChar dummy1, dummy2;
+
+    if( plotPanel )
+    {
+        bool check = !plotPanel->AreCursorsActive( dummy1, dummy2);
+        plotPanel->EnableCursors( check );
+    }
+
+    updateCursorGui();
+}
+
+void SIM_PLOT_FRAME::updateCursorGui()
+{
+    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+    bool check = false;
+    bool enable = false;
+
     if( plotPanel )
     {
         wxChar dummy1, dummy2;
-        bool enable = !plotPanel->AreCursorsActive( dummy1, dummy2);
-
-        plotPanel->EnableCursors( enable );
-        m_toolBar->ToggleTool( m_toolCursors->GetId(), enable );
-        m_toggleCursors->Check( enable );
+        check = plotPanel->AreCursorsActive( dummy1, dummy2);
+        enable = true;
     }
+
+    m_toolBar->ToggleTool( m_toolCursors->GetId(), check );
+    m_toggleCursors->Check( check );
+
+    m_toolCursors->Enable( enable );
+    for( const auto& menu : m_traceMenu->GetMenuItems() )
+        menu->Enable( enable );
 }
 
 

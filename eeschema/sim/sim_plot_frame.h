@@ -247,6 +247,12 @@ private:
     void updateSignalList();
 
     /**
+     * @brief Sets the cursor menu item and toolbar button on/off and active depending on
+     *        active plot.
+     */
+    void updateCursorGui();
+
+    /**
      * @brief Updates the style of signal on the list
      * @param aVisible indicates whether signal is hidden or not
      * @param aIdx signal index on the list
