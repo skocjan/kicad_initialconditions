@@ -452,11 +452,11 @@ void CURSOR::updateBrush( wxDC& aDC, enum SIM_COLOR_SET aColour )
 
 bool CURSOR::Inside( wxPoint& aPoint )
 {
-//    if( !m_window )
-//        return false;
-
+    // drag CURSOR using vertical line
     return ( std::abs( (double) aPoint.x - m_reference.x ) <= DRAG_MARGIN )
-        || ( std::abs( (double) aPoint.y - m_reference.y ) <= DRAG_MARGIN );
+             // or using triangle on top
+        || ( ( std::abs( (double) aPoint.x - m_reference.x ) <= 2*DRAG_MARGIN ) &&
+             ( std::abs( (double) aPoint.y - m_reference.y ) <= 2*DRAG_MARGIN ) );
 }
 
 
@@ -496,7 +496,6 @@ SIM_PLOT_PANEL::SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME
           m_masterFrame( aMainFrame )
 {
     m_sizer   = new wxBoxSizer( wxVERTICAL );
-    //m_plotWin = new mpWindow( this, wxID_ANY, pos, size, style );
 
     m_plotWin->LimitView( true );
     m_plotWin->SetMargins( 50, 80, 50, 80 );
