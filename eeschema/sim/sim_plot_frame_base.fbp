@@ -1273,7 +1273,9 @@
                                                                 <property name="window_name"></property>
                                                                 <property name="window_style"></property>
                                                                 <event name="OnLeftDClick">onSignalDblClick</event>
+                                                                <event name="OnListItemDeselected">onSignalDeselected</event>
                                                                 <event name="OnListItemFocused">onSignalFocused</event>
+                                                                <event name="OnListItemSelected">onSignalSelected</event>
                                                             </object>
                                                         </object>
                                                     </object>

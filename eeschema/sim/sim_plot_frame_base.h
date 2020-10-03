@@ -127,7 +127,9 @@ class SIM_PLOT_FRAME_BASE : public KIWAY_PLAYER
 		virtual void onPlotClose( wxAuiNotebookEvent& event ) { event.Skip(); }
 		virtual void onSignalListResize( wxSizeEvent& event ) { event.Skip(); }
 		virtual void onSignalDblClick( wxMouseEvent& event ) { event.Skip(); }
+		virtual void onSignalDeselected( wxListEvent& event ) { event.Skip(); }
 		virtual void onSignalFocused( wxListEvent& event ) { event.Skip(); }
+		virtual void onSignalSelected( wxListEvent& event ) { event.Skip(); }
 
 
 	public:

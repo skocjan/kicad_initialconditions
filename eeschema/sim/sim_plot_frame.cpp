@@ -648,6 +648,8 @@ void SIM_PLOT_FRAME::removePlot( const wxString& aPlotName, bool aErase )
 {
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
 
+    wxPrintf( "[SK] removePlot() %s\n", aPlotName );
+
     if( !plotPanel )
         return;
 
@@ -669,8 +671,6 @@ void SIM_PLOT_FRAME::removePlot( const wxString& aPlotName, bool aErase )
         m_toolBar->ToggleTool( m_toolCursors->GetId(), false );
         m_toggleCursors->Check( false );
     }
-
-    updateSignalList();
 }
 
 
@@ -1247,7 +1247,9 @@ void SIM_PLOT_FRAME::onPlotClose( wxAuiNotebookEvent& event )
             dynamic_cast<SIM_PANEL_BASE*>( m_plotNotebook->GetPage( idx ) );
 
     m_plots.erase( plotPanel );
+    updateCursorGui();
     updateSignalList();
+    updateTraceMenu();
 }
 
 
@@ -1255,6 +1257,7 @@ void SIM_PLOT_FRAME::onPlotChanged( wxAuiNotebookEvent& event )
 {
     updateCursorGui();
     updateSignalList();
+    updateTraceMenu();
 }
 
 
@@ -1279,6 +1282,8 @@ void SIM_PLOT_FRAME::menuRemoveSignal( wxCommandEvent& event )
 
     for( auto signal : itemsToDelete )
         removePlot( signal );
+
+    updateSignalList();
 }
 
 
@@ -1334,31 +1339,70 @@ void SIM_PLOT_FRAME::menuSelectAllSignals( wxCommandEvent& event )
 
 void SIM_PLOT_FRAME::onSignalFocused( wxListEvent& event )
 {
-    const int idx = m_signals->GetFocusedItem();
-    bool enableMenu;
+    updateTraceMenu();
+}
 
-    if( idx == wxNOT_FOUND )
-        enableMenu = false;
+
+void SIM_PLOT_FRAME::onSignalSelected( wxListEvent& event )
+{
+    updateTraceMenu();
+}
+
+
+void SIM_PLOT_FRAME::onSignalDeselected( wxListEvent& event )
+{
+    updateTraceMenu();
+}
+
+
+void SIM_PLOT_FRAME::updateTraceMenu()
+{
+    bool enableAllMenus, enableSignalMenus = false;
+    const int idx = m_signals->GetFirstSelected();
+    SIM_PLOT_PANEL* plotPanel = CurrentPlot();
+
+    if( !plotPanel )
+        enableAllMenus = false;
     else
     {
-        enableMenu = true;
-        const wxString& netName = m_signals->GetItemText( idx, 0 );
+        enableAllMenus = true;
 
-        if( CurrentPlot()->GetTrace( netName )->IsVisible() )
-            m_showHideMenu->SetItemLabel( _("Hide Signals") );
-        else
-            m_showHideMenu->SetItemLabel( _("Show Signals") );
+        if( idx != wxNOT_FOUND )
+        {
+            enableSignalMenus = true;
+            const wxString& netName = m_signals->GetItemText( idx, 0 );
+            TRACE* trace = plotPanel->GetTrace( netName );
+
+            if( trace && trace->IsVisible() )
+                m_showHideMenu->SetItemLabel( _("Hide Signals") );
+            else
+                m_showHideMenu->SetItemLabel( _("Show Signals") );
+        }
     }
 
-    m_deleteSignal->Enable( enableMenu );
-    m_showHideMenu->Enable( enableMenu );
-    m_copyMenu->Enable( enableMenu );
+    m_toolCursors->Enable( enableAllMenus );
+    for( const auto& menu : m_traceMenu->GetMenuItems() )
+    {
+        // these items should be enabled when signal is selected
+        if( ( menu == m_deleteSignal ) ||
+            ( menu == m_showHideMenu ) ||
+            ( menu == m_copyMenu )
+          )
+        {
+            menu->Enable( enableSignalMenus );
+        }
+        else
+            menu->Enable( enableAllMenus );
+    }
 }
 
 
 void SIM_PLOT_FRAME::onSignalContextMenu( wxContextMenuEvent& event )
 {
-    const int idx = m_signals->GetFocusedItem();
+    if( m_signals->GetSelectedItemCount() == 0 )
+        m_signals->Select( m_signals->GetFocusedItem(), true );
+
+    const int idx = m_signals->GetFirstSelected();
 
     if( idx != wxNOT_FOUND )
     {
@@ -1440,21 +1484,15 @@ void SIM_PLOT_FRAME::updateCursorGui()
 {
     SIM_PLOT_PANEL* plotPanel = CurrentPlot();
     bool check = false;
-    bool enable = false;
 
     if( plotPanel )
     {
         wxChar dummy1, dummy2;
         check = plotPanel->AreCursorsActive( dummy1, dummy2);
-        enable = true;
     }
 
     m_toolBar->ToggleTool( m_toolCursors->GetId(), check );
     m_toggleCursors->Check( check );
-
-    m_toolCursors->Enable( enable );
-    for( const auto& menu : m_traceMenu->GetMenuItems() )
-        menu->Enable( enable );
 }
 
 
@@ -1870,10 +1908,7 @@ void SIM_PLOT_FRAME::menuShowHideSignal( wxCommandEvent& event )
         }
     }
     updateSignalIconList();
-
-    // force update menu labels
-    wxListEvent dummy;
-    onSignalFocused( dummy );
+    updateTraceMenu();
 }
 
 wxDEFINE_EVENT( EVT_SIM_UPDATE, wxCommandEvent );

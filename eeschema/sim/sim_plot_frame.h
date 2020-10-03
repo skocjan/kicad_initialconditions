@@ -253,6 +253,10 @@ private:
     void updateCursorGui();
 
     /**
+     * @brief Updates the menu depending on the selected trace.
+     */
+    void updateTraceMenu();
+    /**
      * @brief Updates the style of signal on the list
      * @param aVisible indicates whether signal is hidden or not
      * @param aIdx signal index on the list
@@ -332,6 +336,9 @@ private:
     void menuShowHideSignal( wxCommandEvent& event ) override;
     void onSignalDblClick( wxMouseEvent& event ) override;
     void onSignalFocused( wxListEvent& event ) override;
+    void onSignalSelected( wxListEvent& event ) override;
+    void onSignalDeselected( wxListEvent& event ) override;
+
     void onSignalContextMenu( wxContextMenuEvent& event );
     void onSignalListResize( wxSizeEvent& event ) override;
 
