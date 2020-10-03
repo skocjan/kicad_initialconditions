@@ -70,13 +70,7 @@ public:
 
     bool Inside( wxPoint& aPoint ) override;
 
-    void Move( wxPoint aDelta ) override
-    {
-        Update();
-        mpInfoLayer::Move( aDelta );
-    }
-
-//    void UpdateReference() override;
+    void Move( wxPoint delta ) override;
 
     double GetPos()
     {

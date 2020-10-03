@@ -388,58 +388,48 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
 
 void CURSOR::draw( wxDC& aDC, mpWindow& aWindow )
 {
-    TRACE* firstTrace = m_plotPanel->GetTraces().begin()->second;
-    wxCoord xCursorPosPx = aWindow.x2p( firstTrace->x2s( m_x ) );
-
-    wxCoord leftPx   = m_drawOutsideMargins ? 0 : aWindow.GetMarginLeft();
-    wxCoord rightPx  = m_drawOutsideMargins ? aWindow.GetScrX() : aWindow.GetScrX() - aWindow.GetMarginRight();
     wxCoord topPx    = m_drawOutsideMargins ? 0 : aWindow.GetMarginTop();
     wxCoord bottomPx = m_drawOutsideMargins ? aWindow.GetScrY() : aWindow.GetScrY() - aWindow.GetMarginBottom();
 
-    wxPrintf("[SK] leftPx: %d, rightPx: %d, xCursorPosPx: %d\n", leftPx, rightPx, xCursorPosPx);
+    // Triangle should be drawn solid
+    wxPen* pen =  wxThePenList->FindOrCreatePen( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ),
+                    1, wxPENSTYLE_SOLID );
+    aDC.SetPen( *pen );
+    updateBrush( aDC, SIM_CURSOR_COLOR );
 
-    if( leftPx < xCursorPosPx && xCursorPosPx < rightPx )
+    wxPoint triangle[] = { wxPoint( m_dim.x, topPx + TRIANGLE_DIM ),
+                           wxPoint( m_dim.x - ( 2* TRIANGLE_DIM / 3 ), topPx ),
+                           wxPoint( m_dim.x + ( 2* TRIANGLE_DIM / 3 ), topPx ) };
+    aDC.DrawPolygon( 3, triangle );
+
+    updatePen  ( aDC, SIM_CURSOR_COLOR );
+    aDC.DrawLine( m_dim.x, topPx, m_dim.x, bottomPx );
+
+    aDC.SetTextForeground( m_plotPanel->GetPlotColor( SIM_BG_COLOR ) );
+    aDC.SetTextBackground( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ) );
+    wxCoord textWidth, textHeight;
+    aDC.GetTextExtent( m_label, &textWidth, &textHeight );
+    aDC.DrawText( m_label, m_dim.x - ( textWidth / 2 ) , topPx );
+
+    for( auto trace : m_plotPanel->GetTraces() )
     {
-        // Triangle should be drawn solid
-        wxPen* pen =  wxThePenList->FindOrCreatePen( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ),
-                        1, wxPENSTYLE_SOLID );
-        aDC.SetPen( *pen );
-        updateBrush( aDC, SIM_CURSOR_COLOR );
-
-        wxPoint triangle[] = { wxPoint( xCursorPosPx, topPx + TRIANGLE_DIM ),
-                               wxPoint( xCursorPosPx - ( 2* TRIANGLE_DIM / 3 ), topPx ),
-                               wxPoint( xCursorPosPx + ( 2* TRIANGLE_DIM / 3 ), topPx ) };
-        aDC.DrawPolygon( 3, triangle );
-
-        updatePen  ( aDC, SIM_CURSOR_COLOR );
-        aDC.DrawLine( xCursorPosPx, topPx, xCursorPosPx, bottomPx );
-
-        aDC.SetTextForeground( m_plotPanel->GetPlotColor( SIM_BG_COLOR ) );
-        aDC.SetTextBackground( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ) );
-        wxCoord textWidth, textHeight;
-        aDC.GetTextExtent( m_label, &textWidth, &textHeight );
-        aDC.DrawText( m_label, xCursorPosPx - ( textWidth / 2 ) , topPx );
-
-        for( auto trace : m_plotPanel->GetTraces() )
+        if( trace.second->IsVisible() )
         {
-            if( trace.second->IsVisible() )
+            wxCoord yCursorPosPx = aWindow.y2p(
+                            trace.second->y2s( trace.second->GetCursorValue( m_label ) ) );
+
+            if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
             {
-                wxCoord yCursorPosPx = aWindow.y2p(
-                                trace.second->y2s( trace.second->GetCursorValue( m_label ) ) );
+                updatePen  ( aDC, trace.second->GetTraceColour() );
+                updateBrush( aDC, trace.second->GetTraceColour() );
 
-                if( topPx < yCursorPosPx && yCursorPosPx < bottomPx )
-                {
-                    updatePen  ( aDC, trace.second->GetTraceColour() );
-                    updateBrush( aDC, trace.second->GetTraceColour() );
-
-                    aDC.DrawCircle( xCursorPosPx, yCursorPosPx, TRACE_DOT_RADIUS );
-                }
-                else
-                    continue;
+                aDC.DrawCircle( m_dim.x, yCursorPosPx, TRACE_DOT_RADIUS );
             }
             else
                 continue;
         }
+        else
+            continue;
     }
 }
 
@@ -470,14 +460,25 @@ bool CURSOR::Inside( wxPoint& aPoint )
 }
 
 
-//void CURSOR::UpdateReference()
-//{
-//    if( !m_window )
-//        return;
-//
-//    m_reference.x = m_window->x2p( m_plotPanel->GetTraces().begin()->second->x2s( m_x ) );
-//    //m_reference.y = m_window->y2p( m_trace->y2s( m_y ) );
-//}
+void CURSOR::Move( wxPoint delta )
+{
+    Update();
+    mpInfoLayer::Move( delta );
+
+    mpWindow* plotWin = m_plotPanel->GetPlotWin();
+    wxCoord leftPx   = m_drawOutsideMargins ? 0 : plotWin->GetMarginLeft();
+    wxCoord rightPx  = m_drawOutsideMargins ? plotWin->GetScrX() : plotWin->GetScrX() - plotWin->GetMarginRight();
+    wxCoord topPx    = m_drawOutsideMargins ? 0 : plotWin->GetMarginTop();
+
+    if( leftPx > m_dim.x )
+        m_dim.x = leftPx;
+
+    if( rightPx < m_dim.x )
+        m_dim.x = rightPx;
+
+    m_dim.y = topPx;
+}
+
 
 wxChar CURSOR::CURSOR_LABEL_BASE = 'A';
 
