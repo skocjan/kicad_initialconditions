@@ -409,7 +409,7 @@ void CURSOR::draw( wxDC& aDC, mpWindow& aWindow )
     aDC.SetTextBackground( m_plotPanel->GetPlotColor( SIM_CURSOR_COLOR ) );
     wxCoord textWidth, textHeight;
     aDC.GetTextExtent( m_label, &textWidth, &textHeight );
-    aDC.DrawText( m_label, m_dim.x - ( textWidth / 2 ) , topPx );
+    aDC.DrawText( m_label, m_dim.x - ( textWidth / 2 ) , topPx + LABEL_OFFSET );
 
     for( auto trace : m_plotPanel->GetTraces() )
     {

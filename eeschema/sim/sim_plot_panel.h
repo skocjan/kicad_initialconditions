@@ -103,7 +103,8 @@ private:
 
     wxChar m_label;
     static constexpr int DRAG_MARGIN = 10;
-    static constexpr int TRIANGLE_DIM = 14;
+    static constexpr int TRIANGLE_DIM = 16;
+    static constexpr int LABEL_OFFSET = -2;
     static constexpr int TRACE_DOT_RADIUS = 4;
 };
 
