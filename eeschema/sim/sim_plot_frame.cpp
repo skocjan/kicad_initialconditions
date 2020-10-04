@@ -186,7 +186,7 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     m_toolSettings = m_toolBar->AddTool( wxID_ANY, _( "Settings" ),
             KiBitmap( sim_settings_xpm ), _( "Simulation settings" ), wxITEM_NORMAL );
     m_toolCursors = m_toolBar->AddTool( wxID_ANY, _( "Toggle Cursors" ),
-            KiBitmap( sim_settings_xpm ), _( "Toggle Cursors" ), wxITEM_CHECK );
+            KiBitmap( sim_enable_cursors_xpm ), _( "Toggle Cursors" ), wxITEM_CHECK );
 
     // Bind toolbar buttons and menus event to existing menu event handlers, so they behave the same
     Bind( wxEVT_COMMAND_TOOL_CLICKED, &SIM_PLOT_FRAME::menuRunSim,    this, m_toolSimulate->GetId() );
@@ -308,11 +308,11 @@ void SIM_PLOT_FRAME::setIconsForMenuItems()
         { m_settings, sim_settings_xpm},
 
         // trace menu:
+        { m_toggleCursors, sim_enable_cursors_xpm},
         { m_addSignals, sim_add_signal_xpm},
-        { m_deleteSignal, delete_xpm},
-        { m_showHideMenu, delete_xpm},
+        { m_deleteSignal, sim_delete_signal_xpm},
+        { m_showHideMenu, sim_hide_signal_xpm},
         { m_copyMenu, copy_xpm},
-        { m_selectAllMenu, copy_xpm},
 
         // View menu
         { m_zoomIn, zoom_in_xpm},
@@ -1374,9 +1374,15 @@ void SIM_PLOT_FRAME::updateTraceMenu()
             TRACE* trace = plotPanel->GetTrace( netName );
 
             if( trace && trace->IsVisible() )
+            {
                 m_showHideMenu->SetItemLabel( _("Hide Signals") );
+                AddBitmapToMenuItem( m_showHideMenu, KiBitmap( sim_hide_signal_xpm ) );
+            }
             else
+            {
                 m_showHideMenu->SetItemLabel( _("Show Signals") );
+                AddBitmapToMenuItem( m_showHideMenu, KiBitmap( sim_add_signal_xpm ) );
+            }
         }
     }
 

@@ -409,7 +409,10 @@ set( BMAPS_MID
     sim_tune
     sim_probe
     sim_add_signal
+    sim_delete_signal
+    sim_hide_signal
     sim_settings
+    sim_enable_cursors
     search_tree
     setcolor_3d_bg
     setcolor_silkscreen
