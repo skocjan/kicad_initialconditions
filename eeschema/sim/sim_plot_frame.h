@@ -197,6 +197,8 @@ private:
     /** @brief Give icons to menuitems of the main menubar
      */
     void setIconsForMenuItems();
+    void setIconForMenuItem( wxMenuItem* aMenuItem, wxBitmap aBitmap );
+
 
     /** @brief Fills m_colorList by a default set of colors.
      *  @param aWhiteBg = true to use a white (or clear) background

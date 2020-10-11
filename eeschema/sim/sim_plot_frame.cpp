@@ -119,6 +119,7 @@ TRACE_DESC::TRACE_DESC( const NETLIST_EXPORTER_PSPICE_SIM& aExporter, const wxSt
 // Store the path of saved workbooks during the session
 wxString SIM_PLOT_FRAME::m_savedWorkbooksPath;
 
+
 SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
         : SIM_PLOT_FRAME_BASE( aParent ),
           m_signalContextMenu( new wxMenu() ),
@@ -279,18 +280,14 @@ WINDOW_SETTINGS* SIM_PLOT_FRAME::GetWindowSettings( APP_SETTINGS_BASE* aCfg )
 }
 
 
-// A small helper struct to handle bitmaps initialisation in menus
-struct BM_MENU_INIT_ITEM
-{
-    wxMenuItem* m_MenuItem;
-    BITMAP_DEF m_Bitmap;
-};
-
-
 void SIM_PLOT_FRAME::setIconsForMenuItems()
 {
     // Give icons to menuitems of the main menubar
-    BM_MENU_INIT_ITEM bm_list[]
+    struct BM_MENU_INIT_ITEM
+    {
+        wxMenuItem* m_MenuItem;
+        BITMAP_DEF m_Bitmap;
+    } bm_list[] =
     {
         // File menu:
         { m_newPlot, simulator_xpm },
@@ -326,31 +323,37 @@ void SIM_PLOT_FRAME::setIconsForMenuItems()
         { nullptr, nullptr }  // Sentinel
     };
 
-    // wxMenuItems are already created and attached to the m_mainMenu wxMenuBar.
-    // A problem is the fact setting bitmaps in wxMenuItems after they are attached
-    // to a wxMenu do not work in all cases.
-    // So the trick is:
-    // Remove the wxMenuItem from its wxMenu
-    // Set the bitmap
-    // Insert the modified wxMenuItem to its previous place
     for( int ii = 0; bm_list[ii].m_MenuItem; ++ii )
     {
         if( !bm_list[ii].m_Bitmap )
             continue;
 
-        wxMenu* menu = bm_list[ii].m_MenuItem->GetMenu();
-        // Calculate the initial index of item inside the wxMenu parent
-        wxMenuItemList& mlist = menu->GetMenuItems();
-        int mpos = mlist.IndexOf( bm_list[ii].m_MenuItem );
+        setIconForMenuItem( bm_list[ii].m_MenuItem, KiBitmap( bm_list[ii].m_Bitmap ) );
+    }
+}
 
-        if( mpos >= 0 ) // Should be always the case
-        {
-            // Modify the bitmap
-            menu->Remove( bm_list[ii].m_MenuItem );
-            AddBitmapToMenuItem( bm_list[ii].m_MenuItem, KiBitmap( bm_list[ii].m_Bitmap ) );
-            // Insert item to its the initial index
-            menu->Insert( mpos, bm_list[ii].m_MenuItem );
-        }
+
+// wxMenuItems are already created and attached to the m_mainMenu wxMenuBar.
+// A problem is the fact setting bitmaps in wxMenuItems after they are attached
+// to a wxMenu do not work in all cases.
+// So the trick is:
+// Remove the wxMenuItem from its wxMenu
+// Set the bitmap
+// Insert the modified wxMenuItem to its previous place
+void SIM_PLOT_FRAME::setIconForMenuItem( wxMenuItem* aMenuItem, wxBitmap aBitmap )
+{
+    wxMenu* menu = aMenuItem->GetMenu();
+    // Calculate the initial index of item inside the wxMenu parent
+    wxMenuItemList& mlist = menu->GetMenuItems();
+    int mpos = mlist.IndexOf( aMenuItem );
+
+    if( mpos >= 0 ) // Should be always the case
+    {
+        // Modify the bitmap
+        menu->Remove( aMenuItem );
+        AddBitmapToMenuItem( aMenuItem, aBitmap );
+        // Insert item to its the initial index
+        menu->Insert( mpos, aMenuItem );
     }
 }
 
@@ -1376,12 +1379,12 @@ void SIM_PLOT_FRAME::updateTraceMenu()
             if( trace && trace->IsVisible() )
             {
                 m_showHideMenu->SetItemLabel( _("Hide Signals") );
-                AddBitmapToMenuItem( m_showHideMenu, KiBitmap( sim_hide_signal_xpm ) );
+                setIconForMenuItem( m_showHideMenu, KiBitmap( sim_hide_signal_xpm ) );
             }
             else
             {
                 m_showHideMenu->SetItemLabel( _("Show Signals") );
-                AddBitmapToMenuItem( m_showHideMenu, KiBitmap( sim_add_signal_xpm ) );
+                setIconForMenuItem( m_showHideMenu, KiBitmap( sim_add_signal_xpm ) );
             }
         }
     }
