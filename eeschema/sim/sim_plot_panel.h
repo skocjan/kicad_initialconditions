@@ -61,16 +61,23 @@ public:
         m_reference.x = 0;
         m_updateRef = true;
         Move( wxPoint( aX, 0 ) );
+        UpdateReference();
     }
 
     void Update()
     {
+        wxPrintf("[SK} CURSOR() Update(): called\n");
         m_updateRequired = true;
     }
 
     bool Inside( wxPoint& aPoint ) override;
 
-    void Move( wxPoint delta ) override;
+    void Move( wxPoint delta ) override
+    {
+        Update();
+        mpInfoLayer::Move( delta );
+        limitPositionToMargins();
+    }
 
     double GetPos()
     {
@@ -92,9 +99,12 @@ public:
     static wxChar CURSOR_LABEL_BASE;
 
 private:
+    void updateTraceValuesAtCursorPos( mpWindow& aWindow );
     void draw( wxDC& aDC, mpWindow& aWindow );
     inline void updatePen( wxDC& aDC, enum SIM_COLOR_SET aColour );
     inline void updateBrush( wxDC& aDC, enum SIM_COLOR_SET aColour );
+    void limitPositionToMargins();
+
 
     bool m_updateRequired, m_updateRef;
     wxRealPoint m_coords;  //TODO delete it

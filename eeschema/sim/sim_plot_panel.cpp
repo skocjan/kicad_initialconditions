@@ -305,70 +305,66 @@ public:
 };
 
 
+void CURSOR::updateTraceValuesAtCursorPos( mpWindow& aWindow )
+{
+    // assume first traces contains the same x data as any other
+    TRACE* firstTrace = m_plotPanel->GetTraces().begin()->second;
+    const auto& dataX = firstTrace->GetDataX();
+
+    if( dataX.size() <= 1 )
+        return;
+
+    limitPositionToMargins();
+    m_x = firstTrace->s2x( aWindow.p2x( m_dim.x ) );
+
+    // Find the closest point coordinates
+    auto maxXIt = std::upper_bound( dataX.begin(), dataX.end(), m_x );
+    int maxIdx = maxXIt - dataX.begin();
+    int minIdx = maxIdx - 1;
+
+    // Out of bounds checks
+    if( minIdx < 0 )
+    {
+        minIdx = 0;
+        maxIdx = 1;
+        m_x = dataX[0];
+    }
+    else if( maxIdx >= (int) dataX.size() )
+    {
+        maxIdx = dataX.size() - 1;
+        minIdx = maxIdx - 1;
+        m_x = dataX[maxIdx];
+    }
+
+    const double leftX = dataX[minIdx];
+    const double rightX = dataX[maxIdx];
+
+    for( auto trace : m_plotPanel->GetTraces() )
+    {
+        const auto& dataY = trace.second->GetDataY();
+
+        const double leftY = dataY[minIdx];
+        const double rightY = dataY[maxIdx];
+
+        // Linear interpolation
+        double curValue = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
+        trace.second->SetCursorValue( m_label, curValue );
+    }
+
+    // Notify the parent window about the changes
+    wxQueueEvent( aWindow.GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
+}
+
+
 void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
 {
-//    if( !m_window )
-//        m_window = &aWindow;
-
-    wxPrintf("[SK] CURSOR::Plot() m_plotPanel: %p\n", m_plotPanel);
-    wxPrintf("[SK] CURSOR::Plot() m_plotPanel: %p\n", &m_plotPanel->GetTraces());
-
     if( !m_visible || m_plotPanel->GetTraces().empty() )
         return;
 
-    TRACE* firstTrace = m_plotPanel->GetTraces().begin()->second;
-
-    wxPrintf("[SK} trace addr0: %p\n", firstTrace);
+    updateTraceValuesAtCursorPos( aWindow );
 
     if( m_updateRequired )
     {
-        // assume first traces contains the same x data as any other
-
-        const auto& dataX = firstTrace->GetDataX();
-
-        if( dataX.size() <= 1 )
-            return;
-
-        m_x = firstTrace->s2x( aWindow.p2x( m_dim.x ) );
-
-        // Find the closest point coordinates
-        auto maxXIt = std::upper_bound( dataX.begin(), dataX.end(), m_x );
-        int maxIdx = maxXIt - dataX.begin();
-        int minIdx = maxIdx - 1;
-
-        // Out of bounds checks
-        if( minIdx < 0 )
-        {
-            minIdx = 0;
-            maxIdx = 1;
-            m_x = dataX[0];
-        }
-        else if( maxIdx >= (int) dataX.size() )
-        {
-            maxIdx = dataX.size() - 1;
-            minIdx = maxIdx - 1;
-            m_x = dataX[maxIdx];
-        }
-
-        const double leftX = dataX[minIdx];
-        const double rightX = dataX[maxIdx];
-
-        for( auto trace : m_plotPanel->GetTraces() )
-        {
-            const auto& dataY = trace.second->GetDataY();
-
-            const double leftY = dataY[minIdx];
-            const double rightY = dataY[maxIdx];
-
-            // Linear interpolation
-            double curValue = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( m_x - leftX );
-            trace.second->SetCursorValue( m_label, curValue );
-
-            wxPrintf("[SK} Cursor Y value: %f %f\n", trace.second->GetCursorValue( m_label ), curValue);
-        }
-
-        // Notify the parent window about the changes
-        wxQueueEvent( aWindow.GetParent(), new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );
         m_updateRequired = false;
     }
     else
@@ -460,11 +456,8 @@ bool CURSOR::Inside( wxPoint& aPoint )
 }
 
 
-void CURSOR::Move( wxPoint delta )
+void CURSOR::limitPositionToMargins()
 {
-    Update();
-    mpInfoLayer::Move( delta );
-
     mpWindow* plotWin = m_plotPanel->GetPlotWin();
     wxCoord leftPx   = m_drawOutsideMargins ? 0 : plotWin->GetMarginLeft();
     wxCoord rightPx  = m_drawOutsideMargins ? plotWin->GetScrX() : plotWin->GetScrX() - plotWin->GetMarginRight();
