@@ -25,23 +25,23 @@
 #include "sim_panel_base.h"
 
 #include "sim_plot_frame.h"
+#include "netlist_exporter_pspice_sim.h"
 
-#include <wx/sizer.h>
 
 
-SIM_PANEL_BASE::SIM_PANEL_BASE() : m_type( ST_UNKNOWN )
+SIM_PANEL_BASE::SIM_PANEL_BASE() : m_simCommand( wxEmptyString )
 {
 }
 
 
-SIM_PANEL_BASE::SIM_PANEL_BASE( SIM_TYPE aType ) : m_type( aType )
+SIM_PANEL_BASE::SIM_PANEL_BASE( wxString aCommand ) : m_simCommand( aCommand )
 {
 }
 
 
-SIM_PANEL_BASE::SIM_PANEL_BASE( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
+SIM_PANEL_BASE::SIM_PANEL_BASE( wxString aCommand, wxWindow* parent, wxWindowID id,
         const wxPoint& pos, const wxSize& size, long style, const wxString& name )
-        : wxWindow( parent, id, pos, size, style, name ), m_type( aType )
+        : wxWindow( parent, id, pos, size, style, name ), m_simCommand( aCommand )
 {
 }
 
@@ -66,9 +66,15 @@ bool SIM_PANEL_BASE::IsPlottable( SIM_TYPE aSimType )
 }
 
 
-SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, wxWindowID id,
+SIM_TYPE SIM_PANEL_BASE::GetType() const
+{
+    return NETLIST_EXPORTER_PSPICE_SIM::CommandToSimType( m_simCommand );
+}
+
+
+SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( wxString aCommand, wxWindow* parent, wxWindowID id,
         const wxPoint& pos, const wxSize& size, long style, const wxString& name )
-        : SIM_PANEL_BASE( aType, parent, id, pos, size, style, name )
+        : SIM_PANEL_BASE( aCommand, parent, id, pos, size, style, name )
 {
     m_sizer = new wxBoxSizer( wxVERTICAL );
     m_sizer->Add( 0, 1, 1, wxEXPAND, 5 );
@@ -81,7 +87,7 @@ SIM_NOPLOT_PANEL::SIM_NOPLOT_PANEL( SIM_TYPE aType, wxWindow* parent, wxWindowID
 
     //ST_UNKNOWN serves purpose of a welcome panel
     m_textInfo->SetLabel(
-            ( aType == ST_UNKNOWN ) ?
+            ( GetType() == ST_UNKNOWN ) ?
                     _( "Start the simulation by clicking the Run Simulation button" ) :
                     _( "This simulation provide no plots. Please refer to console window for results" ) );
 

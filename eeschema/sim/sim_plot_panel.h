@@ -168,7 +168,7 @@ protected:
 class SIM_PLOT_PANEL : public SIM_PANEL_BASE
 {
 public:
-    SIM_PLOT_PANEL( SIM_TYPE aType, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
+    SIM_PLOT_PANEL( wxString aCommand, wxWindow* parent, SIM_PLOT_FRAME* aMainFrame,
                     wxWindowID id, const wxPoint& pos = wxDefaultPosition,
         const wxSize& size = wxDefaultSize, long style = 0, const wxString& name = wxPanelNameStr );
 
@@ -295,6 +295,9 @@ public:
 private:
     ///> @return a new color from the palette
     wxColour generateColor();
+
+    ///> @brief Constructs the plot axes for DC simulation plot
+    void prepareDCAxes();
 
     // Color index to get a new color from the palette
     unsigned int m_colorIdx;
