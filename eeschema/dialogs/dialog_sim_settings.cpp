@@ -28,6 +28,9 @@
 
 #include <wx/tokenzr.h>
 
+#include <vector>
+#include <utility>
+
 /// @todo ngspice offers more types of analysis,
 //so there are a few tabs missing (e.g. pole-zero, distortion, sensitivity)
 
@@ -63,6 +66,8 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_transFinal->SetValidator( m_spiceValidator );
     m_transInitial->SetValidator( m_spiceEmptyValidator );
 
+    refreshUIControls();
+
     // Hide pages that aren't fully implemented yet
     // wxPanel::Hide() isn't enough on some platforms
     m_simPages->RemovePage( m_simPages->FindPage( m_pgDistortion ) );
@@ -74,6 +79,49 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_sdbSizerOK->SetDefault();
     updateNetlistOpts();
 
+}
+
+wxString DIALOG_SIM_SETTINGS::evaluateDCControls( wxChoice* aDcSource, wxTextCtrl* aDcStart, wxTextCtrl* aDcStop, wxTextCtrl* aDcIncr )
+{
+    wxString dcSource = aDcSource->GetString( aDcSource->GetSelection() );
+
+    if( dcSource.IsEmpty() )
+    {
+        DisplayError( this, _( "You need to select DC source (sweep 1)" ) );
+        return wxEmptyString;
+    }
+
+    /// @todo for some reason it does not trigger the assigned SPICE_VALIDATOR,
+    // hence try..catch below
+    if( !aDcStart->Validate() || !aDcStop->Validate() || !aDcIncr->Validate() )
+        return wxEmptyString;
+
+    try
+    {
+        // pick device name from exporter when something different than temperature is selected
+        if( dcSource.Cmp( "TEMP" ) )
+            dcSource = m_exporter->GetSpiceDevice( dcSource );
+
+        return wxString::Format( "%s %s %s %s",
+            dcSource,
+            SPICE_VALUE( aDcStart->GetValue() ).ToSpiceString(),
+            SPICE_VALUE( aDcStop->GetValue() ).ToSpiceString(),
+            SPICE_VALUE( aDcIncr->GetValue() ).ToSpiceString() );
+    }
+    catch( std::exception& e )
+    {
+        DisplayError( this, e.what() );
+        return wxEmptyString;
+    }
+    catch( const KI_PARAM_ERROR& e )
+    {
+        DisplayError( this, e.What() );
+        return wxEmptyString;
+    }
+    catch( ... )
+    {
+        return wxEmptyString;
+    }
 }
 
 
@@ -101,105 +149,27 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
     // DC transfer analysis
     else if( page == m_pgDC )
     {
-        // At least one source has to be enabled
-        if( !m_dcEnable1->IsChecked() && !m_dcEnable2->IsChecked() )
-        {
-            DisplayError( this, _( "You need to enable at least one source" ) );
-            return false;
-        }
-
         wxString simCmd = wxString( ".dc " );
 
-        if( m_dcEnable1->IsChecked() )
-        {
-            if( empty( m_dcSource1 ) )
-            {
-                DisplayError( this, _( "You need to select DC source (sweep 1)" ) );
-                return false;
-            }
-
-            /// @todo for some reason it does not trigger the assigned SPICE_VALIDATOR,
-            // hence try..catch below
-            if( !m_dcStart1->Validate() || !m_dcStop1->Validate() || !m_dcIncr1->Validate() )
-                return false;
-
-            try
-            {
-                wxString dcSource = m_dcSource1->GetValue();
-                if( dcSource.Cmp( "TEMP" ) )
-                    dcSource = m_exporter->GetSpiceDevice( m_dcSource1->GetValue() );
-
-                simCmd += wxString::Format( "%s %s %s %s",
-                    dcSource,
-                    SPICE_VALUE( m_dcStart1->GetValue() ).ToSpiceString(),
-                    SPICE_VALUE( m_dcStop1->GetValue() ).ToSpiceString(),
-                    SPICE_VALUE( m_dcIncr1->GetValue() ).ToSpiceString() );
-            }
-            catch( std::exception& e )
-            {
-                DisplayError( this, e.what() );
-                return false;
-            }
-            catch( const KI_PARAM_ERROR& e )
-            {
-                DisplayError( this, e.What() );
-                return false;
-            }
-            catch( ... )
-            {
-                return false;
-            }
-        }
+        wxString src1 = evaluateDCControls( m_dcSource1, m_dcStart1, m_dcStop1, m_dcIncr1 );
+        if( src1.IsEmpty() )
+            return false;
+        else
+            simCmd += src1;
 
         if( m_dcEnable2->IsChecked() )
         {
-            if( empty( m_dcSource2 ) )
-            {
-                DisplayError( this, _( "You need to select DC source (sweep 2)" ) );
+            wxString src2 = evaluateDCControls( m_dcSource2, m_dcStart2, m_dcStop2, m_dcIncr2 );
+            if( src2.IsEmpty() )
                 return false;
-            }
+            else
+                simCmd += " " + src2;
 
-            if( m_dcEnable1->IsChecked() && m_dcSource1->GetValue() == m_dcSource2->GetValue() )
+            if( m_dcSource1->GetSelection() == m_dcSource2->GetSelection() )
             {
                 DisplayError( this, _( "Source 1 and Source 2 must be different" ) );
                 return false;
             }
-
-            /// @todo for some reason it does not trigger the assigned SPICE_VALIDATOR,
-            // hence try..catch below
-            if( !m_dcStart2->Validate() || !m_dcStop2->Validate() || !m_dcIncr2->Validate() )
-                return false;
-
-            try
-            {
-                wxString dcSource = m_dcSource2->GetValue();
-                if( dcSource.Cmp( "TEMP" ) )
-                    dcSource = m_exporter->GetSpiceDevice( m_dcSource2->GetValue() );
-
-                if( m_dcEnable1->IsChecked() )
-                    simCmd += " ";
-
-                simCmd += wxString::Format( "%s %s %s %s",
-                    dcSource,
-                    SPICE_VALUE( m_dcStart2->GetValue() ).ToSpiceString(),
-                    SPICE_VALUE( m_dcStop2->GetValue() ).ToSpiceString(),
-                    SPICE_VALUE( m_dcIncr2->GetValue() ).ToSpiceString() );
-            }
-            catch( std::exception& e )
-            {
-                DisplayError( this, e.what() );
-                return false;
-            }
-            catch( const KI_PARAM_ERROR& e )
-            {
-                DisplayError( this, e.What() );
-                return false;
-            }
-            catch( ... )
-            {
-                return false;
-            }
-
         }
 
         m_simCommand = simCmd;
@@ -316,10 +286,10 @@ int DIALOG_SIM_SETTINGS::ShowModal()
 
 
     // Fill out comboboxes that allows one to select power sources
-    std::map<wxComboBox*, wxString> cmbSrc = {
-        { m_dcSource1, m_dcSource1->GetStringSelection() },
-        { m_dcSource2, m_dcSource2->GetStringSelection() },
-        { m_noiseSrc, m_noiseSrc->GetStringSelection() },
+    std::map<wxChoice*, wxString> cmbSrc = {
+        { m_dcSource1, m_dcSource1->GetString( m_dcSource1->GetSelection() ) },
+        { m_dcSource2, m_dcSource2->GetString( m_dcSource2->GetSelection() ) },
+        { m_noiseSrc, m_noiseSrc->GetString( m_noiseSrc->GetSelection() ) },
     };
 
     for( auto c : cmbSrc )
@@ -388,32 +358,33 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
 
             if( !tkn.IsEmpty() )
             {
-                m_dcSource1->SetValue( tkn );
+                m_dcSource1->SetSelection( m_dcSource1->FindString( tkn ) );
                 m_dcStart1->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
                 m_dcStop1->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
                 m_dcIncr1->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
-
-                // Check the 'Enabled' field, if all values are filled
-                m_dcEnable1->SetValue( !empty( m_dcSource1 ) && !empty( m_dcStart1 )
-                        && !empty( m_dcStop1 ) && !empty( m_dcIncr1 ) );
             }
 
             tkn = tokenizer.GetNextToken();
 
             if( !tkn.IsEmpty() )
             {
-                m_dcSource2->SetValue( tkn );
+                m_dcSource2->SetSelection( m_dcSource2->FindString( tkn ) );
                 m_dcStart2->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
                 m_dcStop2->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
                 m_dcIncr2->SetValue( SPICE_VALUE( tokenizer.GetNextToken() ).ToSpiceString() );
 
                 // Check the 'Enabled' field, if all values are filled
-                m_dcEnable2->SetValue( !empty( m_dcSource2 ) && !empty( m_dcStart2 )
+                m_dcEnable2->SetValue(
+                        !m_dcSource2->GetString( m_dcSource2->GetSelection() ).IsEmpty()
+                        && !empty( m_dcStart2 )
                         && !empty( m_dcStop2 ) && !empty( m_dcIncr2 ) );
+
+                refreshUIControls();
             }
 
-            // Check if the directive is complete
-            if( !m_dcEnable1->IsChecked() || !m_dcEnable2->IsChecked() )
+            // Check if at least one source is complete
+            if( !m_dcSource1->GetString( m_dcSource1->GetSelection() ).IsEmpty()
+                && !empty( m_dcStart1 ) && !empty( m_dcStop1 ) && !empty( m_dcIncr1 ) )
                 return false;
         }
 
@@ -432,6 +403,11 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
                 m_transInitial->SetValue( SPICE_VALUE( tkn ).ToSpiceString() );
         }
 
+        else if( tkn == ".op" )
+        {
+            m_simPages->SetSelection( m_simPages->FindPage( m_pgOP ) );
+        }
+
         // Custom directives
         else if( !empty( m_customTxt ) )
         {
@@ -445,6 +421,68 @@ bool DIALOG_SIM_SETTINGS::parseCommand( const wxString& aCommand )
     }
 
     return true;
+}
+
+
+void DIALOG_SIM_SETTINGS::onSwapDCSources( wxCommandEvent& event )
+{
+    std::vector<std::pair<wxTextEntry*, wxTextEntry*>> controls =
+            {
+                    { m_dcStart1, m_dcStart2 },
+                    { m_dcStop1, m_dcStop2 },
+                    { m_dcIncr1, m_dcIncr2 }
+            };
+
+    for( auto & couple : controls )
+    {
+        wxString tmp = couple.first->GetValue();
+        couple.first->SetValue( couple.second->GetValue() );
+        couple.second->SetValue( tmp );
+    }
+
+    int sel = m_dcSource1->GetSelection();
+    m_dcSource1->SetSelection( m_dcSource2->GetSelection() );
+    m_dcSource2->SetSelection( sel );
+
+    refreshUIControls();
+}
+
+
+void DIALOG_SIM_SETTINGS::onDCEnableSecondSource( wxCommandEvent& event )
+{
+    bool is2ndSrcEnabled = m_dcEnable2->IsChecked();
+    m_dcSource2->Enable( is2ndSrcEnabled );
+    m_dcStart2-> Enable( is2ndSrcEnabled );
+    m_dcStop2->  Enable( is2ndSrcEnabled );
+    m_dcIncr2->  Enable( is2ndSrcEnabled );
+}
+
+
+void DIALOG_SIM_SETTINGS::updateDCUnits( wxChoice* aDcSource, wxStaticText* aStartValUnit, wxStaticText* aEndValUnit, wxStaticText* aStepUnit )
+{
+    wxString unit;
+    auto sweepType = aDcSource->GetString( aDcSource->GetSelection() ).Lower().GetChar( 0 );
+
+    switch( static_cast<char>( sweepType ) )
+    {
+    case 'v':
+        unit = _( "Volts" );
+        break;
+    case 'i':
+        unit = _( "Amperes" );
+        break;
+    case 'r':
+        unit = _( "Ohms" );
+        break;
+    case 't':
+        unit = _( "\u00B0C" );
+        break;
+    }
+    aStartValUnit->SetLabel( unit );
+    aEndValUnit->SetLabel( unit );
+    aStepUnit->SetLabel( unit );
+
+    m_pgDC->Fit();
 }
 
 

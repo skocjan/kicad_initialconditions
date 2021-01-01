@@ -84,6 +84,25 @@ private:
         LINEAR
     };
 
+    ///!> Generates events to update UI state
+    void refreshUIControls()
+    {
+        wxQueueEvent( m_dcEnable2, new wxCommandEvent( wxEVT_CHECKBOX ) );
+        wxQueueEvent( m_dcSource1, new wxCommandEvent( wxEVT_CHOICE ) );
+        wxQueueEvent( m_dcSource2, new wxCommandEvent( wxEVT_CHOICE ) );
+    }
+
+    /**
+     * @brief Reads values from one DC sweep source to form a part of sim command
+     * @return string of four SPICE values if values are correct, empty string upon error.
+     */
+    wxString evaluateDCControls( wxChoice* aDcSource, wxTextCtrl* aDcStart, wxTextCtrl* aDcStop, wxTextCtrl* aDcIncr );
+
+    /**
+     * @brief Updates units on labels depending on selected source
+     */
+    void updateDCUnits( wxChoice* aDcSource, wxStaticText* aStartValUnit, wxStaticText* aEndValUnit, wxStaticText* aStepUnit );
+
     virtual void onInitDlg( wxInitDialogEvent& event ) override
     {
         // Call the default wxDialog handler of a wxInitDialogEvent
@@ -103,6 +122,18 @@ private:
     void onLoadDirectives( wxCommandEvent& event ) override
     {
         loadDirectives();
+    }
+
+    void onDCEnableSecondSource( wxCommandEvent& event ) override;
+    void onSwapDCSources( wxCommandEvent& event ) override;
+    void onDCSource1Selected( wxCommandEvent& event ) override
+    {
+        updateDCUnits( m_dcSource1, m_src1DCStartValUnit, m_src1DCEndValUnit, m_src1DCStepUnit );
+    }
+
+    void onDCSource2Selected( wxCommandEvent& event ) override
+    {
+        updateDCUnits( m_dcSource2, m_src2DCStartValUnit, m_src2DCEndValUnit, m_src2DCStepUnit );
     }
 
     static wxString scaleToString( int aOption )
